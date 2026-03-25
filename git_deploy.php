@@ -34,14 +34,13 @@ echo "[3] ATTEMPTING MANUAL PULL (origin main)...\n";
 $pull_output = shell_exec("git pull origin main 2>&1");
 echo "Pull Result:\n" . ($pull_output ?: "No output received.") . "\n\n";
 
-// 4. Check file ownership (common issue)
+// 4. Check file ownership (simplified for shared hosting)
 echo "[4] PERMISSION CHECK...\n";
 $files = ['index.php', 'config.php', 'includes/init.php'];
 foreach ($files as $file) {
     if (file_exists($file)) {
-        $owner = fileowner($file);
-        $owner_info = posix_getpwuid($owner);
-        echo "File: $file | Owner: " . ($owner_info['name'] ?? $owner) . "\n";
+        $perms = substr(sprintf('%o', fileperms($file)), -4);
+        echo "File: $file | Perms: $perms | Writable: " . (is_writable($file) ? 'YES' : 'NO') . "\n";
     }
 }
 
