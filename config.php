@@ -1,0 +1,154 @@
+<?php
+/**
+ * AUTOMATIC ENVIRONMENT DETECTION & DATABASE CONFIGURATION
+ * This file automatically detects whether the application is running on:
+ * - Local environment (XAMPP/WAMP)
+ * - Hosted environment (Hostinger or other web hosting)
+ */
+
+// Function to detect if running on local environment
+function isLocalEnvironment()
+{
+    // Check if running on localhost or local IP
+    $local_hosts = ['localhost', '127.0.0.1', '::1', 'localhost:8000'];
+    $server_name = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? '';
+
+    // Check if server name matches local hosts
+    foreach ($local_hosts as $local_host) {
+        if (stripos($server_name, $local_host) !== false) {
+            return true;
+        }
+    }
+
+    // Check if running on local IP range (192.168.x.x or 10.x.x.x)
+    if (preg_match('/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/i', $server_name)) {
+        return true;
+    }
+
+    // Check if XAMPP/WAMP directory structure exists
+    if (
+    stripos($_SERVER['DOCUMENT_ROOT'] ?? '', 'xampp') !== false ||
+    stripos($_SERVER['DOCUMENT_ROOT'] ?? '', 'wamp') !== false
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+// Detect environment
+$is_local = isLocalEnvironment();
+
+// Set database credentials based on environment
+if ($is_local) {
+    // ========== LOCAL ENVIRONMENT (XAMPP/WAMP) ==========
+    define('DB_HOST', 'localhost');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+    define('DB_NAME', 'truck');
+    define('ENVIRONMENT', 'LOCAL');
+
+    // Fix for XAMPP session permission issues
+    $session_save_path = __DIR__ . '/sessions';
+    if (!is_dir($session_save_path)) {
+        mkdir($session_save_path, 0777, true);
+    }
+    ini_set('session.save_path', $session_save_path);
+
+}
+else {
+    // ========== HOSTED ENVIRONMENT (HOSTINGER) ==========
+    // Update these credentials with your Hostinger database details
+    define('DB_HOST', 'localhost'); // Usually 'localhost' on Hostinger
+    define('DB_USER', 'u875321134_gate'); // Your Hostinger MySQL username
+    define('DB_PASS', 'Truckmanagement@123'); // Your Hostinger MySQL password
+    define('DB_NAME', 'u875321134_truck'); // Your Hostinger database name
+    define('ENVIRONMENT', 'PRODUCTION');
+}
+
+// Set timezone to Indian Standard Time
+date_default_timezone_set('Asia/Kolkata');
+
+// Error reporting (disable in production)
+if ($is_local) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+}
+else {
+    error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+    ini_set('display_errors', 0);
+    ini_set('log_errors', 1);
+    ini_set('error_log', __DIR__ . '/error.log');
+}
+
+// Database connection function
+function getDatabaseConnection()
+{
+    $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+
+    if (!$conn) {
+        // Try to connect without database and create it
+        $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
+        if ($conn) {
+            $db_created = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS " . DB_NAME . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            if ($db_created) {
+                mysqli_select_db($conn, DB_NAME);
+            }
+            else {
+                die("Error creating database: " . mysqli_error($conn));
+            }
+        }
+        else {
+            die("Database connection failed: " . mysqli_connect_error());
+        }
+    }
+
+    // Set MySQL timezone to IST
+    mysqli_query($conn, "SET time_zone = '+05:30'");
+
+    return $conn;
+}
+
+// Get base URL
+function getBaseUrl()
+{
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+    $host = $_SERVER['HTTP_HOST'];
+    $script = str_replace('/index.php', '', $_SERVER['SCRIPT_NAME']);
+    return $protocol . "://" . $host . $script;
+}
+
+define('BASE_URL', getBaseUrl());
+
+// Upload directories
+define('UPLOAD_DIR', __DIR__ . '/uploads/');
+define('DRIVER_UPLOAD_DIR', UPLOAD_DIR . 'drivers/');
+define('LICENSE_UPLOAD_DIR', UPLOAD_DIR . 'licenses/');
+define('VEHICLE_UPLOAD_DIR', UPLOAD_DIR . 'vehicles/');
+define('LOGO_UPLOAD_DIR', UPLOAD_DIR . 'logo/');
+
+// Create upload directories if they don't exist
+if (!is_dir(UPLOAD_DIR))
+    mkdir(UPLOAD_DIR, 0755, true);
+if (!is_dir(DRIVER_UPLOAD_DIR))
+    mkdir(DRIVER_UPLOAD_DIR, 0755, true);
+if (!is_dir(LICENSE_UPLOAD_DIR))
+    mkdir(LICENSE_UPLOAD_DIR, 0755, true);
+if (!is_dir(VEHICLE_UPLOAD_DIR))
+    mkdir(VEHICLE_UPLOAD_DIR, 0755, true);
+if (!is_dir(LOGO_UPLOAD_DIR))
+    mkdir(LOGO_UPLOAD_DIR, 0755, true);
+
+// Display environment info (only for debugging - remove in production)
+if ($is_local && isset($_GET['debug_env'])) {
+    echo "<div style='background: #f0f0f0; padding: 20px; margin: 20px; border: 2px solid #333;'>";
+    echo "<h3>Environment Debug Info</h3>";
+    echo "<p><strong>Environment:</strong> " . ENVIRONMENT . "</p>";
+    echo "<p><strong>Database Host:</strong> " . DB_HOST . "</p>";
+    echo "<p><strong>Database Name:</strong> " . DB_NAME . "</p>";
+    echo "<p><strong>Database User:</strong> " . DB_USER . "</p>";
+    echo "<p><strong>Base URL:</strong> " . BASE_URL . "</p>";
+    echo "<p><strong>Document Root:</strong> " . $_SERVER['DOCUMENT_ROOT'] . "</p>";
+    echo "<p><strong>Server Name:</strong> " . ($_SERVER['SERVER_NAME'] ?? 'N/A') . "</p>";
+    echo "</div>";
+}

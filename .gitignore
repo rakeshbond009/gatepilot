@@ -1,6 +1,5 @@
-# Database & Secrets (NEVER overwrite these on Hostinger!)
-includes/db_config.php
-config.php
+# Database & Secrets (Git tracked with auto-detection)
+# includes/db_config.php
 .env
 error.log
 
