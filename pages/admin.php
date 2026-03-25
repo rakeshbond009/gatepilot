@@ -520,7 +520,7 @@ function showAuditDetail(log) {
                 </a>
                 <!-- Master Menu -->
                 <div class="card">
-                    <h2>⚙️ Master Data Management</h2>
+                    <h2>⚙️ Master Data Management [v1.2 Cloud]</h2>
 
                     <div class="actions-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
                         <a href="?page=admin&master=dashboard#master-content"
@@ -731,7 +731,7 @@ function showAuditDetail(log) {
         endif; ?>
 
                         <div class="card">
-                            <h3>🎨 Company Logo Settings</h3>
+                            <h3>🎨 Company Logo & Webhook [v1.2 Cloud]</h3>
                             <p style="color: #666; margin-bottom: 20px;">
                                 Upload your company logo to display it in the navigation bar next to the app name.
                             </p>
