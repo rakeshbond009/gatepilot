@@ -40,29 +40,47 @@ These are the commands used to initialize this repository on your laptop and lin
 
 ---
 
-## 🛠 Phase 2: Hostinger Website Initialization (One-Time)
+## 🛠 Phase 2: Hostinger One-Time Setup (Bypassing "Non-Empty Directory" Error)
 
-Because Hostinger won't let you "Create Repository" in a folder with files (`public_html`), follow this:
+Hostinger won't let you link a GitHub repository if your `public_html` folder already has files. To solve this **safely without losing your data**, follow these steps:
 
-1.  **Login**: Use File Manager or FTP on Hostinger.
-2.  **Move**: Select all files in `public_html` and move them into a temporary folder named `backup`.
-3.  **Git Link**: Go to Hostinger **Advanced -> Git**.
-    *   **Repository**: `https://github.com/rakeshbond009/Truckmovement.git`
+1.  **Backup Existing Files**:
+    *   Log in to Hostinger **File Manager**.
+    *   Create a new folder called `OLD_BACKUP` outside `public_html` (or inside it).
+    *   **Move** all files and folders from `public_html` into `OLD_BACKUP`.
+    *   *Result*: Your `public_html` should now be completely **EMPTY**.
+
+2.  **Link GitHub Repository**:
+    *   Go to Hostinger Dashboard -> **Advanced -> Git**.
+    *   **Repository URL**: `https://github.com/rakeshbond009/Truckmovement.git`
     *   **Branch**: `main`
-    *   **Click "Create"**. **(Hostinger will now pull the code from GitHub)**
-4.  **Restore Data**: Move your `uploads/` folder and `config.php` back from `backup` into the root `public_html`.
-5.  **Clear**: Delete the `backup` folder.
+    *   **Install Directory**: Leave it as `public_html` (don't change).
+    *   Click **"Create"**.
+    *   *Result*: Hostinger will now download your code from GitHub into `public_html`.
+
+3.  **Restore Your Critical Data**:
+    *   Go back to the `OLD_BACKUP` folder.
+    *   **Copy** your `uploads/` folder and `config.php` back into `public_html`.
+    *   (This ensures your live photos and live database connection are restored).
+    *   You can now delete the `OLD_BACKUP` folder.
 
 ---
 
-## 🚀 Phase 3: Regular Updates (Your Daily Workflow)
+## 🚀 Phase 3: Regular Updates (One-Click Sync)
 
-Whenever you finish a piece of work on your laptop, follow these **THREE** commands to update everything:
+You no longer need to type manual commands on your laptop! 
 
-1.  **Add**: `git add .`
-2.  **Save**: `git commit -m "Briefly describe what you changed"`
-3.  **Push**: `git push`
-4.  **Deploy**: In Hostinger, click the **"Deploy"** button.
+1.  **Sync from Laptop**:
+    *   Open your **Admin Panel** on your laptop (localhost).
+    *   Go to **Settings** (Gear Icon ⚙️).
+    *   Scroll to the bottom and click **"☁️ Push to Cloud (Sync GitHub)"**.
+    *   A console will appear; wait for it to finish.
+
+2.  **Deploy on Hostinger**:
+    *   Login to Hostinger -> **Advanced -> Git**.
+    *   Scroll down to **"Manage Repositories"**.
+    *   Click the **"Deploy"** button.
+    *   *Result*: Your live website is now updated with your latest changes!
 
 ---
 

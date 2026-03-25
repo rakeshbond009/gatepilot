@@ -210,6 +210,91 @@
 </style>
 
 <script>
+    function syncToCloud() {
+        Swal.fire({
+            title: 'Cloud Sync',
+            text: "This will push ALL your current laptop changes to GitHub server. Continue?",
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonColor: '#6366f1',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Yes, Sync Now!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                showAppLoader('Syncing with GitHub... Please wait.');
+                
+                fetch('?page=admin&master=settings&ajax_git=1')
+                    .then(r => r.text())
+                    .then(text => {
+                        document.getElementById('app_loader_overlay').remove();
+                        let data = {};
+                        try {
+                            data = JSON.parse(text);
+                        } catch(e) {
+                            console.error('Invalid JSON response:', text);
+                            // Show the console anyway if there is some text
+                            const errModal = `
+                                <div id="gitCloudModal" class="perm-modal-overlay" style="display:flex;">
+                                    <div class="perm-modal-content" style="max-width: 800px; padding:0; overflow:hidden;">
+                                        <div style="padding: 24px; background: #ef4444; color: white; display:flex; justify-content:space-between; align-items:center;">
+                                            <h3 style="margin:0;">⚠️ SERVER RESPONSE ERROR</h3>
+                                            <button onclick="document.getElementById('gitCloudModal').remove()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+                                        </div>
+                                        <div style="padding: 24px; background: #0f172a; color: #ef4444; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto;">
+                                            <div style="margin-bottom: 10px; color: #94a3b8;"># Raw Response:</div>
+                                            ${text.replace(/\n/g, '<br>')}
+                                        </div>
+                                        <div style="padding: 20px; background: #f8fafc; text-align: right; border-top: 1px solid #e2e8f0;">
+                                            <button onclick="document.getElementById('gitCloudModal').remove()" class="btn btn-secondary">✕ Close</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            document.body.insertAdjacentHTML('beforeend', errModal);
+                            Swal.fire('PHP Error', 'Server returned invalid response. Check the console window appeared on screen.', 'error');
+                            return;
+                        }
+                        
+                        // Create a custom result modal with console output
+                        const modalHtml = `
+                            <div id="gitCloudModal" class="perm-modal-overlay" style="display:flex;">
+                                <div class="perm-modal-content" style="max-width: 800px; padding:0; overflow:hidden;">
+                                    <div style="padding: 24px; background: ${data.success ? '#10b981' : '#ef4444'}; color: white; display:flex; justify-content:space-between; align-items:center;">
+                                        <h3 style="margin:0;">☁️ ${data.message}</h3>
+                                        <button onclick="document.getElementById('gitCloudModal').remove()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+                                    </div>
+                                    <div style="padding: 24px; background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto;">
+                                        <div style="margin-bottom: 10px; color: #94a3b8;"># Git Console Output:</div>
+                                        ${data.console.replace(/\n/g, '<br>')}
+                                    </div>
+                                    <div style="padding: 20px; background: #f8fafc; text-align: right; border-top: 1px solid #e2e8f0;">
+                                        <button onclick="document.getElementById('gitCloudModal').remove()" class="btn btn-secondary">✕ Close Console</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        document.body.insertAdjacentHTML('beforeend', modalHtml);
+                        
+                        if (data.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Success',
+                                text: 'GitHub updated! ' + (data.deployed ? 'Hostinger Deployment Triggered!' : 'Now click Deploy on Hostinger.')
+                            });
+                        } else {
+                            Swal.fire('Error', 'Sync failed. Check the console output.', 'error');
+                        }
+                    })
+                    .catch(e => {
+                        if (document.getElementById('app_loader_overlay')) document.getElementById('app_loader_overlay').remove();
+                        console.error('Git push error:', e);
+                        Swal.fire('Critical Error', 'Network failure or Laptop environment issue.', 'error');
+                    });
+            }
+        });
+    }
+
 function openPermissionModal(user) {
     document.getElementById("permUserId").value = user.id;
     document.getElementById("permUser").textContent = user.full_name;
@@ -382,27 +467,75 @@ function showAuditDetail(log) {
                          addRow("Detail", clean);
                      }
                  });
-            } else {
-                detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6;">${log.details}</div>`;
             }
         } else {
-             detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6;">${log.details}</div>`;
+            detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6;">${log.details}</div>`;
         }
     } catch (e) {
         detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6;">${log.details}</div>`;
     }
-    
-    const modal = document.getElementById("auditDetailModal");
-    modal.style.display = "flex";
-    modal.style.alignItems = "center";
-    modal.style.justifyContent = "center";
 }
 </script>
 
 <?php if ($page == 'admin'):
+
+    // GLOBAL HANDLERS (Git Sync & Webhook) - Runs regardless of active tab
+    if (($_SESSION['super_admin'] ?? 0) == 1) {
+        // Handle Cloud Deployment (Git Sync)
+        if (isset($_GET['ajax_git'])) {
+            set_time_limit(180); 
+            $timestamp = date('Y-m-d H:i:s');
+            $commit_msg = "Auto Update via Admin Panel: " . $timestamp;
+            
+            $commands = [
+                'git add .',
+                'git commit -m "' . $commit_msg . '"',
+                'git push origin main'
+            ];
+            
+            $output = [];
+            $all_success = true;
+            foreach ($commands as $cmd) {
+                $res = shell_exec($cmd . " 2>&1");
+                $output[] = "$ " . $cmd . "\n" . ($res ?: "(No output)");
+                if (strpos($cmd, 'push') !== false && (strpos($res, 'error') !== false || strpos($res, 'fatal') !== false)) {
+                    $all_success = false;
+                }
+            }
+            
+            $log_output = implode("\n\n", $output);
+            
+            $deployed = false;
+            if ($all_success) {
+                $webhook = getSetting($conn, 'hostinger_webhook');
+                if ($webhook) {
+                    $trigger = @file_get_contents($webhook);
+                    $log_output .= "\n\n# Webhook Triggered:\n" . htmlspecialchars($trigger ?: "(No response)");
+                    $deployed = true;
+                }
+            }
+
+            logActivity($conn, 'GIT_SYNC', 'System', "Ajax GitHub sync. Success: " . ($all_success ? 'YES' : 'NO'));
+            
+            // Return JSON and Clean everything else
+            while (ob_get_level()) ob_end_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => $all_success, 'deployed' => $deployed, 'message' => $all_success ? '🚀 Cloud Sync Complete!' : '⚠️ Sync failed.', 'console' => $log_output]);
+            exit;
+        }
+
+        // Handle Save Webhook
+        if (isset($_POST['save_webhook'])) {
+            $url = trim($_POST['webhook_url']);
+            setSetting($conn, 'hostinger_webhook', $url);
+            $success_msg = "✅ Webhook URL saved successfully!";
+            logActivity($conn, 'SETTINGS_UPDATE', 'System', "Super Admin updated Hostinger Webhook URL.");
+        }
+    }
+
     $master_page = isset($_GET['master']) ? $_GET['master'] : 'dashboard';
 
-    // Get counts (These will now be correct after the handlers above run)
+    // Get counts
     $total_users = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM user_master"));
     $total_transporters = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM transporter_master"));
     $total_drivers = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM driver_master"));
@@ -716,6 +849,37 @@ function showAuditDetail(log) {
                                 <button type="submit" name="upload_logo" class="btn btn-primary">
                                     Upload Logo
                                 </button>
+                            </form>
+                        </div>
+                        
+                        <div class="card" style="margin-top:20px; border-top: 4px solid #6366f1;">
+                            <h3 style="display: flex; align-items: center; gap: 10px;">🚀 Cloud Deployment <span style="background:#6366f1; color:white; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase;">Super Admin Only</span></h3>
+                            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                                Use this tool to save your latest changes to the cloud. This will automatically prepare your code for deployment to Hostinger.
+                            </p>
+                            
+                            <div style="background: #eef2ff; border: 1px solid #c7d2fe; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                                <ul style="margin: 0; padding-left: 20px; color: #4338ca; font-size: 13px; line-height: 1.6;">
+                                    <li><strong>Step 1:</strong> Prepares all modified files on your laptop.</li>
+                                    <li><strong>Step 2:</strong> Creates a secure version snapshot.</li>
+                                    <li><strong>Step 3:</strong> Securely uploads to the GitHub repository.</li>
+                                </ul>
+                            </div>
+
+                            <form method="POST" id="gitSyncForm" onsubmit="event.preventDefault(); syncToCloud();">
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px;">Hostinger Webhook URL (Optional):</label>
+                                    <input type="text" name="webhook_url" placeholder="https://hpanel.hostinger.com/api/git/deploy/..." 
+                                           value="<?php echo htmlspecialchars(getSetting($conn, 'hostinger_webhook')); ?>"
+                                           style="padding: 10px; border: 1px solid #ddd; border-radius: 8px; width: 100%; font-size: 13px;">
+                                    <small style="display: block; margin-top: 5px; color: #666;">
+                                        Found in Hostinger -> Git -> Webhook URL. If provided, Hostinger will update automatically after push.
+                                    </small>
+                                </div>
+                                <button type="submit" class="btn" style="background: #6366f1; color: white; padding: 14px 30px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); width: 100%; max-width: 350px; font-size: 16px;">
+                                    ☁️ Push to Cloud (Sync GitHub)
+                                </button>
+                                <button type="submit" name="save_webhook" class="btn btn-secondary" style="margin-left: 10px; padding: 14px 20px;">Save URL</button>
                             </form>
                         </div>
                     </div>
