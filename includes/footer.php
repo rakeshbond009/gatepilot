@@ -30,7 +30,7 @@
                     <!-- Footer -->
                     <div class="app-footer">
                         <p style="margin: 0;">
-                            &copy; <?php echo date('Y'); ?> GatePilot · A CodePilotx Architecture. All Rights Reserved. <?php $app_v = getSetting($conn, 'app_version', '1.0.0'); echo "<span style='opacity:0.6; font-size:10px; margin-left:10px;'>v$app_v</span>"; ?>
+                            &copy; <?php echo date('Y'); ?> GatePilot · A CodePilotx Architecture. All Rights Reserved. <?php echo "<span style='opacity:0.6; font-size:10px; margin-left:10px;'>v" . APP_VERSION . "</span>"; ?>
                         </p>
                     </div>
 
