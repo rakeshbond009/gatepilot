@@ -8,7 +8,6 @@ error.log
 uploads/
 temp/
 sessions/
-App_images/
 
 # System & Tooling (Don't version these!)
 **/node_modules/
@@ -39,8 +38,6 @@ Thumbs.db
 *.pptx
 *.docx
 
-# Assets which should not be in Git
-App_images/
 truck_movement_mobile/build/
 truck_movement_mobile/ios/.git
 truck_movement_mobile/android/.git
