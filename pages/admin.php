@@ -407,7 +407,8 @@ function showAuditDetail(log) {
         // 1. Update Version in init.php
         $init_path = dirname(__DIR__) . '/includes/init.php';
         $init_content = file_get_contents($init_path);
-        $new_v = '1.0.' . (time() % 10000); 
+        // Version Format: YY.MM.DD.HHII (E.g. 26.03.26.1245)
+        $new_v = date('y.m.d.Hi'); 
         $init_content = preg_replace("/define\('APP_VERSION', '.*?'\);/", "define('APP_VERSION', '$new_v');", $init_content);
         file_put_contents($init_path, $init_content);
         
