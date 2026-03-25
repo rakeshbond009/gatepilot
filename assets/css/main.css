@@ -368,7 +368,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(71, 85, 105, 0.8)), url('gatepilot_login_bg.png');
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(71, 85, 105, 0.8)), url('../../App_images/gatepilot_login_bg.png');
             background-size: cover;
             background-position: center;
             backdrop-filter: blur(15px);
