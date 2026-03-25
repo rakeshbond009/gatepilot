@@ -402,54 +402,45 @@ function showAuditDetail(log) {
 <?php if ($page == 'admin'):
     $master_page = isset($_GET['master']) ? $_GET['master'] : 'dashboard';
 
-    // CLOUD DEPLOYMENT HANDLER (Moved to global top for consistency)
+    // CLOUD DEPLOYMENT HANDLER
     if (isset($_POST['git_sync']) && ($_SESSION['super_admin'] ?? 0) == 1) {
-        // 1. Increment Version in Code (Git Tracked) BEFORE Sync
+        // 1. Update Version in init.php
         $init_path = dirname(__DIR__) . '/includes/init.php';
         $init_content = file_get_contents($init_path);
         $new_v = '1.0.' . (time() % 10000); 
         $init_content = preg_replace("/define\('APP_VERSION', '.*?'\);/", "define('APP_VERSION', '$new_v');", $init_content);
         file_put_contents($init_path, $init_content);
         
-        $timestamp = date('Y-m-d H:i:s');
-        $commit_msg = "Auto Update v$new_v via Admin Panel: " . $timestamp;
-
-        // Commands to run
+        $commit_msg = "Auto Update v$new_v: " . date('Y-m-d H:i:s');
         $commands = [
             'git add .',
             'git commit -m "' . $commit_msg . '"',
             'git push origin main'
         ];
+
         $output = [];
         $all_success = true;
         foreach ($commands as $cmd) {
             $res = shell_exec($cmd . " 2>&1");
             $output[] = "<strong>$ " . $cmd . "</strong>\n" . htmlspecialchars($res ?: "(No output)");
-            if (strpos($cmd, 'push') !== false && (strpos($res, 'error') !== false || strpos($res, 'fatal') !== false || strpos($res, 'Permission denied') !== false)) {
+            if (strpos($cmd, 'push') !== false && (strpos($res, 'error') !== false || strpos($res, 'fatal') !== false)) {
                 $all_success = false;
             }
         }
         
-        // Hostinger Webhook Automation
-        $deployed = false;
         if ($all_success) {
             $webhook = getSetting($conn, 'hostinger_webhook');
             if ($webhook) {
                 @file_get_contents($webhook);
-                $deployed = true;
                 $output[] = "<strong># Triggering Hostinger Webhook... SUCCESS</strong>";
             }
-
-            // Reset Live Cache (OpCache) if supported
-            if (function_exists('opcache_reset')) {
-                @opcache_reset();
-            }
-            $output[] = "<strong># Code Sync Version: " . $new_v . " [ACTIVE]</strong>";
+            if (function_exists('opcache_reset')) @opcache_reset();
+            $output[] = "<strong># Deployed Version: $new_v</strong>";
         }
 
         $full_output = implode("\n\n", $output);
-        $success_msg = $all_success ? "🚀 GitHub Sync & Deployment Complete!" : "⚠️ Sync Attempted. Check logs below.";
-        logActivity($conn, 'GIT_SYNC', 'System', "GitHub sync triggered. Success: " . ($all_success ? 'YES' : 'NO'));
+        $success_msg = $all_success ? "🚀 Cloud Sync Complete!" : "⚠️ Sync Failed. Check Console.";
+        logActivity($conn, 'GIT_SYNC', 'System', "Sync Success: " . ($all_success ? 'YES' : 'NO'));
 
         // Show result in a modal
         echo "
