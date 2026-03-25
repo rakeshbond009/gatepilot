@@ -1,0 +1,51 @@
+# Database & Secrets (NEVER overwrite these on Hostinger!)
+includes/db_config.php
+config.php
+.env
+error.log
+
+# User Data & Photos (Keep these safe and PERSISTENT on your server!)
+uploads/
+temp/
+sessions/
+App_images/
+
+# System & Tooling (Don't version these!)
+**/node_modules/
+**/build/
+**/.dart_tool/
+**/.fvm/
+**/.vscode/
+**/.idea/
+**/.DS_Store
+Thumbs.db
+*.hprof
+*.dump
+
+# Large Binary Files (Ignore them to prevent GitHub push errors!)
+*.mp4
+*.mov
+*.avi
+*.wmv
+*.zip
+*.tar
+*.gz
+*.7z
+*.dmg
+*.pkg
+*.exe
+*.iso
+*.pdf
+*.pptx
+*.docx
+
+# Assets which should not be in Git
+App_images/
+truck_movement_mobile/build/
+truck_movement_mobile/ios/.git
+truck_movement_mobile/android/.git
+
+# Backup files
+*.bak
+*.tmp
+*.log

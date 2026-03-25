@@ -1,0 +1,228 @@
+===============================================
+  TRUCK GATE MANAGEMENT SYSTEM
+  COMPLETE MOBILE-FRIENDLY PHP VERSION
+===============================================
+
+✅ ALL FEATURES INCLUDED:
+--------------------------
+✓ Truck Inward Entry (with photo upload)
+✓ Truck Outward Entry
+✓ QR Code Data Processing
+✓ Vehicle Details (manual entry)
+✓ Real-time Dashboard
+✓ Statistics & Analytics
+✓ Reports with Date Range
+✓ Excel Export
+✓ List All Entries with Filters
+✓ Detailed Entry View
+✓ Role-based Access (Admin, Security, Manager)
+✓ Master Data Management
+✓ Mobile-First Responsive Design
+✓ Works on Phone, Tablet, Desktop
+
+===============================================
+
+HOW TO START:
+-------------
+
+1. Start MySQL in XAMPP
+   - Open XAMPP Control Panel
+   - Click "Start" next to MySQL
+
+2. Open browser:
+   
+   http://localhost/Truckmovement/
+
+3. Login:
+   Username: admin
+   Password: admin123
+
+THAT'S IT! Database auto-creates on first run!
+
+===============================================
+
+FEATURES YOU CAN USE:
+---------------------
+
+📱 DASHBOARD
+   - Real-time statistics
+   - Inward/Outward counts
+   - Trucks inside count
+   - Weekly summary
+   - Recent activities
+
+➕ INWARD ENTRY
+   - Vehicle number
+   - Driver details
+   - Transporter info
+   - Purpose selection
+   - Bill/Challan number
+   - From/To locations
+   - Security comments
+   - Photo upload
+   - QR data processing
+
+➡️ OUTWARD ENTRY
+   - Select truck from inside list
+   - Auto-calculate duration
+   - Add outward remarks
+   - Update status
+
+📋 TRUCK LIST
+   - View all entries
+   - Filter by status
+   - Search vehicles
+   - Click for details
+
+📄 ENTRY DETAILS
+   - Complete truck information
+   - Inward/Outward times
+   - Duration calculation
+   - Photo view
+   - Comments display
+
+📷 QR SCANNER
+   - Process QR code data
+   - Parse JSON/Delimited formats
+   - Extract bill details
+   - Auto-fill entry form
+
+📊 REPORTS
+   - Date range selection
+   - Daily summary
+   - Top transporters
+   - Export to Excel
+
+⚙️ MASTER DATA MANAGEMENT (Admin/Manager only)
+   - User Management (Admin only)
+   - Transporters Master (add/edit/view)
+   - Drivers Master (add/edit/view)
+   - Vehicles Master (add/edit/view)
+   - Purpose Types Master (add/edit/view)
+   - Items Master (add/edit/view)
+
+===============================================
+
+USER ROLES:
+-----------
+Admin: Full access to everything
+Security: Create inward/outward entries
+Manager: View reports and analytics
+
+===============================================
+
+DEFAULT USERS:
+--------------
+1. admin / admin123 (Admin)
+2. security1 / admin123 (Security)
+3. manager1 / admin123 (Manager)
+
+===============================================
+
+DATABASE:
+---------
+Name: truck
+Auto-created: Yes
+Tables: 9 tables
+Sample Data: Users, Purposes, Transporters
+
+===============================================
+
+MOBILE FEATURES:
+----------------
+✓ Touch-friendly buttons
+✓ Responsive design
+✓ Bottom navigation
+✓ Large input fields
+✓ Photo capture from camera
+✓ Works offline (basic functions)
+✓ Fast loading
+✓ No installation needed
+
+===============================================
+
+ACCESS FROM MOBILE:
+-------------------
+Find your computer's IP:
+1. Open CMD
+2. Type: ipconfig
+3. Look for IPv4 Address (e.g., 192.168.1.100)
+
+On mobile (same WiFi):
+http://192.168.1.100/Truckmovement/
+
+===============================================
+
+EXPORT REPORTS:
+---------------
+1. Go to Reports page
+2. Select date range
+3. Click "Export to Excel"
+4. Download opens automatically
+
+===============================================
+
+WHAT FILES DO:
+--------------
+index.php - Main application (complete system)
+export.php - Excel export functionality
+database/create_truck_database.sql - Database
+
+That's all you need!
+
+===============================================
+
+TECH STACK:
+-----------
+✓ PHP 7.4+
+✓ MySQL 5.7+
+✓ HTML5
+✓ CSS3 (Mobile-first)
+✓ Vanilla JavaScript
+✓ No external dependencies!
+
+===============================================
+
+NEED HELP?
+----------
+Everything works out of the box!
+
+If you see errors:
+1. Check MySQL is running
+2. Refresh the page (database auto-creates)
+3. Check phpMyAdmin for 'truck' database
+
+===============================================
+
+WHAT'S INCLUDED:
+----------------
+✅ Complete inward/outward system
+✅ QR code processing
+✅ Photo upload & storage
+✅ Real-time dashboard
+✅ Reports & analytics
+✅ Excel export
+✅ User management
+✅ Mobile-optimized UI
+✅ Secure login system
+✅ Search & filters
+✅ Duration tracking
+✅ Comments & remarks
+
+===============================================
+
+PRODUCTION READY:
+-----------------
+This system is ready to use immediately!
+
+For production:
+1. Change default passwords
+2. Enable HTTPS
+3. Configure backups
+4. Adjust security settings
+
+===============================================
+
+© 2025 Truck Gate Management System
+All features included - Ready to use!
+===============================================
