@@ -462,7 +462,13 @@ function showAuditDetail(log) {
         </div>";
     }
 
-    // Get counts
+    // Handle Webhook Save (Independent of Git Sync)
+    if (isset($_POST['save_webhook']) && ($_SESSION['super_admin'] ?? 0) == 1) {
+        $url = trim($_POST['webhook_url']);
+        setSetting($conn, 'hostinger_webhook', $url);
+        $success_msg = "✅ Hostinger Webhook URL saved successfully!";
+        logActivity($conn, 'SETTINGS_UPDATE', 'System', "Super Admin updated Webhook URL.");
+    }
     $total_users = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM user_master"));
     $total_transporters = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM transporter_master"));
     $total_drivers = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM driver_master"));
@@ -793,17 +799,20 @@ function showAuditDetail(log) {
                                 </ul>
                             </div>
 
-                            <form method="POST" onsubmit="return confirm('Starting Cloud Sync. This will push all current laptop changes to GitHub. Continue?');">
+                            <form method="POST">
                                 <div style="margin-bottom: 20px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px;">Hostinger Webhook URL (Optional):</label>
-                                    <input type="text" name="webhook_url" placeholder="https://hpanel.hostinger.com/api/git/deploy/..." 
-                                           value="<?php echo htmlspecialchars(getSetting($conn, 'hostinger_webhook')); ?>"
-                                           style="padding: 10px; border: 1px solid #ddd; border-radius: 8px; width: 100%; font-size: 13px;">
+                                    <div style="display: flex; gap: 10px;">
+                                        <input type="text" name="webhook_url" placeholder="https://hpanel.hostinger.com/api/git/deploy/..." 
+                                               value="<?php echo htmlspecialchars(getSetting($conn, 'hostinger_webhook')); ?>"
+                                               style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px;">
+                                        <button type="submit" name="save_webhook" class="btn btn-secondary" style="padding: 10px 20px; font-size: 13px;">Save URL</button>
+                                    </div>
                                     <small style="display: block; margin-top: 5px; color: #666;">
                                         Paste your Hostinger Webhook and the site will update automatically after push.
                                     </small>
                                 </div>
-                                <button type="submit" name="git_sync" class="btn" style="background: #6366f1; color: white; padding: 14px 30px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); width: 100%; max-width: 350px; font-size: 16px;">
+                                <button type="submit" name="git_sync" class="btn" onclick="return confirm('Starting Cloud Sync. This will push all current laptop changes to GitHub. Continue?');" style="background: #6366f1; color: white; padding: 14px 30px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); width: 100%; max-width: 350px; font-size: 16px;">
                                     ☁️ Push to Cloud (Sync GitHub)
                                 </button>
                                 <p style="margin-top: 15px; font-size: 11px; color: #94a3b8; font-style: italic;">
