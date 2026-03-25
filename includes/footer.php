@@ -30,7 +30,7 @@
                     <!-- Footer -->
                     <div class="app-footer">
                         <p style="margin: 0;">
-                            &copy; <?php echo date('Y'); ?> GatePilot · A CodePilotx Architecture. All Rights Reserved. <?php echo "<span style='opacity:0.6; font-size:10px; margin-left:10px;'>v" . APP_VERSION . "</span>"; ?>
+                            &copy; <?php echo date('Y'); ?> GatePilot · A CodePilotx Architecture. All Rights Reserved. <?php echo "<span style='opacity:0.6; font-size:10px; margin-left:10px;'>v" . APP_VERSION . " | Cloud Optimized</span>"; ?>
                         </p>
                     </div>
 
