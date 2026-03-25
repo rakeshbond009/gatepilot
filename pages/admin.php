@@ -438,6 +438,15 @@ function showAuditDetail(log) {
                 $output[] = "<strong># Triggering Hostinger Webhook...</strong>\n" . htmlspecialchars($trigger ?: "(No response)");
                 $deployed = true;
             }
+
+            // Auto-increment App Version
+            $current_v = getSetting($conn, 'app_version', '1.0.0');
+            $v_parts = explode('.', $current_v);
+            if (count($v_parts) < 3) $v_parts = [1, 0, 0];
+            $v_parts[2] = (int)$v_parts[2] + 1;
+            $new_v = implode('.', $v_parts);
+            setSetting($conn, 'app_version', $new_v);
+            $output[] = "<strong># Version Updated: " . $current_v . " -> " . $new_v . "</strong>";
         }
 
         $full_output = implode("\n\n", $output);
@@ -520,7 +529,7 @@ function showAuditDetail(log) {
                 </a>
                 <!-- Master Menu -->
                 <div class="card">
-                    <h2>⚙️ Master Data Management [v1.2 Cloud]</h2>
+                    <h2>⚙️ Master Data Management</h2>
 
                     <div class="actions-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
                         <a href="?page=admin&master=dashboard#master-content"
@@ -731,7 +740,7 @@ function showAuditDetail(log) {
         endif; ?>
 
                         <div class="card">
-                            <h3>🎨 Company Logo & Webhook [v1.2 Cloud]</h3>
+                            <h3>🎨 Company Logo & Webhook</h3>
                             <p style="color: #666; margin-bottom: 20px;">
                                 Upload your company logo to display it in the navigation bar next to the app name.
                             </p>
