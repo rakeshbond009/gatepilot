@@ -18,8 +18,7 @@
                 </a>
                 <div class="header-actions">
                     <button onclick="toggleLoginModal(true)" class="btn btn-primary portal-access-btn"
-                        style="padding: 18px 45px; border-radius: 20px; font-weight: 800; font-size: 1.2rem; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);">Portal
-                        Access</button>
+                        style="padding: 18px 45px; border-radius: 20px; font-weight: 800; font-size: 1.2rem; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);">Login</button>
                 </div>
             </header>
 
