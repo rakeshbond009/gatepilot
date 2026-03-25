@@ -800,6 +800,10 @@ function showAuditDetail(log) {
                             </form>
                         </div>
                         
+                        <?php
+        $is_local = (strpos($_SERVER['HTTP_HOST'], 'localhost') !== false || strpos($_SERVER['HTTP_HOST'], '127.0.0.1') !== false);
+        if ($is_local): 
+        ?>
                         <div class="card" style="margin-top:20px; border-top: 4px solid #6366f1;">
                             <h3 style="display: flex; align-items: center; gap: 10px;">🚀 Cloud Deployment <span style="background:#6366f1; color:white; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase;">Super Admin Only</span></h3>
                             <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
@@ -871,6 +875,7 @@ function showAuditDetail(log) {
                                 </p>
                             </form>
                         </div>
+                        <?php endif; ?>
                     </div>
 
                     <?php
