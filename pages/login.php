@@ -318,7 +318,7 @@
                         onerror="this.src='https://cdn-icons-png.flaticon.com/512/2800/2800516.png'">
                     <h2
                         style="font-size: 2rem; font-weight: 950; margin-bottom: 10px; letter-spacing: -1px; color: #1e293b;">
-                        Authorize Access</h2>
+                        Login</h2>
                     <p style="font-size: 1.05rem; margin-bottom: 40px; color: #64748b;">Enter your credentials to manage
                         operations.</p>
 
