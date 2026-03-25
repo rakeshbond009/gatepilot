@@ -442,6 +442,20 @@ function showAuditDetail(log) {
         $success_msg = $all_success ? "🚀 Cloud Sync Complete!" : "⚠️ Sync Failed. Check Console.";
         logActivity($conn, 'GIT_SYNC', 'System', "Sync Success: " . ($all_success ? 'YES' : 'NO'));
 
+        // Save result in session and redirect to avoid re-submission on refresh
+        $_SESSION['git_sync_success'] = $all_success;
+        $_SESSION['git_sync_output'] = $full_output;
+        echo "<script>window.location.href='?page=admin&master=settings';</script>";
+        exit;
+    }
+
+    // Display deployment results if present in session
+    if (isset($_SESSION['git_sync_output'])) {
+        $all_success = $_SESSION['git_sync_success'];
+        $full_output = $_SESSION['git_sync_output'];
+        unset($_SESSION['git_sync_success']);
+        unset($_SESSION['git_sync_output']);
+
         // Show result in a modal
         echo "
         <div id='gitResultModal' class='perm-modal-overlay' style='display:flex;'>
