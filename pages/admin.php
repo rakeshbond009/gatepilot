@@ -411,7 +411,9 @@ function showAuditDetail(log) {
         $init_content = preg_replace("/define\('APP_VERSION', '.*?'\);/", "define('APP_VERSION', '$new_v');", $init_content);
         file_put_contents($init_path, $init_content);
         
-        $commit_msg = "Auto Update v$new_v: " . date('Y-m-d H:i:s');
+        $remarks = isset($_POST['commit_remarks']) ? trim($_POST['commit_remarks']) : '';
+        $remarks_text = !empty($remarks) ? " - " . str_replace('"', '\"', $remarks) : '';
+        $commit_msg = "Auto Update v$new_v: " . date('Y-m-d H:i:s') . $remarks_text;
         $commands = [
             'git add .',
             'git commit -m "' . $commit_msg . '"',
@@ -822,6 +824,15 @@ function showAuditDetail(log) {
                                     </div>
                                     <small style="display: block; margin-top: 5px; color: #666;">
                                         (Stored in database table <code>system_settings</code> under key <code>hostinger_webhook</code>)
+                                    </small>
+                                </div>
+                                
+                                <div style="margin-bottom: 20px;">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px;">Commit Remarks / Version Details (Optional):</label>
+                                    <input type="text" name="commit_remarks" id="commitRemarksField" placeholder="E.g., Fixed login bug, added new report section..." 
+                                           style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px;">
+                                    <small style="display: block; margin-top: 5px; color: #666;">
+                                        (This will be attached to your code's history log on GitHub.)
                                     </small>
                                 </div>
                                 
