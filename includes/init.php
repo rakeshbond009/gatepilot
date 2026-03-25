@@ -1,5 +1,5 @@
 <?php
-if (!defined('APP_VERSION')) define('APP_VERSION', '1.0.2724');
+if (!defined('APP_VERSION')) define('APP_VERSION', '1.0.2726');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
