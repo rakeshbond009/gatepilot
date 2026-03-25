@@ -727,3 +727,7 @@ CREATE TABLE `vendor_master` (
   KEY `idx_gst_number` (`gst_number`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+25 March 2026 22:30:21
+
+
