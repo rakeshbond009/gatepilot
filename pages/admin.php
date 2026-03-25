@@ -799,7 +799,7 @@ function showAuditDetail(log) {
                                 </ul>
                             </div>
 
-                            <form method="POST">
+                            <form method="POST" id="mainGitSyncForm">
                                 <div style="margin-bottom: 20px;">
                                     <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px;">Hostinger Webhook URL (Optional):</label>
                                     <div style="display: flex; gap: 10px;">
@@ -809,12 +809,39 @@ function showAuditDetail(log) {
                                         <button type="submit" name="save_webhook" class="btn btn-secondary" style="padding: 10px 20px; font-size: 13px;">Save URL</button>
                                     </div>
                                     <small style="display: block; margin-top: 5px; color: #666;">
-                                        Paste your Hostinger Webhook and the site will update automatically after push.
+                                        (Stored in database table <code>system_settings</code> under key <code>hostinger_webhook</code>)
                                     </small>
                                 </div>
-                                <button type="submit" name="git_sync" class="btn" onclick="return confirm('Starting Cloud Sync. This will push all current laptop changes to GitHub. Continue?');" style="background: #6366f1; color: white; padding: 14px 30px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); width: 100%; max-width: 350px; font-size: 16px;">
+                                
+                                <input type="hidden" name="git_sync" value="1" id="gitSyncTriggerField" disabled>
+                                
+                                <button type="button" onclick="confirmGitSync()" class="btn" style="background: #6366f1; color: white; padding: 14px 30px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); width: 100%; max-width: 350px; font-size: 16px;">
                                     ☁️ Push to Cloud (Sync GitHub)
                                 </button>
+                                
+                                <script>
+                                function confirmGitSync() {
+                                    Swal.fire({
+                                        title: 'Push to Cloud?',
+                                        text: 'This will save all current laptop changes and push them to GitHub. It may take up to 2 minutes depending on your internet speed.',
+                                        icon: 'question',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#6366f1',
+                                        cancelButtonColor: '#6b7280',
+                                        confirmButtonText: 'Yes, Start Syncing!',
+                                        cancelButtonText: 'Cancel'
+                                    }).then((result) => {
+                                        if (result.isConfirmed) {
+                                            if (typeof showAppLoader === 'function') {
+                                                showAppLoader('☁️ Syncing with GitHub... Please wait.');
+                                            }
+                                            document.getElementById('gitSyncTriggerField').disabled = false;
+                                            document.getElementById('mainGitSyncForm').submit();
+                                        }
+                                    });
+                                }
+                                </script>
+                                
                                 <p style="margin-top: 15px; font-size: 11px; color: #94a3b8; font-style: italic;">
                                     *Note: If Webhook is set, deployment is automated. Otherwise, manual deploy on Hostinger is needed.
                                 </p>
