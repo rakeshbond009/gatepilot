@@ -13,11 +13,6 @@ require_once __DIR__ . '/DynamicRegisters.php';
 
 session_start();
 
-// TEMPORARY: Display errors to catch the 500 Internal Server Error
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // Database connection using auto-detected environment settings
 $conn = getDatabaseConnection();
 $registers_manager = new DynamicRegisters($conn);
