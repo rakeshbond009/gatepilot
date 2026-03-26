@@ -113,24 +113,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Check for additions
                     foreach ($new_fields_map as $name => $f) {
                         if (!isset($old_fields_map[$name])) {
-                            $field_audit[] = "Added field '" . ($f['label'] ?? $name) . "'";
+                            // Only log as "Added" if it's truly a new label or it's not just a minor name collision
+                            $field_audit[] = "+ [Added] '" . ($f['label'] ?? $name) . "'";
                         }
                     }
                     // Check for deletions
                     foreach ($old_fields_map as $name => $f) {
                         if (!isset($new_fields_map[$name])) {
-                            $field_audit[] = "Removed field '" . ($f['label'] ?? $name) . "'";
+                            $field_audit[] = "- [Removed] '" . ($f['label'] ?? $name) . "'";
                         }
                     }
                     // Check for modifications
                     foreach ($new_fields_map as $name => $f) {
-                        if (isset($old_fields_map[$name]) && json_encode($f) !== json_encode($old_fields_map[$name])) {
-                            $field_audit[] = "Modified field '" . ($f['label'] ?? $name) . "'";
+                        if (isset($old_fields_map[$name])) {
+                            $old_f = $old_fields_map[$name];
+                            $diffs = [];
+                            if (($old_f['label'] ?? '') != ($f['label'] ?? '')) $diffs[] = "Label";
+                            if (($old_f['type'] ?? '') != ($f['type'] ?? '')) $diffs[] = "Type";
+                            if (($old_f['required'] ?? false) != ($f['required'] ?? false)) $diffs[] = "Required-status";
+                            
+                            if (!empty($diffs)) {
+                                $field_audit[] = "M [Modified] '" . ($f['label'] ?? $name) . "' (" . implode(', ', $diffs) . ")";
+                            }
                         }
                     }
 
                     if (!empty($field_audit)) {
-                        $changes[] = "Fields: [" . implode(", ", $field_audit) . "]";
+                        $changes[] = "Fields Audit: " . implode(" | ", $field_audit);
                     }
                 }
             }
@@ -581,7 +590,8 @@ function syncBuilderToJSON(containerId, jsonId) {
         const type = row.querySelector('.b-type').value;
         const required = row.querySelector('.b-req').checked;
         if (label) {
-            const name = label.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/^_+|_+$/g, '');
+            // Collapse multiple special characters into a single underscore for cleaner names
+            const name = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
             fields.push({
                 name: name,
                 label: label,
