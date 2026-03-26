@@ -75,19 +75,12 @@ if (is_writable($session_save_path)) {
     ini_set('session.save_path', $session_save_path);
 }
 
-// Determine if running on HTTPS (handling proxies like Hostinger/Cloudflare)
-$is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
-            (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-
-// Extract domain without port (very important for some browsers)
-$current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-
 // Ensure the session cookie is as persistent and secure as possible
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
     'path' => '/',
-    'domain' => $current_domain,
-    'secure' => $is_https,
+    'domain' => $_SERVER['HTTP_HOST'] ?? '',
+    'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
     'httponly' => true,
     'samesite' => 'Lax'
 ]);

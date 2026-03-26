@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.1602');
+    define('APP_VERSION', '26.03.26.1702');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -13,11 +13,6 @@ require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/DynamicRegisters.php';
 
 session_start();
-
-// Prevent browser from caching authenticated pages (critical for persistent login to work)
-header("Cache-Control: no-cache, no-store, must-revalidate");
-header("Pragma: no-cache");
-header("Expires: 0");
 
 // Database connection using auto-detected environment settings
 $conn = getDatabaseConnection();
@@ -294,7 +289,7 @@ function hasPermission($key)
     return false;
 }
 
-// Persistent Login (Remember Me / Login Forever) — runs BEFORE any output
+// Persistent Login (Remember Me / Login Forever)
 if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
     $query = "SELECT u.* FROM user_sessions s 
@@ -302,6 +297,7 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
               WHERE s.token = '$token' AND u.is_active = 1 
               LIMIT 1";
     $token_result = mysqli_query($conn, $query);
+
     if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
         $_SESSION['user_id'] = $row['id'];
         $_SESSION['username'] = $row['username'];
@@ -309,56 +305,21 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $_SESSION['role'] = $row['role'];
         $_SESSION['super_admin'] = (int)$row['super_admin'];
         $_SESSION['permissions'] = $row['permissions'];
+
+        // Update last used timestamp
         mysqli_query($conn, "UPDATE user_sessions SET last_used_at = CURRENT_TIMESTAMP WHERE token = '$token'");
+
+        // Audit Log: Auto Login
         logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
-        // Redirect to dashboard — save session first, use clean absolute URL
-        $current_requested_page = $_GET['page'] ?? '';
-        if (in_array($current_requested_page, ['', 'login']) && !isset($_GET['reauth'])) {
-            session_write_close(); // Force session to disk before redirect
-            $protocol = $is_https ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'];
-            header('Location: ' . $protocol . '://' . $host . '/?page=dashboard', true, 302);
-            exit;
-        }
-    } else {
-        $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
-                    (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-        $current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-        setcookie('GATEPILOT_REMEMBER', '', [
-            'expires' => time() - 3600,
-            'path' => '/',
-            'domain' => $current_domain,
-            'secure' => $is_https,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+    }
+    else {
+        // Invalid or expired token, clear cookie
+        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
     }
 }
-
-// Auth Debug Mode (append ?debug_auth=1 to any URL to see state)
-if (isset($_GET['debug_auth'])) {
-    echo "<div style='background:#000; color:#0f0; padding:10px; font-family:monospace; position:fixed; bottom:0; left:0; width:100%; z-index:99999; font-size:12px; max-height:200px; overflow:auto;'>";
-    echo "--- AUTH DEBUG ---<br>";
-    echo "Cookie Present: " . (isset($_COOKIE['GATEPILOT_REMEMBER']) ? 'YES' : 'NO') . "<br>";
-    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
-        echo "Cookie Value: " . substr($_COOKIE['GATEPILOT_REMEMBER'], 0, 8) . "...<br>";
-    }
-    echo "Is Logged In (after auto-login): " . (isLoggedIn() ? 'YES' : 'NO') . "<br>";
-    echo "HTTPS: " . ($is_https ?? 'N/A') . " | Domain: " . ($current_domain ?? 'N/A') . "<br>";
-    $check_table = mysqli_query($conn, "SHOW TABLES LIKE 'user_sessions'");
-    echo "user_sessions Table: " . (mysqli_num_rows($check_table) > 0 ? 'EXISTS' : 'MISSING') . "<br>";
-    echo "------------------</div>";
-}
-
 
 // Page routing
 $page = isset($_GET['page']) ? $_GET['page'] : (isLoggedIn() ? 'dashboard' : 'login');
-
-// If already logged in but trying to access the login page, redirect to dashboard
-if (isLoggedIn() && $page == 'login' && !isset($_GET['reauth'])) {
-    header('Location: ' . ($is_https ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/?page=dashboard', true, 302);
-    exit;
-}
 
 // Change Password Action
 if ($page == 'change_password_action' && $_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -422,31 +383,21 @@ if ($page == 'login' && isset($_POST['login'])) {
             // Persistent Login Logic ("Login Forever")
             try {
                 $token = bin2hex(random_bytes(32));
-            } catch (Exception $e) {
+            }
+            catch (Exception $e) {
                 // Fallback for older PHP
                 $token = bin2hex(openssl_random_pseudo_bytes(32));
             }
-            
+
             $user_agent = mysqli_real_escape_string($conn, $_SERVER['HTTP_USER_AGENT'] ?? '');
             $user_id = $row['id'];
-            
+
             $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
             if (mysqli_query($conn, $token_sql)) {
-                // Standardize HTTPS and Domain check (handling Hostinger proxies and port numbers)
-                $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
-                            (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-                $current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-
-                // Set persistent login cookie for 1 year
-                $cookie_params = [
-                    'expires' => time() + (365 * 24 * 60 * 60),
-                    'path' => '/',
-                    'domain' => $current_domain,
-                    'secure' => $is_https,
-                    'httponly' => true,
-                    'samesite' => 'Lax'
-                ];
-                setcookie('GATEPILOT_REMEMBER', $token, $cookie_params);
+                // Set cookie for 1 year
+                $cookie_lifetime = 365 * 24 * 60 * 60;
+                $is_secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+                setcookie('GATEPILOT_REMEMBER', $token, time() + $cookie_lifetime, '/', '', $is_secure, true);
             }
 
             header('Location: ?page=dashboard');
@@ -464,24 +415,11 @@ if ($page == 'logout') {
         logActivity($conn, 'LOGOUT', 'Auth', "User '{$_SESSION['username']}' logged out.");
     }
 
+    // Clear Persistent Login Token if exists
     if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
         mysqli_query($conn, "DELETE FROM user_sessions WHERE token = '$token'");
-        
-        // Standardize HTTPS and Domain check (handling Hostinger proxies and port numbers)
-        $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
-                    (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-        $current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-
-        // Clear cookie using SameSite Lax signature
-        setcookie('GATEPILOT_REMEMBER', '', [
-            'expires' => time() - 3600,
-            'path' => '/',
-            'domain' => $current_domain,
-            'secure' => $is_https,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
     }
 
     // Clear session data
