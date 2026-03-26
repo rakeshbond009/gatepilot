@@ -434,14 +434,21 @@ function showAuditDetail(log) {
         if ($all_success) {
             $webhook = getSetting($conn, 'hostinger_webhook');
             if ($webhook) {
-                // Hostinger auto-deploy uses a simple GET request to the webhook URL
+                // Hostinger webhooks expect a GitHub-style POST request with push event headers
+                $payload = json_encode(['ref' => 'refs/heads/main', 'repository' => ['full_name' => 'rakeshbond009/Truckmovement']]);
                 $ch = curl_init($webhook);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPGET, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'X-GitHub-Event: push',
+                    'X-GitHub-Delivery: ' . uniqid(),
+                    'User-Agent: GitHub-Hookshot/GatePilot'
+                ]);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_USERAGENT, 'GatePilot-Deploy/1.0');
                 $webhook_response = curl_exec($ch);
                 $webhook_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 $webhook_error = curl_error($ch);
