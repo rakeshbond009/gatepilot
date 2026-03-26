@@ -284,7 +284,7 @@ endif; ?>
                                             <label for="active_<?php echo $type['id']; ?>">Active</label>
                                         </div>
                                         <button type="button" class="btn-toggle-json" onclick="toggleJSON('json_container_<?php echo $type['id']; ?>')">Developer Mode</button>
-                                        <button type="button" class="btn-delete" onclick="showAppConfirm('Delete this register? This action is irreversible.', (res)=>{ if(res){ this.form.delete_type.value=1; this.form.submit(); } }, 'Confirm Deletion')">🗑️</button>
+                                        <button type="button" class="btn-delete" onclick="const f = this.form; showAppConfirm('Delete this register? This action is irreversible.', (res)=>{ if(res){ f.delete_type.value=1; f.submit(); } }, 'Confirm Deletion')">🗑️</button>
                                         <input type="hidden" name="delete_type" value="0">
                                     </div>
                                 </div>
