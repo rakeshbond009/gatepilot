@@ -3367,7 +3367,7 @@ function showAuditDetail(log) {
                                     style="background: #10b981; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer;">
                                     📂 Upload
                                 </button>
-                                <a href="data:text/csv;charset=utf-8,EmployeeID,Name,Mobile,Email,Department,VehicleNo,VehicleType,RCExpiry,LicenseExpiry,PollutionExpiry,FitnessExpiry%0AE101,John Doe,9876543210,john@example.com,Logistics,MH12AB1234,Car,31-12-2025,31-12-2030,31-12-2024,31-12-2026"
+                                <a href="download_sample_csv.php"
                                     download="sample_employees.csv"
                                     style="color: #6366f1; font-size: 12px; text-decoration: underline; white-space: nowrap;">
                                     ⬇ Sample CSV
