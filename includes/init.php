@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.2209');
+    define('APP_VERSION', '26.03.26.2243');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -610,6 +610,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
     header("Location: ?page=" . ($page ?: 'dashboard') . (isset($_GET['id']) ? '&id=' . $_GET['id'] : ''));
     exit;
 }
+
 
 
 // ==================== AUTHENTICATION CHECKS (MUST BE BEFORE HTML OUTPUT) ====================

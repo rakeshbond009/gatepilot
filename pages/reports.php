@@ -281,34 +281,35 @@ elseif ($page == 'view-registers'):
                                         <?php
     else: ?>
                                             <?php while ($row = mysqli_fetch_assoc($registers_query)):
-                                                $dynamic = !empty($row['dynamic_data']) ? json_decode($row['dynamic_data'], true) : [];
-                                            ?>
+            $dynamic = !empty($row['dynamic_data']) ? json_decode($row['dynamic_data'], true) : [];
+?>
                                                 <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;">
                                                     <?php foreach ($columns_to_show as $label => $field): ?>
                                                         <td
                                                             style="padding: 12px 15px; font-size: 14px; color: #374151; vertical-align: top;">
                                                             <?php
-                                                            // Check main row first, then dynamic_data
-                                                            $val = isset($row[$field]) ? $row[$field] : (isset($dynamic[$field]) ? $dynamic[$field] : '-');
-                                                            if (empty($val)) $val = '-';
-                                                            
-                                                            // Custom formatting
-                                                            if ($field == 'register_type') {
-                                                                echo '<span class="badge badge-primary" style="font-size: 11px;">' . ucwords(str_replace('_', ' ', $val)) . '</span>';
-                                                            }
-                                                            elseif (strpos($field, 'date') !== false && $val && $val != '-' && strtotime($val)) {
-                                                                echo date('d-M-Y', strtotime($val)) . (strpos($val, ':') ? ' <span style="color:#9ca3af; font-size:12px;">' . date('h:i A', strtotime($val)) . '</span>' : '');
-                                                            }
-                                                            elseif (strpos($field, 'time') !== false && $val && $val != '-' && strlen($val) <= 8) {
-                                                                echo date('h:i A', strtotime($val));
-                                                            }
-                                                            elseif ($field == 'vehicle_no') {
-                                                                echo '<strong style="color: #111827;">' . htmlspecialchars($val) . '</strong>';
-                                                            }
-                                                            else {
-                                                                echo nl2br(htmlspecialchars($val));
-                                                            }
-                                                            ?>
+                // Check main row first, then dynamic_data
+                $val = isset($row[$field]) ? $row[$field] : (isset($dynamic[$field]) ? $dynamic[$field] : '-');
+                if (empty($val))
+                    $val = '-';
+
+                // Custom formatting
+                if ($field == 'register_type') {
+                    echo '<span class="badge badge-primary" style="font-size: 11px;">' . ucwords(str_replace('_', ' ', $val)) . '</span>';
+                }
+                elseif (strpos($field, 'date') !== false && $val && $val != '-' && strtotime($val)) {
+                    echo date('d-M-Y', strtotime($val)) . (strpos($val, ':') ? ' <span style="color:#9ca3af; font-size:12px;">' . date('h:i A', strtotime($val)) . '</span>' : '');
+                }
+                elseif (strpos($field, 'time') !== false && $val && $val != '-' && strlen($val) <= 8) {
+                    echo date('h:i A', strtotime($val));
+                }
+                elseif ($field == 'vehicle_no') {
+                    echo '<strong style="color: #111827;">' . htmlspecialchars($val) . '</strong>';
+                }
+                else {
+                    echo nl2br(htmlspecialchars($val));
+                }
+?>
                                                         </td>
                                                     <?php
             endforeach; ?>
@@ -340,7 +341,8 @@ elseif ($page == 'view-registers'):
                                 ⚙️ Manage Register Types
                             </a>
                         </div>
-                        <?php endif; ?>
+                        <?php
+    endif; ?>
                     </div>
 
                     <!-- Shared Delete Modal -->
