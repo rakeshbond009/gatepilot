@@ -408,10 +408,10 @@ function showAuditDetail(log) {
         $init_path = dirname(__DIR__) . '/includes/init.php';
         $init_content = file_get_contents($init_path);
         // Version Format: YY.MM.DD.HHII (E.g. 26.03.26.1245)
-        $new_v = date('y.m.d.Hi'); 
+        $new_v = date('y.m.d.Hi');
         $init_content = preg_replace("/define\('APP_VERSION', '.*?'\);/", "define('APP_VERSION', '$new_v');", $init_content);
         file_put_contents($init_path, $init_content);
-        
+
         $remarks = isset($_POST['commit_remarks']) ? trim($_POST['commit_remarks']) : '';
         $remarks_text = !empty($remarks) ? " - " . str_replace('"', '\"', $remarks) : '';
         $commit_msg = "Auto Update v$new_v: " . date('Y-m-d H:i:s') . $remarks_text;
@@ -430,7 +430,7 @@ function showAuditDetail(log) {
                 $all_success = false;
             }
         }
-        
+
         if ($all_success) {
             $webhook = getSetting($conn, 'hostinger_webhook');
             if ($webhook) {
@@ -457,16 +457,20 @@ function showAuditDetail(log) {
                 if ($webhook_error) {
                     $output[] = "<strong style='color:#ef4444;'># Hostinger Webhook FAILED: $webhook_error</strong>";
                     $all_success = false;
-                } elseif ($webhook_http_code >= 200 && $webhook_http_code < 300) {
+                }
+                elseif ($webhook_http_code >= 200 && $webhook_http_code < 300) {
                     $output[] = "<strong style='color:#10b981;'># Hostinger Webhook Triggered: HTTP $webhook_http_code ✅ — Auto-deploy started!</strong>";
-                } else {
+                }
+                else {
                     $output[] = "<strong style='color:#f59e0b;'># Hostinger Webhook Response: HTTP $webhook_http_code ⚠️</strong>\n" . htmlspecialchars($webhook_response ?: '(empty response)');
                 }
 
-            } else {
+            }
+            else {
                 $output[] = "<strong style='color:#f59e0b;'># No Hostinger Webhook URL set. Save one in settings to enable auto-deploy.</strong>";
             }
-            if (function_exists('opcache_reset')) @opcache_reset();
+            if (function_exists('opcache_reset'))
+                @opcache_reset();
             $output[] = "<strong># Deployed Version: $new_v</strong>";
         }
 
@@ -493,7 +497,7 @@ function showAuditDetail(log) {
         echo "
         <div id='gitResultModal' class='perm-modal-overlay' style='display:flex;'>
             <div class='perm-modal-content' style='max-width:800px;'>
-                <div style='padding:20px; background:".($all_success?'#1e293b':'#ef4444')."; color:white; border-radius:16px 16px 0 0; display:flex; justify-content:space-between;'>
+                <div style='padding:20px; background:" . ($all_success ? '#1e293b' : '#ef4444') . "; color:white; border-radius:16px 16px 0 0; display:flex; justify-content:space-between;'>
                     <h3 style='margin:0;'>☁️ Deployment Console Output</h3>
                     <button onclick=\"document.getElementById('gitResultModal').remove()\" style='background:none; border:none; color:white; cursor:pointer; font-size:20px;'>&times;</button>
                 </div>
@@ -832,8 +836,8 @@ function showAuditDetail(log) {
                         
                         <?php
         $is_local = (strpos($_SERVER['HTTP_HOST'], 'localhost') !== false || strpos($_SERVER['HTTP_HOST'], '127.0.0.1') !== false);
-        if ($is_local): 
-        ?>
+        if ($is_local):
+?>
                         <div class="card" style="margin-top:20px; border-top: 4px solid #6366f1;">
                             <h3 style="display: flex; align-items: center; gap: 10px;">🚀 Cloud Deployment <span style="background:#6366f1; color:white; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase;">Super Admin Only</span></h3>
                             <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
@@ -905,7 +909,8 @@ function showAuditDetail(log) {
                                 </p>
                             </form>
                         </div>
-                        <?php endif; ?>
+                        <?php
+        endif; ?>
                     </div>
 
                     <?php
@@ -1033,7 +1038,9 @@ function showAuditDetail(log) {
 
                                 if (mysqli_query($conn, $update_sql)) {
                                     $log_details = "Updated User: Username: '$username'";
-                                    if (!empty($changes)) { $log_details .= ", " . implode(", ", $changes); }
+                                    if (!empty($changes)) {
+                                        $log_details .= ", " . implode(", ", $changes);
+                                    }
                                     logActivity($conn, 'USER_UPDATE', 'Users', $log_details);
                                     $_SESSION['success_msg'] = "✅ User updated successfully!";
                                     header("Location: ?page=admin&master=users");
@@ -1139,10 +1146,10 @@ function showAuditDetail(log) {
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Role *</label>
                                                 <select name="role" id="role" required style="width: 100%; padding: 11px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
-                                                    <option value="admin" <?php echo (isset($_POST['role']) && $_POST['role'] == 'admin') ? 'selected' : ''; ?>>Admin</option>
-                                                    <option value="manager" <?php echo (isset($_POST['role']) && $_POST['role'] == 'manager') ? 'selected' : ''; ?>>Manager</option>
-                                                    <option value="guard" <?php echo (isset($_POST['role']) && $_POST['role'] == 'guard') ? 'selected' : ''; ?>>Guard</option>
-                                                    <option value="clerk" <?php echo (isset($_POST['role']) && $_POST['role'] == 'clerk') ? 'selected' : ''; ?>>Clerk</option>
+                                                    <option value="admin" <?php echo(isset($_POST['role']) && $_POST['role'] == 'admin') ? 'selected' : ''; ?>>Admin</option>
+                                                    <option value="manager" <?php echo(isset($_POST['role']) && $_POST['role'] == 'manager') ? 'selected' : ''; ?>>Manager</option>
+                                                    <option value="guard" <?php echo(isset($_POST['role']) && $_POST['role'] == 'guard') ? 'selected' : ''; ?>>Guard</option>
+                                                    <option value="clerk" <?php echo(isset($_POST['role']) && $_POST['role'] == 'clerk') ? 'selected' : ''; ?>>Clerk</option>
                                                 </select>
                                             </div>
                                             <div class="form-group">
@@ -1307,12 +1314,15 @@ function showAuditDetail(log) {
                                 document.getElementById('userFormTitle').textContent = '👤 Edit User: ' + <?php echo json_encode($_POST['full_name']); ?>;
                                 document.getElementById('user_password').required = false;
                                 document.getElementById('pwd_req').style.display = 'none';
-                                <?php else: ?>
+                                <?php
+            else: ?>
                                 document.getElementById('user_password').required = true;
                                 document.getElementById('pwd_req').style.display = 'inline';
-                                <?php endif; ?>
+                                <?php
+            endif; ?>
                             });
-                            <?php endif; ?>
+                            <?php
+        endif; ?>
 
                             function deleteUser(id) {
                                 Swal.fire({
@@ -1829,13 +1839,13 @@ function showAuditDetail(log) {
                         if ($current['transporter_id'] != $trans_id) {
                             $old_t_id = (int)$current['transporter_id'];
                             $new_t_val = ($trans_id !== 'NULL') ? (int)$trans_id : 0;
-                            
+
                             $old_t_res = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$old_t_id");
                             $old_t_name = ($old_t_row = mysqli_fetch_assoc($old_t_res)) ? $old_t_row['transporter_name'] : 'None';
-                            
+
                             $new_t_res = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$new_t_val");
                             $new_t_name = ($new_t_row = mysqli_fetch_assoc($new_t_res)) ? $new_t_row['transporter_name'] : 'None';
-                            
+
                             $changes[] = "Transporter: [$old_t_name ➔ $new_t_name]";
                         }
                         if ($current['is_active'] != $is_active)
@@ -3935,7 +3945,8 @@ function showAuditDetail(log) {
             if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
                 logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted purpose: '$p_name' ($p_type) (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
-                header("Location: ?page=admin&master=purposes");
+                session_write_close();
+                header("Location: index.php?page=admin&master=purposes");
                 exit;
             }
             else {
@@ -3974,7 +3985,8 @@ function showAuditDetail(log) {
                         }
                         logActivity($conn, 'PURPOSE_UPDATE', 'Purposes', $details);
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
-                        header("Location: ?page=admin&master=purposes");
+                        session_write_close();
+                        header("Location: index.php?page=admin&master=purposes");
                         exit;
                     }
                 }
@@ -3983,7 +3995,8 @@ function showAuditDetail(log) {
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created purpose: '$name' ($type)");
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
-                        header("Location: ?page=admin&master=purposes");
+                        session_write_close();
+                        header("Location: index.php?page=admin&master=purposes");
                         exit;
                     }
                 }
@@ -4017,7 +4030,7 @@ function showAuditDetail(log) {
                         </button>
 
                         <div id="purposeForm" style="display: none; margin-bottom: 20px;">
-                            <form method="POST" onsubmit="this.querySelector('button[type=submit]').innerHTML='⏳ Saving...';">
+                            <form method="POST" onsubmit="const btn=this.querySelector('button[type=submit]'); btn.innerHTML='⏳ Saving...'; setTimeout(() => btn.disabled=true, 10);">
                                 <input type="hidden" name="purpose_id" id="purpose_id">
                                 <div class="card"
                                     style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
