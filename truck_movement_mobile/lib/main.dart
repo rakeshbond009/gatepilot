@@ -53,8 +53,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
       allowContentAccess: true,
       javaScriptCanOpenWindowsAutomatically: true,
       supportZoom: true,
-      thirdPartyCookiesEnabled: true,
-      cacheMode: CacheMode.LOAD_DEFAULT,
   );
 
   @override

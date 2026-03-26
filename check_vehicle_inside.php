@@ -5,7 +5,6 @@
  */
 
 require_once 'config.php';
-session_name('GATEPILOT_SESS');
 session_start();
 
 // Check if logged in
@@ -52,16 +51,16 @@ if (!$result) {
 
 if (mysqli_num_rows($result) > 0) {
     $entry = mysqli_fetch_assoc($result);
-    
+
     // Format datetime for display
     $inward_ts = strtotime($entry['inward_datetime']);
     $inward_datetime = date('d/m/Y h:i A', $inward_ts);
 
     // Machine-readable values (for form auto-fill)
     $inward_date = date('Y-m-d', $inward_ts); // for <input type="date">
-    $inward_time = date('H:i', $inward_ts);   // for <input type="time">
+    $inward_time = date('H:i', $inward_ts); // for <input type="time">
     $inward_time_12 = date('h:i A', $inward_ts); // 12-hour display (e.g. 02:15 PM)
-    
+
     header('Content-Type: application/json');
     echo json_encode([
         'isInside' => true,
@@ -73,7 +72,8 @@ if (mysqli_num_rows($result) > 0) {
         'inward_time_12' => $inward_time_12,
         'driver_name' => $entry['driver_name']
     ]);
-} else {
+}
+else {
     header('Content-Type: application/json');
     echo json_encode([
         'isInside' => false,

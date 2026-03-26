@@ -1,5 +1,6 @@
 <?php
-if (!defined('APP_VERSION')) define('APP_VERSION', '26.03.26.1141');
+if (!defined('APP_VERSION'))
+    define('APP_VERSION', '26.03.26.1453');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -11,7 +12,6 @@ ob_start(); // START OUTPUT BUFFERING TO PREVENT CORRUPTING JSON RESPONSES
 require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/DynamicRegisters.php';
 
-session_name('GATEPILOT_SESS');
 session_start();
 
 // Database connection using auto-detected environment settings
@@ -101,6 +101,18 @@ if ($conn) {
     if (mysqli_num_rows($check_perm_col) == 0) {
         mysqli_query($conn, "ALTER TABLE user_master ADD COLUMN permissions TEXT DEFAULT NULL");
     }
+
+    // Create persistent sessions table for "Login Forever"
+    mysqli_query($conn, "CREATE TABLE IF NOT EXISTS user_sessions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        token VARCHAR(64) UNIQUE NOT NULL,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_token (token),
+        INDEX idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     // Custom Function: Show App Modal
     function showAppModal($title, $message, $type = 'success')
@@ -277,6 +289,34 @@ function hasPermission($key)
     return false;
 }
 
+// Persistent Login (Remember Me / Login Forever)
+if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+    $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
+    $query = "SELECT u.* FROM user_sessions s 
+              JOIN user_master u ON s.user_id = u.id 
+              WHERE s.token = '$token' AND u.is_active = 1 
+              LIMIT 1";
+    $token_result = mysqli_query($conn, $query);
+    
+    if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
+        $_SESSION['user_id'] = $row['id'];
+        $_SESSION['username'] = $row['username'];
+        $_SESSION['full_name'] = $row['full_name'];
+        $_SESSION['role'] = $row['role'];
+        $_SESSION['super_admin'] = (int)$row['super_admin'];
+        $_SESSION['permissions'] = $row['permissions'];
+        
+        // Update last used timestamp
+        mysqli_query($conn, "UPDATE user_sessions SET last_used_at = CURRENT_TIMESTAMP WHERE token = '$token'");
+        
+        // Audit Log: Auto Login
+        logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
+    } else {
+        // Invalid or expired token, clear cookie
+        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
+    }
+}
+
 // Page routing
 $page = isset($_GET['page']) ? $_GET['page'] : (isLoggedIn() ? 'dashboard' : 'login');
 
@@ -339,8 +379,25 @@ if ($page == 'login' && isset($_POST['login'])) {
             // Audit Log: Success Login
             logActivity($conn, 'LOGIN_SUCCESS', 'Auth', "User '{$row['username']}' logged in successfully.");
 
-            // Explicitly close session to ensure write before redirect
-            session_write_close();
+            // Persistent Login Logic ("Login Forever")
+            try {
+                $token = bin2hex(random_bytes(32));
+            } catch (Exception $e) {
+                // Fallback for older PHP
+                $token = bin2hex(openssl_random_pseudo_bytes(32));
+            }
+            
+            $user_agent = mysqli_real_escape_string($conn, $_SERVER['HTTP_USER_AGENT'] ?? '');
+            $user_id = $row['id'];
+            
+            $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
+            if (mysqli_query($conn, $token_sql)) {
+                // Set cookie for 1 year
+                $cookie_lifetime = 365 * 24 * 60 * 60;
+                $is_secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+                setcookie('GATEPILOT_REMEMBER', $token, time() + $cookie_lifetime, '/', '', $is_secure, true);
+            }
+
             header('Location: ?page=dashboard');
             exit;
         }
@@ -354,6 +411,13 @@ if ($page == 'logout') {
     // Audit Log: Logout (must be before session_destroy)
     if (isLoggedIn()) {
         logActivity($conn, 'LOGOUT', 'Auth', "User '{$_SESSION['username']}' logged out.");
+    }
+
+    // Clear Persistent Login Token if exists
+    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+        $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
+        mysqli_query($conn, "DELETE FROM user_sessions WHERE token = '$token'");
+        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
     }
 
     // Clear session data
@@ -843,13 +907,20 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $current = mysqli_fetch_assoc($current_res);
                 $changes = [];
                 if ($current) {
-                    if ($current['employee_id'] !== $emp_id) $changes[] = "EmpID: [{$current['employee_id']} ➔ $emp_id]";
-                    if ($current['employee_name'] !== $name) $changes[] = "Name: [{$current['employee_name']} ➔ $name]";
-                    if ($current['mobile'] !== $mobile) $changes[] = "Mobile: [{$current['mobile']} ➔ $mobile]";
-                    if ($current['email'] !== $email) $changes[] = "Email: [{$current['email']} ➔ $email]";
-                    if ($current['department'] !== $dept) $changes[] = "Dept: [{$current['department']} ➔ $dept]";
-                    if ($current['vehicle_number'] !== $vehicle) $changes[] = "Vehicle: [{$current['vehicle_number']} ➔ $vehicle]";
-                    if ($current['vehicle_type'] !== $vehicle_type) $changes[] = "Type: [{$current['vehicle_type']} ➔ $vehicle_type]";
+                    if ($current['employee_id'] !== $emp_id)
+                        $changes[] = "EmpID: [{$current['employee_id']} ➔ $emp_id]";
+                    if ($current['employee_name'] !== $name)
+                        $changes[] = "Name: [{$current['employee_name']} ➔ $name]";
+                    if ($current['mobile'] !== $mobile)
+                        $changes[] = "Mobile: [{$current['mobile']} ➔ $mobile]";
+                    if ($current['email'] !== $email)
+                        $changes[] = "Email: [{$current['email']} ➔ $email]";
+                    if ($current['department'] !== $dept)
+                        $changes[] = "Dept: [{$current['department']} ➔ $dept]";
+                    if ($current['vehicle_number'] !== $vehicle)
+                        $changes[] = "Vehicle: [{$current['vehicle_number']} ➔ $vehicle]";
+                    if ($current['vehicle_type'] !== $vehicle_type)
+                        $changes[] = "Type: [{$current['vehicle_type']} ➔ $vehicle_type]";
                 }
 
                 $sql = "UPDATE employee_master SET 

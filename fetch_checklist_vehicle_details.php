@@ -13,8 +13,7 @@ ini_set('display_errors', 0);
 
 // Load configuration
 require_once 'config.php';
-session_name('GATEPILOT_SESS');
-session_start();
+
 // Clear any output that might have been generated
 ob_clean();
 
@@ -57,14 +56,14 @@ try {
     // Check if registration_validity exists, otherwise use registration_date
     $check_reg_validity = mysqli_query($conn, "SHOW COLUMNS FROM vehicle_master LIKE 'registration_validity'");
     $reg_field = (mysqli_num_rows($check_reg_validity) > 0) ? 'registration_validity' : 'registration_date';
-    
+
     // Check if permit columns exist
     $check_permit_validity = mysqli_query($conn, "SHOW COLUMNS FROM vehicle_master LIKE 'permit_validity'");
     $check_permit_photo = mysqli_query($conn, "SHOW COLUMNS FROM vehicle_master LIKE 'permit_photo'");
-    
+
     $permit_validity_field = (mysqli_num_rows($check_permit_validity) > 0) ? 'v.permit_validity' : 'NULL as permit_validity';
     $permit_photo_field = (mysqli_num_rows($check_permit_photo) > 0) ? 'v.permit_photo' : 'NULL as permit_photo';
-    
+
     $vehicle_query = "SELECT 
                         v.id as vehicle_id,
                         v.vehicle_number,
@@ -106,7 +105,7 @@ try {
         // 2. Fetch all driver details (needed for driving license info and driver selection)
         $driver_data = null;
         $all_drivers = [];
-        
+
         // Check if vehicle_drivers table exists
         $check_table = mysqli_query($conn, "SHOW TABLES LIKE 'vehicle_drivers'");
         if (mysqli_num_rows($check_table) > 0) {
@@ -127,7 +126,7 @@ try {
                              LEFT JOIN transporter_master t ON d.transporter_id = t.id AND t.is_active = 1
                              WHERE vd.vehicle_id = {$vehicle_data['vehicle_id']}
                              ORDER BY vd.is_primary DESC, d.driver_name";
-            
+
             $drivers_result = mysqli_query($conn, $drivers_query);
             if ($drivers_result && mysqli_num_rows($drivers_result) > 0) {
                 while ($driver_row = mysqli_fetch_assoc($drivers_result)) {
@@ -142,7 +141,8 @@ try {
                     $driver_data = $all_drivers[0];
                 }
             }
-        } else if ($vehicle_data['driver_id']) {
+        }
+        else if ($vehicle_data['driver_id']) {
             // Fallback: Get driver directly from driver_master
             $driver_query = "SELECT 
                                 d.id as driver_id,
@@ -159,7 +159,7 @@ try {
                              LEFT JOIN transporter_master t ON d.transporter_id = t.id AND t.is_active = 1
                              WHERE d.id = {$vehicle_data['driver_id']} AND d.is_active = 1
                              LIMIT 1";
-            
+
             $driver_result = mysqli_query($conn, $driver_query);
             if ($driver_result && mysqli_num_rows($driver_result) > 0) {
                 $driver_data = mysqli_fetch_assoc($driver_result);
@@ -181,19 +181,19 @@ try {
                 }
             }
         }
-        
+
         // Get permit information from vehicle_master (already fetched in query)
         $permit_status = 'NA';
         $permit_details = '';
         $permit_validity = $vehicle_data['permit_validity'] ?? null;
-        
+
         if ($permit_validity) {
             // Use permit_validity to determine status
             $is_valid = strtotime($permit_validity) >= strtotime('today');
             $permit_status = $is_valid ? 'Yes' : 'No';
             $permit_details = 'Valid till: ' . date('d-m-Y', strtotime($permit_validity));
         }
-        
+
         $response['documents'] = [
             'driving_licence' => [
                 'status' => $driver_license_status,
@@ -201,10 +201,10 @@ try {
             ],
             'rc_book' => [
                 'status' => $vehicle_data['registration_validity'] ? 
-                    (strtotime($vehicle_data['registration_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
+                (strtotime($vehicle_data['registration_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
                 'validity' => $vehicle_data['registration_validity'],
                 'details' => $vehicle_data['registration_validity'] ? 
-                    'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['registration_validity'])) : ''
+                'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['registration_validity'])) : ''
             ],
             'permit' => [
                 'status' => $permit_status,
@@ -214,24 +214,24 @@ try {
             ],
             'fitness_certificate' => [
                 'status' => $vehicle_data['fitness_validity'] ? 
-                    (strtotime($vehicle_data['fitness_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
+                (strtotime($vehicle_data['fitness_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
                 'validity' => $vehicle_data['fitness_validity'],
                 'details' => $vehicle_data['fitness_validity'] ? 
-                    'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['fitness_validity'])) : ''
+                'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['fitness_validity'])) : ''
             ],
             'puc_certificate' => [
                 'status' => $vehicle_data['pollution_validity'] ? 
-                    (strtotime($vehicle_data['pollution_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
+                (strtotime($vehicle_data['pollution_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
                 'validity' => $vehicle_data['pollution_validity'],
                 'details' => $vehicle_data['pollution_validity'] ? 
-                    'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['pollution_validity'])) : ''
+                'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['pollution_validity'])) : ''
             ],
             'insurance' => [
                 'status' => $vehicle_data['insurance_validity'] ? 
-                    (strtotime($vehicle_data['insurance_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
+                (strtotime($vehicle_data['insurance_validity']) >= strtotime('today') ? 'Yes' : 'No') : 'NA',
                 'validity' => $vehicle_data['insurance_validity'],
                 'details' => $vehicle_data['insurance_validity'] ? 
-                    'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['insurance_validity'])) : ''
+                'Valid till: ' . date('d-m-Y', strtotime($vehicle_data['insurance_validity'])) : ''
             ]
         ];
 
@@ -245,7 +245,7 @@ try {
                                   AND transporter_id IS NOT NULL
                                   ORDER BY inward_datetime DESC
                                   LIMIT 1";
-            
+
             $transporter_result = mysqli_query($conn, $transporter_query);
             if ($transporter_result && mysqli_num_rows($transporter_result) > 0) {
                 $transporter_data = mysqli_fetch_assoc($transporter_result);
@@ -268,25 +268,26 @@ try {
                 'license_type' => $driver_data['license_number'] ? 'Transport/HGV' : ''
             ];
         }
-        
+
         // Add all drivers list for selection when multiple drivers exist
         if (count($all_drivers) > 0) {
-            $response['all_drivers'] = array_map(function($d) {
+            $response['all_drivers'] = array_map(function ($d) {
                 return [
-                    'driver_id' => $d['driver_id'],
-                    'driver_name' => $d['driver_name'],
-                    'driver_mobile' => $d['driver_mobile'],
-                    'license_number' => $d['license_number'] ?? '',
-                    'license_expiry' => $d['license_expiry'] ?? null,
-                    'is_primary' => $d['is_primary'] ?? 0
+                'driver_id' => $d['driver_id'],
+                'driver_name' => $d['driver_name'],
+                'driver_mobile' => $d['driver_mobile'],
+                'license_number' => $d['license_number'] ?? '',
+                'license_expiry' => $d['license_expiry'] ?? null,
+                'is_primary' => $d['is_primary'] ?? 0
                 ];
             }, $all_drivers);
             $response['has_multiple_drivers'] = count($all_drivers) > 1;
-        } else {
+        }
+        else {
             $response['all_drivers'] = [];
             $response['has_multiple_drivers'] = false;
         }
-        
+
         if ($driver_data && $driver_data['transporter_id']) {
             $response['transporter'] = [
                 'transporter_id' => $driver_data['transporter_id'],
@@ -296,7 +297,8 @@ try {
         }
 
         $response['message'] = '✅ Vehicle details found and loaded!';
-    } else {
+    }
+    else {
         // Vehicle not in master, check recent entries
         $recent_query = "SELECT 
                             driver_name,
@@ -307,7 +309,7 @@ try {
                          WHERE vehicle_number = '$vehicle_number'
                          ORDER BY inward_datetime DESC
                          LIMIT 1";
-        
+
         $recent_result = mysqli_query($conn, $recent_query);
         if ($recent_result && mysqli_num_rows($recent_result) > 0) {
             $recent_data = mysqli_fetch_assoc($recent_result);
@@ -323,7 +325,8 @@ try {
                 ];
             }
             $response['message'] = '⚠️ Vehicle not in master, but found recent entry details';
-        } else {
+        }
+        else {
             $response['message'] = 'ℹ️ New vehicle - Please enter all details manually';
         }
     }
@@ -332,7 +335,8 @@ try {
     ob_clean();
     echo json_encode($response);
 
-} catch (Exception $e) {
+}
+catch (Exception $e) {
     ob_clean();
     echo json_encode([
         'success' => false,

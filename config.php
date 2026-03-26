@@ -79,7 +79,7 @@ if (is_writable($session_save_path)) {
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
     'path' => '/',
-    'domain' => null, // Let the browser/app decide the best domain scope
+    'domain' => $_SERVER['HTTP_HOST'] ?? '',
     'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
     'httponly' => true,
     'samesite' => 'Lax'

@@ -9,7 +9,6 @@ $is_included = (basename($_SERVER['PHP_SELF']) != 'unloading_checklist.php');
 
 if (!$is_included) {
     require_once 'config.php';
-    session_name('GATEPILOT_SESS');
     session_start();
 
     // Check if logged in
