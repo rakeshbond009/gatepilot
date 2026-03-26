@@ -1099,7 +1099,7 @@ function showAuditDetail(log) {
 
                     <div class="card" style="margin-bottom: 20px;">
                         <button
-                            onclick="document.getElementById('userForm').style.display='block'; document.getElementById('userForm').scrollIntoView({ behavior: 'smooth' });"
+                            onclick="newUser()"
                             class="btn btn-primary"
                             style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
                             ➕ Add New User
@@ -1124,24 +1124,24 @@ function showAuditDetail(log) {
                                             <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3b82f6; display: inline-block; padding-bottom: 2px;">🔐 Account Settings</h4>
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Username *</label>
-                                                <input type="text" name="username" id="username" required style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <input type="text" name="username" id="username" value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>" required style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Full Name *</label>
-                                                <input type="text" name="full_name" id="full_name" required style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <input type="text" name="full_name" id="full_name" value="<?php echo isset($_POST['full_name']) ? htmlspecialchars($_POST['full_name']) : ''; ?>" required style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Role *</label>
                                                 <select name="role" id="role" required style="width: 100%; padding: 11px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
-                                                    <option value="admin">Admin</option>
-                                                    <option value="manager">Manager</option>
-                                                    <option value="guard">Guard</option>
-                                                    <option value="clerk">Clerk</option>
+                                                    <option value="admin" <?php echo (isset($_POST['role']) && $_POST['role'] == 'admin') ? 'selected' : ''; ?>>Admin</option>
+                                                    <option value="manager" <?php echo (isset($_POST['role']) && $_POST['role'] == 'manager') ? 'selected' : ''; ?>>Manager</option>
+                                                    <option value="guard" <?php echo (isset($_POST['role']) && $_POST['role'] == 'guard') ? 'selected' : ''; ?>>Guard</option>
+                                                    <option value="clerk" <?php echo (isset($_POST['role']) && $_POST['role'] == 'clerk') ? 'selected' : ''; ?>>Clerk</option>
                                                 </select>
                                             </div>
                                             <div class="form-group">
-                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Password</label>
-                                                <input type="password" name="password" placeholder="Leave blank to keep current" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Password <span id="pwd_req" style="display:none;">*</span></label>
+                                                <input type="password" name="password" id="user_password" placeholder="Leave blank to keep current" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                         </div>
 
@@ -1150,11 +1150,11 @@ function showAuditDetail(log) {
                                             <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #10b981; display: inline-block; padding-bottom: 2px;">📞 Contact & Photo</h4>
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Email</label>
-                                                <input type="email" name="email" id="email" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <input type="email" name="email" id="email" value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Mobile</label>
-                                                <input type="text" name="mobile" id="p_mobile" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <input type="text" name="mobile" id="p_mobile" value="<?php echo isset($_POST['mobile']) ? htmlspecialchars($_POST['mobile']) : ''; ?>" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Profile Photo</label>
@@ -1266,6 +1266,19 @@ function showAuditDetail(log) {
                         </div>
 
                         <script>
+                            function newUser() {
+                                document.getElementById('user_id').value = '';
+                                document.getElementById('username').value = '';
+                                document.getElementById('username').readOnly = false;
+                                document.getElementById('full_name').value = '';
+                                document.getElementById('role').value = 'guard';
+                                document.getElementById('email').value = '';
+                                document.getElementById('p_mobile').value = '';
+                                document.getElementById('user_password').required = true;
+                                document.getElementById('pwd_req').style.display = 'inline';
+                                document.getElementById('userFormTitle').textContent = '👤 Add New User';
+                                document.getElementById('userForm').style.display = 'flex';
+                            }
                             function editUser(id, username, fullName, role, email, mobile) {
                                 document.getElementById('user_id').value = id;
                                 document.getElementById('username').value = username;
@@ -1274,9 +1287,27 @@ function showAuditDetail(log) {
                                 document.getElementById('role').value = role;
                                 document.getElementById('email').value = email || '';
                                 document.getElementById('p_mobile').value = mobile || '';
+                                document.getElementById('user_password').required = false;
+                                document.getElementById('pwd_req').style.display = 'none';
                                 document.getElementById('userFormTitle').textContent = '👤 Edit User: ' + fullName;
                                 document.getElementById('userForm').style.display = 'flex';
                             }
+                            <?php if (isset($_POST['save_user']) && isset($error_msg)): ?>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                document.getElementById('userForm').style.display = 'flex';
+                                // If editing an existing user, we need to set the readonly state and title correctly
+                                <?php if (!empty($_POST['user_id'])): ?>
+                                document.getElementById('username').readOnly = true;
+                                document.getElementById('userFormTitle').textContent = '👤 Edit User: ' + <?php echo json_encode($_POST['full_name']); ?>;
+                                document.getElementById('user_password').required = false;
+                                document.getElementById('pwd_req').style.display = 'none';
+                                <?php else: ?>
+                                document.getElementById('user_password').required = true;
+                                document.getElementById('pwd_req').style.display = 'inline';
+                                <?php endif; ?>
+                            });
+                            <?php endif; ?>
+
                             function deleteUser(id) {
                                 Swal.fire({
                                     title: 'Are you sure?',
