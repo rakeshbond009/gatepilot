@@ -5,6 +5,7 @@
  */
 
 require_once 'config.php';
+session_name('GATEPILOT_SESS');
 session_start();
 
 // Check if logged in

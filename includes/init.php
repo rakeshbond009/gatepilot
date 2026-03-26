@@ -1,5 +1,5 @@
 <?php
-if (!defined('APP_VERSION')) define('APP_VERSION', '26.03.26.1105');
+if (!defined('APP_VERSION')) define('APP_VERSION', '26.03.26.1141');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -11,6 +11,7 @@ ob_start(); // START OUTPUT BUFFERING TO PREVENT CORRUPTING JSON RESPONSES
 require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/DynamicRegisters.php';
 
+session_name('GATEPILOT_SESS');
 session_start();
 
 // Database connection using auto-detected environment settings
@@ -338,6 +339,8 @@ if ($page == 'login' && isset($_POST['login'])) {
             // Audit Log: Success Login
             logActivity($conn, 'LOGIN_SUCCESS', 'Auth', "User '{$row['username']}' logged in successfully.");
 
+            // Explicitly close session to ensure write before redirect
+            session_write_close();
             header('Location: ?page=dashboard');
             exit;
         }

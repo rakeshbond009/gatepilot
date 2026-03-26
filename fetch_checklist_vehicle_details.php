@@ -13,7 +13,8 @@ ini_set('display_errors', 0);
 
 // Load configuration
 require_once 'config.php';
-
+session_name('GATEPILOT_SESS');
+session_start();
 // Clear any output that might have been generated
 ob_clean();
 

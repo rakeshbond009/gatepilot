@@ -9,16 +9,18 @@ $is_included = (basename($_SERVER['PHP_SELF']) != 'loading_checklist.php');
 
 if (!$is_included) {
     require_once 'config.php';
+    session_name('GATEPILOT_SESS');
     session_start();
-    
+
     // Check if logged in
     if (!isset($_SESSION['user_id'])) {
         header('Location: index.php?page=login');
         exit;
     }
-    
+
     $conn = getDatabaseConnection();
-} else {
+}
+else {
     // Being included from index.php - variables already set
     if (!isset($conn)) {
         $conn = getDatabaseConnection();
@@ -82,17 +84,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
             // Fall back to latest inside entry if available
             if ($inside_inward_id) {
                 $inward_id = $inside_inward_id;
-            } else {
+            }
+            else {
                 $error = "Cannot save loading entry: Vehicle $vehicle_registration_number does not have an inward entry with status INSIDE. Please do Inward entry first.";
             }
         }
-    } else {
+    }
+    else {
         // No inward_id and no inside entry found
         if (!$inside_inward_id) {
             $error = "Cannot save loading entry: Vehicle $vehicle_registration_number does not have an inward entry with status INSIDE. Please do Inward entry first.";
         }
     }
-    
+
     // Document checks
     $documents = [];
     $doc_types = ['driving_licence', 'rc_book', 'permit', 'insurance', 'puc_certificate'];
@@ -107,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
         }
     }
     $documents_json = json_encode($documents);
-    
+
     // Platform condition
     $platform_cleanliness_obs = mysqli_real_escape_string($conn, $_POST['platform_cleanliness_obs'] ?? '');
     $platform_cleanliness_action = mysqli_real_escape_string($conn, $_POST['platform_cleanliness_action'] ?? '');
@@ -115,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
     $platform_gaps_obs = mysqli_real_escape_string($conn, $_POST['platform_gaps_obs'] ?? '');
     $platform_gaps_action = mysqli_real_escape_string($conn, $_POST['platform_gaps_action'] ?? '');
     $platform_gaps_remarks = mysqli_real_escape_string($conn, $_POST['platform_gaps_remarks'] ?? '');
-    
+
     // Other checks
     $cross_bars_removed_obs = mysqli_real_escape_string($conn, $_POST['cross_bars_removed_obs'] ?? '');
     $cross_bars_removed_action = mysqli_real_escape_string($conn, $_POST['cross_bars_removed_action'] ?? '');
@@ -126,24 +130,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
     $driver_smartphone_status = mysqli_real_escape_string($conn, $_POST['driver_smartphone_status'] ?? '');
     $driver_smartphone_action = mysqli_real_escape_string($conn, $_POST['driver_smartphone_action'] ?? '');
     $driver_smartphone_remarks = mysqli_real_escape_string($conn, $_POST['driver_smartphone_remarks'] ?? '');
-    
+
     // Time tracking
     $reporting_time_plant = mysqli_real_escape_string($conn, $_POST['reporting_time_plant'] ?? '');
     $reporting_date_plant = mysqli_real_escape_string($conn, $_POST['reporting_date_plant'] ?? '');
     $gate_entry_time = mysqli_real_escape_string($conn, $_POST['gate_entry_time'] ?? '');
     $gate_entry_date = mysqli_real_escape_string($conn, $_POST['gate_entry_date'] ?? '');
-    
+
     // Other remarks
     $other_remarks = mysqli_real_escape_string($conn, $_POST['other_remarks'] ?? '');
     $other_remarks_obs = mysqli_real_escape_string($conn, $_POST['other_remarks_obs'] ?? '');
     $other_remarks_action = mysqli_real_escape_string($conn, $_POST['other_remarks_action'] ?? '');
-    
+
     $checked_by = $_SESSION['user_id'];
     $checked_by_name = $_SESSION['full_name'];
-    
+
     // Set document_date to current date if not provided
     $document_date = date('Y-m-d');
-    
+
     // Insert into database (only if validation passed)
     if (empty($error)) {
         $sql = "INSERT INTO vehicle_loading_checklist (
@@ -174,12 +178,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
             '$other_remarks', '$other_remarks_obs', '$other_remarks_action',
             $checked_by, '$checked_by_name', 'completed'
         )";
-        
+
         if (mysqli_query($conn, $sql)) {
             $success = "Loading checklist saved successfully!";
             // Reset form or redirect
             $_POST = array();
-        } else {
+        }
+        else {
             $error = "Error: " . mysqli_error($conn);
         }
     }
@@ -196,7 +201,8 @@ $transporters_result = mysqli_query($conn, $transporters_query);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vehicle Loading Checklist - VCPL/LOG/FR/01</title>
-<?php endif; ?>
+<?php
+endif; ?>
     <style>
 <?php if (!$is_included): ?>
         * {
@@ -472,7 +478,6 @@ $transporters_result = mysqli_query($conn, $transporters_query);
             overflow-x: auto;
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
-            padding-bottom: env(safe-area-inset-bottom, 15px);
             scrollbar-width: thin;
         }
         
@@ -501,15 +506,6 @@ $transporters_result = mysqli_query($conn, $transporters_query);
             color: #4F46E5;
             background: #EEF2FF;
         }
-
-        @media (min-width: 768px) {
-            .bottom-nav {
-                justify-content: space-around;
-                overflow-x: hidden;
-                padding: 0 20px;
-                padding-bottom: env(safe-area-inset-bottom, 12px);
-            }
-        }
         
         .bottom-nav a:hover {
             background: #f3f4f6;
@@ -529,21 +525,25 @@ $transporters_result = mysqli_query($conn, $transporters_query);
                 box-shadow: none;
             }
         }
-<?php endif; ?>
+<?php
+endif; ?>
     </style>
 <?php if (!$is_included): ?>
 </head>
 <body>
-<?php endif; ?>
+<?php
+endif; ?>
 <div class="loading-form">
     <div class="container">
         <?php if ($success): ?>
             <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php endif; ?>
+        <?php
+endif; ?>
         
         <?php if ($error): ?>
             <div class="alert alert-error"><?php echo $error; ?></div>
-        <?php endif; ?>
+        <?php
+endif; ?>
 
         <a href="<?php echo $is_included ? '?page=dashboard' : 'index.php?page=dashboard'; ?>" class="btn btn-secondary btn-full" style="margin-bottom: 15px; display: block; position: relative; z-index: 10;">
             ← Back
@@ -629,11 +629,12 @@ $transporters_result = mysqli_query($conn, $transporters_query);
                         </label>
                         <select name="transport_company_id" id="transport_company_id" style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                             <option value="">Select Transport Company</option>
-                            <?php 
-                            mysqli_data_seek($transporters_result, 0);
-                            while ($row = mysqli_fetch_assoc($transporters_result)): ?>
+                            <?php
+mysqli_data_seek($transporters_result, 0);
+while ($row = mysqli_fetch_assoc($transporters_result)): ?>
                                 <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['transporter_name']); ?></option>
-                            <?php endwhile; ?>
+                            <?php
+endwhile; ?>
                         </select>
                         <input type="hidden" name="transport_company_name" id="transport_company_name">
                     </div>
@@ -699,16 +700,16 @@ $transporters_result = mysqli_query($conn, $transporters_query);
                         <p style="margin: 3px 0 0 0; color: #6b7280; font-size: 12px;">Check document status and validity</p>
                     </div>
                 </div>
-                <?php 
-                $documents = [
-                    'driving_licence' => 'A) Driving Licence',
-                    'rc_book' => 'B) RC Book',
-                    'permit' => 'C) Permit',
-                    'insurance' => 'D) Insurance',
-                    'puc_certificate' => 'E) PUC Certificate'
-                ];
-                foreach ($documents as $key => $label): 
-                ?>
+                <?php
+$documents = [
+    'driving_licence' => 'A) Driving Licence',
+    'rc_book' => 'B) RC Book',
+    'permit' => 'C) Permit',
+    'insurance' => 'D) Insurance',
+    'puc_certificate' => 'E) PUC Certificate'
+];
+foreach ($documents as $key => $label):
+?>
                 <div class="sub-item">
                     <label><strong><?php echo $label; ?></strong></label>
                     <div class="observation-group">
@@ -731,7 +732,8 @@ $transporters_result = mysqli_query($conn, $transporters_query);
                         </div>
                     </div>
                 </div>
-                <?php endforeach; ?>
+                <?php
+endforeach; ?>
             </div>
 
             <!-- Platform Condition -->
@@ -1342,7 +1344,8 @@ $transporters_result = mysqli_query($conn, $transporters_query);
             <span class="icon">⚙️</span>
             Masters
         </a>
-        <?php endif; ?>
+        <?php
+    endif; ?>
         <a href="?page=logout">
             <span class="icon">🚪</span>
             Logout

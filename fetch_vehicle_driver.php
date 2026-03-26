@@ -11,7 +11,7 @@ header('Content-Type: application/json');
 
 // Load configuration (auto-detects environment)
 require_once 'config.php';
-
+session_name('GATEPILOT_SESS');
 session_start();
 
 // Database connection using auto-detected environment settings

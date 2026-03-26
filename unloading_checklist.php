@@ -9,16 +9,18 @@ $is_included = (basename($_SERVER['PHP_SELF']) != 'unloading_checklist.php');
 
 if (!$is_included) {
     require_once 'config.php';
+    session_name('GATEPILOT_SESS');
     session_start();
-    
+
     // Check if logged in
     if (!isset($_SESSION['user_id'])) {
         header('Location: index.php?page=login');
         exit;
     }
-    
+
     $conn = getDatabaseConnection();
-} else {
+}
+else {
     // Being included from index.php - variables already set
     if (!isset($conn)) {
         $conn = getDatabaseConnection();
@@ -78,17 +80,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
             // Fall back to latest inside entry if available
             if ($inside_inward_id) {
                 $inward_id = $inside_inward_id;
-            } else {
+            }
+            else {
                 $error = "Cannot save unloading entry: Vehicle $vehicle_registration_number does not have an inward entry with status INSIDE. Please do Inward entry first.";
             }
         }
-    } else {
+    }
+    else {
         // No inward_id and no inside entry found
         if (!$inside_inward_id) {
             $error = "Cannot save unloading entry: Vehicle $vehicle_registration_number does not have an inward entry with status INSIDE. Please do Inward entry first.";
         }
     }
-    
+
     // Vehicle specific details
     $rc_book_status = mysqli_real_escape_string($conn, $_POST['rc_book_status'] ?? '');
     $rc_book_details = mysqli_real_escape_string($conn, $_POST['rc_book_details'] ?? '');
@@ -100,14 +104,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
     $puc_certificate_details = mysqli_real_escape_string($conn, $_POST['puc_certificate_details'] ?? '');
     $fitness_certificate_status = mysqli_real_escape_string($conn, $_POST['fitness_certificate_status'] ?? '');
     $fitness_certificate_details = mysqli_real_escape_string($conn, $_POST['fitness_certificate_details'] ?? '');
-    
+
     // Driver specific details
     $driver_name = mysqli_real_escape_string($conn, $_POST['driver_name']);
     $driver_mobile = mysqli_real_escape_string($conn, $_POST['driver_mobile']);
     $driver_alcoholic_influence = mysqli_real_escape_string($conn, $_POST['driver_alcoholic_influence'] ?? '');
     $license_type = mysqli_real_escape_string($conn, $_POST['license_type']);
     $license_valid_till = mysqli_real_escape_string($conn, $_POST['license_valid_till'] ?? '');
-    
+
     // Vendor/Challan/Invoice details
     $vendor_id = !empty($_POST['vendor_id']) ? intval($_POST['vendor_id']) : 'NULL';
     $vendor_name = mysqli_real_escape_string($conn, $_POST['vendor_name']);
@@ -115,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
     $challan_no = mysqli_real_escape_string($conn, $_POST['challan_no']);
     $invoice_no = mysqli_real_escape_string($conn, $_POST['invoice_no']);
     $gst_number = mysqli_real_escape_string($conn, $_POST['gst_number']);
-    
+
     // Safety checks
     $safety_checks = [];
     $safety_items = [
@@ -144,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
         }
     }
     $safety_checks_json = json_encode($safety_checks);
-    
+
     // Special checks for BO Tankers
     $tanker_sealing_status_obs = mysqli_real_escape_string($conn, $_POST['tanker_sealing_status_obs'] ?? '');
     $tanker_sealing_status_remarks = mysqli_real_escape_string($conn, $_POST['tanker_sealing_status_remarks'] ?? '');
@@ -152,21 +156,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
     $tanker_emergency_panel_remarks = mysqli_real_escape_string($conn, $_POST['tanker_emergency_panel_remarks'] ?? '');
     $tanker_fall_protection_obs = mysqli_real_escape_string($conn, $_POST['tanker_fall_protection_obs'] ?? '');
     $tanker_fall_protection_remarks = mysqli_real_escape_string($conn, $_POST['tanker_fall_protection_remarks'] ?? '');
-    
+
     // Weight information
     $gross_weight_invoice = !empty($_POST['gross_weight_invoice']) ? floatval($_POST['gross_weight_invoice']) : NULL;
     $tare_weight_invoice = !empty($_POST['tare_weight_invoice']) ? floatval($_POST['tare_weight_invoice']) : NULL;
     $net_weight_invoice = !empty($_POST['net_weight_invoice']) ? floatval($_POST['net_weight_invoice']) : NULL;
-    
+
     // Other remarks
     $other_remarks = mysqli_real_escape_string($conn, $_POST['other_remarks'] ?? '');
-    
+
     $checked_by = $_SESSION['user_id'];
     $checked_by_name = $_SESSION['full_name'];
-    
+
     // Set document_date to current date if not provided
     $document_date = date('Y-m-d');
-    
+
     // Insert into database (only if validation passed)
     if (empty($error)) {
         $sql = "INSERT INTO vehicle_unloading_checklist (
@@ -196,11 +200,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
             " . ($gross_weight_invoice !== NULL ? $gross_weight_invoice : 'NULL') . ", " . ($tare_weight_invoice !== NULL ? $tare_weight_invoice : 'NULL') . ", " . ($net_weight_invoice !== NULL ? $net_weight_invoice : 'NULL') . ",
             '$other_remarks', $checked_by, '$checked_by_name', 'completed'
         )";
-        
+
         if (mysqli_query($conn, $sql)) {
             $success = "Unloading checklist saved successfully!";
             $_POST = array();
-        } else {
+        }
+        else {
             $error = "Error: " . mysqli_error($conn);
         }
     }
@@ -220,7 +225,8 @@ $vendors_result = mysqli_query($conn, $vendors_query);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vehicle Unloading Checklist - VCPL/STORE/FR/01</title>
-<?php endif; ?>
+<?php
+endif; ?>
     <style>
         .unloading-form .form-section {
             margin-bottom: 30px;
@@ -405,7 +411,6 @@ $vendors_result = mysqli_query($conn, $vendors_query);
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: thin;
-            padding-bottom: env(safe-area-inset-bottom, 12px);
         }
         .bottom-nav a {
             padding: 12px 20px;
@@ -417,7 +422,8 @@ $vendors_result = mysqli_query($conn, $vendors_query);
             white-space: nowrap;
             flex-shrink: 0;
             min-width: fit-content;
-        }        .bottom-nav a.active {
+        }
+        .bottom-nav a.active {
             color: #4F46E5;
             background: #EEF2FF;
         }
@@ -425,15 +431,6 @@ $vendors_result = mysqli_query($conn, $vendors_query);
             font-size: 24px;
             display: block;
             margin-bottom: 4px;
-        }
-
-        @media (min-width: 768px) {
-            .bottom-nav {
-                justify-content: space-around;
-                overflow-x: hidden;
-                padding: 0 20px;
-                padding-bottom: env(safe-area-inset-bottom, 12px);
-            }
         }
         @media print {
             .btn, .no-print, .bottom-nav {
@@ -443,22 +440,26 @@ $vendors_result = mysqli_query($conn, $vendors_query);
                 box-shadow: none;
             }
         }
-<?php endif; ?>
+<?php
+endif; ?>
     </style>
 <?php if (!$is_included): ?>
 </head>
 <body>
-<?php endif; ?>
+<?php
+endif; ?>
 <div class="unloading-form">
     <div class="container">
 
         <?php if ($success): ?>
             <div class="alert alert-success"><?php echo $success; ?></div>
-        <?php endif; ?>
+        <?php
+endif; ?>
         
         <?php if ($error): ?>
             <div class="alert alert-error"><?php echo $error; ?></div>
-        <?php endif; ?>
+        <?php
+endif; ?>
 
         <a href="<?php echo $is_included ? '?page=dashboard' : 'index.php?page=dashboard'; ?>" class="btn btn-secondary btn-full" style="margin-bottom: 15px; display: block; position: relative; z-index: 10;">
             ← Back
@@ -528,12 +529,13 @@ $vendors_result = mysqli_query($conn, $vendors_query);
                         </label>
                         <select name="transport_company_id" id="transport_company_id" style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;" onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                             <option value="">Select Transport Company</option>
-                            <?php 
-                            mysqli_data_seek($transporters_result, 0);
-                            while ($row = mysqli_fetch_assoc($transporters_result)): 
-                            ?>
+                            <?php
+mysqli_data_seek($transporters_result, 0);
+while ($row = mysqli_fetch_assoc($transporters_result)):
+?>
                                 <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['transporter_name']); ?></option>
-                            <?php endwhile; ?>
+                            <?php
+endwhile; ?>
                         </select>
                         <input type="hidden" name="transport_company_name" id="transport_company_name">
                     </div>
@@ -687,13 +689,14 @@ $vendors_result = mysqli_query($conn, $vendors_query);
                         </label>
                         <select name="vendor_id" id="vendor_id" style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;" onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                             <option value="">Select Vendor</option>
-                            <?php 
-                            mysqli_data_seek($vendors_result, 0);
-                            while ($row = mysqli_fetch_assoc($vendors_result)): 
-                                $gst_value = !empty($row['gst_number']) ? htmlspecialchars($row['gst_number']) : '';
-                            ?>
+                            <?php
+mysqli_data_seek($vendors_result, 0);
+while ($row = mysqli_fetch_assoc($vendors_result)):
+    $gst_value = !empty($row['gst_number']) ? htmlspecialchars($row['gst_number']) : '';
+?>
                                 <option value="<?php echo $row['id']; ?>" data-gst="<?php echo $gst_value; ?>"><?php echo htmlspecialchars($row['vendor_name']); ?></option>
-                            <?php endwhile; ?>
+                            <?php
+endwhile; ?>
                         </select>
                         <input type="hidden" name="vendor_name" id="vendor_name">
                     </div>
@@ -743,24 +746,24 @@ $vendors_result = mysqli_query($conn, $vendors_query);
                 </div>
                 <div class="safety-grid">
                     <?php
-                    $safety_items = [
-                        'driver_cleaner_safety_induction' => 'Driver & Cleaner Safety Induction Done',
-                        'ppe_provided' => 'PPE Provided',
-                        'wheel_chocks_provided' => 'Wheel Chocks Provided',
-                        'fire_extinguisher_available' => 'Fire Extinguisher Available',
-                        'first_aid_box_available' => 'First Aid Box Available',
-                        'cleaner_available' => 'Cleaner Available',
-                        'no_oil_leakage' => 'No Oil Leakage From Vehicle',
-                        'reverse_horn_available' => 'Reverse Horn Available',
-                        'tyre_condition_good' => 'Tyre Condition is Good',
-                        'indicators_horn_lights_working' => 'Indicators, Horn, Lights in Working Condition',
-                        'seat_belt_available' => 'Seat Belt Available',
-                        'hazard_warning_triangle_available' => 'Hazard Warning Triangle Available',
-                        'rear_view_mirrors_good' => 'Both Rear View Mirrors in Good Condition',
-                        'tailgate_rear_guard_condition' => 'Tailgate (Fallca), Rear Guard, Container Door Condition'
-                    ];
-                    foreach ($safety_items as $key => $label):
-                    ?>
+$safety_items = [
+    'driver_cleaner_safety_induction' => 'Driver & Cleaner Safety Induction Done',
+    'ppe_provided' => 'PPE Provided',
+    'wheel_chocks_provided' => 'Wheel Chocks Provided',
+    'fire_extinguisher_available' => 'Fire Extinguisher Available',
+    'first_aid_box_available' => 'First Aid Box Available',
+    'cleaner_available' => 'Cleaner Available',
+    'no_oil_leakage' => 'No Oil Leakage From Vehicle',
+    'reverse_horn_available' => 'Reverse Horn Available',
+    'tyre_condition_good' => 'Tyre Condition is Good',
+    'indicators_horn_lights_working' => 'Indicators, Horn, Lights in Working Condition',
+    'seat_belt_available' => 'Seat Belt Available',
+    'hazard_warning_triangle_available' => 'Hazard Warning Triangle Available',
+    'rear_view_mirrors_good' => 'Both Rear View Mirrors in Good Condition',
+    'tailgate_rear_guard_condition' => 'Tailgate (Fallca), Rear Guard, Container Door Condition'
+];
+foreach ($safety_items as $key => $label):
+?>
                     <div class="safety-item">
                         <label><?php echo $label; ?></label>
                         <select name="safety_<?php echo $key; ?>">
@@ -771,7 +774,8 @@ $vendors_result = mysqli_query($conn, $vendors_query);
                         </select>
                         <input type="text" name="safety_<?php echo $key; ?>_remarks" placeholder="Remarks (if NOT OK)" style="margin-top: 5px; width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
                     </div>
-                    <?php endforeach; ?>
+                    <?php
+endforeach; ?>
                 </div>
             </div>
 
@@ -1164,7 +1168,8 @@ $vendors_result = mysqli_query($conn, $vendors_query);
             <span class="icon">⚙️</span>
             Masters
         </a>
-        <?php endif; ?>
+        <?php
+    endif; ?>
         <a href="?page=logout">
             <span class="icon">🚪</span>
             Logout
