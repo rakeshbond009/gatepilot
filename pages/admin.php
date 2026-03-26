@@ -1030,7 +1030,8 @@ function showAuditDetail(log) {
                                 $update_sql = "UPDATE user_master SET " . implode(", ", $updates) . " WHERE id=$id";
 
                                 if (mysqli_query($conn, $update_sql)) {
-                                    $log_details = "Updated user '$username': " . implode(", ", $changes);
+                                    $log_details = "Updated User: Username: '$username'";
+                                    if (!empty($changes)) { $log_details .= ", " . implode(", ", $changes); }
                                     logActivity($conn, 'USER_UPDATE', 'Users', $log_details);
                                     $success_msg = "✅ User updated successfully!";
                                     showAppModal('Success', $success_msg, 'success');
@@ -1387,9 +1388,9 @@ function showAuditDetail(log) {
                                 mobile='$mobile', email='$email', address='$address', gst_number='$gst' WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
-                            $details = "Updated transporter: '$name' (ID: $id)";
+                            $details = "Updated Transporter: Name: '$name' (ID: $id)";
                             if (!empty($changes)) {
-                                $details .= " | Changes: " . implode(", ", $changes);
+                                $details .= ", " . implode(", ", $changes);
                             }
                             logActivity($conn, 'TRANSPORTER_UPDATE', 'Transporters', $details);
                             $success_msg = "✅ Transporter updated successfully!";
@@ -1810,8 +1811,18 @@ function showAuditDetail(log) {
                             $changes[] = "License: [{$current['license_number']} ➔ {$_POST['license_number']}]";
                         if ($current['license_expiry'] !== $_POST['license_expiry'])
                             $changes[] = "Expiry: [{$current['license_expiry']} ➔ {$_POST['license_expiry']}]";
-                        if ($current['transporter_id'] != $trans_id)
-                            $changes[] = "Transporter: [Updated ID]";
+                        if ($current['transporter_id'] != $trans_id) {
+                            $old_t_id = (int)$current['transporter_id'];
+                            $new_t_val = ($trans_id !== 'NULL') ? (int)$trans_id : 0;
+                            
+                            $old_t_res = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$old_t_id");
+                            $old_t_name = ($old_t_row = mysqli_fetch_assoc($old_t_res)) ? $old_t_row['transporter_name'] : 'None';
+                            
+                            $new_t_res = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$new_t_val");
+                            $new_t_name = ($new_t_row = mysqli_fetch_assoc($new_t_res)) ? $new_t_row['transporter_name'] : 'None';
+                            
+                            $changes[] = "Transporter: [$old_t_name ➔ $new_t_name]";
+                        }
                         if ($current['is_active'] != $is_active)
                             $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " ➔ " . ($is_active ? 'Active' : 'Inactive') . "]";
 
@@ -1828,9 +1839,9 @@ function showAuditDetail(log) {
                         $sql .= " WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
-                            $details = "Updated driver: '$name' (ID: $id)";
+                            $details = "Updated Driver: Name: '$name' (ID: $id)";
                             if (!empty($changes)) {
-                                $details .= " | Changes: " . implode(", ", $changes);
+                                $details .= ", " . implode(", ", $changes);
                             }
                             logActivity($conn, 'DRIVER_UPDATE', 'Drivers', $details);
                             $success_msg = "✅ Driver updated successfully!";
@@ -2477,9 +2488,9 @@ function showAuditDetail(log) {
                         $sql .= " WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
-                            $details = "Updated vehicle: '$veh_no' (ID: $id)";
+                            $details = "Updated Vehicle: Number: '$veh_no' (ID: $id)";
                             if (!empty($changes)) {
-                                $details .= " | Changes: " . implode(", ", $changes);
+                                $details .= ", " . implode(", ", $changes);
                             }
                             logActivity($conn, 'VEHICLE_UPDATE', 'Vehicles', $details);
 
@@ -3642,9 +3653,9 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE patrol_locations SET location_id='$loc_id', location_name='$name', area_site_building='$area', qr_code_data='$qr_data' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
-                        $details = "Updated patrol location: '$name' (ID: $loc_id)";
+                        $details = "Updated Patrol Location: Name: '$name' (ID: $loc_id)";
                         if (!empty($changes)) {
-                            $details .= " | Changes: " . implode(", ", $changes);
+                            $details .= ", " . implode(", ", $changes);
                         }
                         logActivity($conn, 'PATROL_UPDATE', 'Patrol', $details);
                         $success_msg = "✅ Patrol location updated successfully!";
@@ -4394,9 +4405,9 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE material_master SET material_description='$desc', material_category='$cat' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
-                        $details = "Updated material: '$desc' (Code: $code)";
+                        $details = "Updated Material: Desc: '$desc' (Code: $code)";
                         if (!empty($changes)) {
-                            $details .= " | Changes: " . implode(", ", $changes);
+                            $details .= ", " . implode(", ", $changes);
                         }
                         logActivity($conn, 'MATERIAL_UPDATE', 'Materials', $details);
                         $success_msg = "✅ Material updated successfully!";
@@ -4742,9 +4753,9 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE supplier_master SET supplier='$supp', supp_code='$supp_code' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
-                        $details = "Updated supplier: '$supp' (Code: $supp_code)";
+                        $details = "Updated Supplier: Name: '$supp' (Code: $supp_code)";
                         if (!empty($changes)) {
-                            $details .= " | Changes: " . implode(", ", $changes);
+                            $details .= ", " . implode(", ", $changes);
                         }
                         logActivity($conn, 'SUPPLIER_UPDATE', 'Suppliers', $details);
                         $success_msg = "✅ Supplier updated successfully!";
