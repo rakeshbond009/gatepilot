@@ -317,7 +317,10 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
             session_write_close(); // Force session to disk before redirect
             $protocol = $is_https ? 'https' : 'http';
             $host = $_SERVER['HTTP_HOST'];
-            header('Location: ' . $protocol . '://' . $host . '/?page=dashboard', true, 302);
+            $redirect_url = $protocol . '://' . $host . '/?page=dashboard';
+            // DEBUG: log that we reached the redirect
+            error_log("GATEPILOT_AUTOLOGIN_REDIRECT: Redirecting to " . $redirect_url . " for user " . $row['username']);
+            header('Location: ' . $redirect_url, true, 302);
             exit;
         }
     } else {
