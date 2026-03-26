@@ -1092,7 +1092,7 @@ function showAuditDetail(log) {
                                 VALUES ('$username', '$hashed_password', '$full_name', '$email', '$mobile', '$role', " . ($photo_path ? "'$photo_path'" : "NULL") . ")";
 
                         if (mysqli_query($conn, $sql)) {
-                            logActivity($conn, 'USER_CREATE', 'Users', "Created new user: '$username' Role: '$role'");
+                            logActivity($conn, 'USER_CREATE', 'Users', "Created User: Username: [$username], Full Name: [$full_name], Role: [$role], Mobile: [$mobile]");
                             $success_msg = "✅ User created successfully!";
                             $_SESSION['success_msg'] = $success_msg;
                             session_write_close();
@@ -1457,7 +1457,7 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$person', '$mobile', '$email', '$address', '$gst')";
 
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created transporter: '$name'");
+                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created Transporter: Name: [$name], Person: [$person], Mobile: [$mobile], GST: [$gst], Email: [$email]");
                         $success_msg = "✅ Transporter added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
                         session_write_close();
@@ -1920,7 +1920,7 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$mobile', '$license', '$expiry', $trans_id, " . ($photo_path ? "'$photo_path'" : "NULL") . ", " . ($license_photo_path ? "'$license_photo_path'" : "NULL") . ", $is_active)";
 
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'DRIVER_CREATE', 'Drivers', "Created driver: '$name' (Mobile: $mobile)");
+                        logActivity($conn, 'DRIVER_CREATE', 'Drivers', "Created Driver: Name: [$name], Mobile: [$mobile], License: [$license], Expiry: [$expiry]");
                         $success_msg = "✅ Driver added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
                         session_write_close();
@@ -2607,7 +2607,7 @@ function showAuditDetail(log) {
 
                         if (mysqli_query($conn, $sql)) {
                             $new_vehicle_id = mysqli_insert_id($conn);
-                            logActivity($conn, 'VEHICLE_CREATE', 'Vehicles', "Created vehicle: '$veh_no' (ID: $new_vehicle_id)");
+                            logActivity($conn, 'VEHICLE_CREATE', 'Vehicles', "Created Vehicle: Number: [$veh_no], Maker: [$maker], Model: [$model], Owner: [$owner]");
 
                             // Insert driver assignments into vehicle_drivers table
                             foreach ($driver_ids as $did) {
@@ -4182,7 +4182,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created purpose: '$name' ($type)");
+                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: Name: [$name], Type: [$type]");
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
                         session_write_close();
                         header("Location: index.php?page=admin&master=purposes");
@@ -4423,7 +4423,7 @@ function showAuditDetail(log) {
                         $details = "Created new department: '$name'";
                     }
 
-                    logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', $details);
+                    logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', ($_POST['department_id'] ? $details : "Created Department: Name: [$name]"));
                     $_SESSION['success_msg'] = "✅ Department saved successfully!";
                     session_write_close();
                     header("Location: ?page=admin&master=departments&t=" . time());
@@ -4732,7 +4732,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO material_master (material_code, material_description, material_category) 
                                 VALUES ('$code', '$desc', '$cat')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created material: '$desc' (Code: $code)");
+                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created Material: Desc: [$desc], Code: [$code], Category: [$cat]");
                         $_SESSION['success_msg'] = "✅ Material added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=materials&t=" . time());
@@ -5090,7 +5090,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO supplier_master (supplier, supp_code) 
                                 VALUES ('$supp', '$supp_code')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created supplier: '$supp' (Code: $supp_code)");
+                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier: Name: [$supp], Code: [$supp_code]");
                         $_SESSION['success_msg'] = "✅ Supplier added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=suppliers&t=" . time());

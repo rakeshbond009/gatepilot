@@ -86,60 +86,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Fetch current state for detailed logging
             $curr_res = mysqli_query($conn, "SELECT * FROM register_types WHERE id = $id");
             $current = mysqli_fetch_assoc($curr_res);
-            $changes = [];
+            $changes = [];            if ($current) {
+                // Header fields
+                $field_map = ['title' => 'Title', 'icon' => 'Icon', 'color' => 'Theme', 'is_active' => 'Status'];
+                foreach ($field_map as $db_key => $lbl) {
+                    $old_v = $current[$db_key];
+                    $new_v = ($db_key == 'is_active') ? $is_active : $_POST[$db_key];
+                    if ($db_key == 'is_active') { $old_v = $old_v ? 'Active' : 'Inactive'; $new_v = $new_v ? 'Active' : 'Inactive'; }
+                    if (trim($old_v) != trim($new_v)) { $changes[] = "$lbl: [$old_v ➔ $new_v]"; }
+                }
 
-            if ($current) {
-                if ($current['title'] != $_POST['title'])
-                    $changes[] = "Title: [" . $current['title'] . " -> " . $_POST['title'] . "]";
-                if ($current['icon'] != $_POST['icon'])
-                    $changes[] = "Icon: [" . $current['icon'] . " -> " . $_POST['icon'] . "]";
-                if ($current['color'] != $_POST['color'])
-                    $changes[] = "Color: [" . $current['color'] . " -> " . $_POST['color'] . "]";
-                if ($current['is_active'] != $is_active)
-                    $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " -> " . ($is_active ? 'Active' : 'Inactive') . "]";
+                $old_f = json_decode($current['fields_json'], true) ?: [];
+                $new_f = json_decode($fields_json_raw, true) ?: [];
 
-                // Detailed check for JSON field changes
-                $old_fields = json_decode($current['fields_json'], true) ?: [];
-                $new_fields = json_decode($fields_json_raw, true) ?: [];
+                if (json_encode($old_f) !== json_encode($new_f)) {
+                    $old_f_map = []; foreach ($old_f as $f) if (isset($f['name'])) $old_f_map[$f['name']] = $f;
+                    $new_f_map = []; foreach ($new_f as $f) if (isset($f['name'])) $new_f_map[$f['name']] = $f;
+                    $old_l_map = []; foreach ($old_f as $f) if (isset($f['label'])) $old_l_map[$f['label']] = $f;
+                    $new_l_map = []; foreach ($new_f as $f) if (isset($f['label'])) $new_l_map[$f['label']] = $f;
 
-                if (json_encode($old_fields) !== json_encode($new_fields)) {
-                    $old_fields_map = [];
-                    foreach ($old_fields as $f) if (isset($f['name'])) $old_fields_map[$f['name']] = $f;
-                    
-                    $new_fields_map = [];
-                    foreach ($new_fields as $f) if (isset($f['name'])) $new_fields_map[$f['name']] = $f;
-
-                    $field_audit = [];
-                    // Check for additions
-                    foreach ($new_fields_map as $name => $f) {
-                        if (!isset($old_fields_map[$name])) {
-                            // Only log as "Added" if it's truly a new label or it's not just a minor name collision
-                            $field_audit[] = "+ [Added] '" . ($f['label'] ?? $name) . "'";
-                        }
+                    foreach ($new_f as $f) {
+                        $n = $f['name'] ?? ''; $l = $f['label'] ?? '';
+                        if (!isset($old_f_map[$n]) && !isset($old_l_map[$l])) { $changes[] = "Added: [$l]"; }
                     }
-                    // Check for deletions
-                    foreach ($old_fields_map as $name => $f) {
-                        if (!isset($new_fields_map[$name])) {
-                            $field_audit[] = "- [Removed] '" . ($f['label'] ?? $name) . "'";
-                        }
+                    foreach ($old_f as $f) {
+                        $n = $f['name'] ?? ''; $l = $f['label'] ?? '';
+                        if (!isset($new_f_map[$n]) && !isset($new_l_map[$l])) { $changes[] = "Removed: [$l]"; }
                     }
-                    // Check for modifications
-                    foreach ($new_fields_map as $name => $f) {
-                        if (isset($old_fields_map[$name])) {
-                            $old_f = $old_fields_map[$name];
-                            $diffs = [];
-                            if (($old_f['label'] ?? '') != ($f['label'] ?? '')) $diffs[] = "Label";
-                            if (($old_f['type'] ?? '') != ($f['type'] ?? '')) $diffs[] = "Type";
-                            if (($old_f['required'] ?? false) != ($f['required'] ?? false)) $diffs[] = "Required-status";
-                            
-                            if (!empty($diffs)) {
-                                $field_audit[] = "M [Modified] '" . ($f['label'] ?? $name) . "' (" . implode(', ', $diffs) . ")";
-                            }
+                    foreach ($new_f as $f) {
+                        $n = $f['name'] ?? ''; $l = $f['label'] ?? '';
+                        $old = isset($old_f_map[$n]) ? $old_f_map[$n] : (isset($old_l_map[$l]) ? $old_l_map[$l] : null);
+                        if ($old) {
+                            $fn = $old['label'] ?? $l;
+                            if (trim($old['label'] ?? '') != trim($f['label'] ?? '')) 
+                                $changes[] = "Label: [$fn ➔ " . $f['label'] . "]";
+                            if (trim($old['type'] ?? '') != trim($f['type'] ?? '')) 
+                                $changes[] = "Type: [$fn " . $old['type'] . " ➔ " . $f['type'] . "]";
+                            $ov = ($old['required'] ?? false) ? 'Required' : 'Optional';
+                            $nv = ($f['required'] ?? false) ? 'Required' : 'Optional';
+                            if ($ov != $nv) $changes[] = "Status: [$fn $ov ➔ $nv]";
                         }
-                    }
-
-                    if (!empty($field_audit)) {
-                        $changes[] = "Fields Audit: " . implode(" | ", $field_audit);
                     }
                 }
             }
@@ -152,9 +138,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fields_json = '$fields_json_esc' 
                     WHERE id = $id";
             if (mysqli_query($conn, $sql)) {
-                $details = "Updated register configuration for: '$title' (ID: $id)";
+                $details = "Updated Register Config: Name: '$title' (ID: $id)";
                 if (!empty($changes)) {
-                    $details .= " | Changes: " . implode(", ", $changes);
+                    $details .= ", " . implode(", ", $changes);
                 }
                 logActivity($conn, 'REGISTER_CONFIG_UPDATE', 'Config', $details);
                 $message = "✅ Success: Register type '$title' updated.";
@@ -560,6 +546,7 @@ function addFieldToBuilder(containerId, jsonId, data = null) {
     const isRequired = (data && data.required === false) ? false : true;
 
     row.innerHTML = `
+        <input type="hidden" class="b-name" value="${data ? (data.name || '') : ''}">
         <input type="text" value="${label}" placeholder="Field Label" class="b-label" oninput="syncBuilderToJSON('${containerId}', '${jsonId}')">
         <select class="b-type" onchange="syncBuilderToJSON('${containerId}', '${jsonId}')">
             <option value="text" ${type === 'text' ? 'selected' : ''}>Text</option>
@@ -589,9 +576,17 @@ function syncBuilderToJSON(containerId, jsonId) {
         const label = labelInput.value.trim();
         const type = row.querySelector('.b-type').value;
         const required = row.querySelector('.b-req').checked;
+        const existingName = row.querySelector('.b-name').value;
+
         if (label) {
-            // Collapse multiple special characters into a single underscore for cleaner names
-            const name = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            // Priority: Existing name > Generated from label
+            let name = existingName;
+            if (!name) {
+                // Collapse multiple special characters into a single underscore for cleaner names
+                name = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                // Also update the hidden name input so it stays stable
+                row.querySelector('.b-name').value = name;
+            }
             fields.push({
                 name: name,
                 label: label,

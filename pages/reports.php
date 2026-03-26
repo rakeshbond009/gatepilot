@@ -245,10 +245,16 @@ elseif ($page == 'view-registers'):
                                         style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                                 </div>
 
-                                <button type="submit" class="btn btn-primary"
-                                    style="height: 42px; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 600;">
-                                    <span>🔍</span> Filter
-                                </button>
+                                <div style="display: flex; gap: 8px; align-items: stretch; width: 100%;">
+                                    <button type="submit" class="btn btn-primary"
+                                        style="height: 42px; flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 600; font-size: 14px; padding: 0 10px;">
+                                        <span>🔍</span> Filter
+                                    </button>
+                                    <a href="?page=view-registers" class="btn btn-secondary"
+                                        style="height: 42px; flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 600; font-size: 14px; text-decoration: none; padding: 0 10px; background: #64748b; color: white;">
+                                        <span>🔄</span> Reset
+                                    </a>
+                                </div>
                             </form>
                         </div>
 
