@@ -215,13 +215,10 @@
         margin-bottom: 20px;
         border-radius: 12px;
         border: 1px solid #e5e7eb;
-        background: #ffffff;
     }
 
     .table-wrapper table {
-        min-width: 850px;
-        width: 100%;
-        border-collapse: collapse;
+        min-width: 600px;
     }
 
     @media screen and (max-width: 768px) {
@@ -3454,7 +3451,8 @@ function showAuditDetail(log) {
                                                         <option value="<?php echo htmlspecialchars($dept_name); ?>">
                                                             <?php echo htmlspecialchars($dept_name); ?>
                                                         </option>
-                                                    <?php endforeach; ?>
+                                                    <?php
+        endforeach; ?>
                                                 </select>
                                             </div>
                                             <div class="form-group">
@@ -3559,10 +3557,12 @@ function showAuditDetail(log) {
                                                          style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; cursor: pointer;"
                                                          onclick="showPhotoModal('uploads/employees/<?php echo $emp['photo']; ?>', '<?php echo addslashes($emp['employee_name']); ?>')"
                                                          onerror="this.src='https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random'">
-                                                <?php else: ?>
+                                                <?php
+            else: ?>
                                                     <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random" 
                                                          style="width: 40px; height: 40px; border-radius: 50%; opacity: 0.7;">
-                                                <?php endif; ?>
+                                                <?php
+            endif; ?>
                                             </td>
                                             <td style="padding: 12px;">
                                                 <?php echo htmlspecialchars($emp['employee_id']); ?>
@@ -3935,9 +3935,9 @@ function showAuditDetail(log) {
                                         </div>
                                         <div class="form-group" id="loc_id_group" style="display:none;">
                                             <label style="font-weight: 600;">Location ID (Auto-generated)</label>
-                                            <?php 
-                                                $new_auto_id = "PAT-" . date('His') . rand(10,99);
-                                            ?>
+                                            <?php
+        $new_auto_id = "PAT-" . date('His') . rand(10, 99);
+?>
                                             <input type="text" name="location_id" id="p_location_id" value="<?php echo $new_auto_id; ?>"
                                                 style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; background: #f1f5f9; width: 100%;" readonly>
                                         </div>
@@ -4515,49 +4515,47 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <div class="table-wrapper">
-                            <table id="departmentsTable">
-                                <thead>
+                        <table id="departmentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Department Name</th>
+                                    <th>Created At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
                                     <tr>
-                                        <th>Department Name</th>
-                                        <th>Created At</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
-                                        <tr>
-                                            <td><strong>
-                                                    <?php echo htmlspecialchars($dept['department_name']); ?>
-                                                </strong></td>
-                                            <td>
-                                                <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
-                                            </td>
-                                            <td>
-                                                <?php if (hasPermission('actions.view_buttons')): ?>
-                                                    <?php if (hasPermission('actions.edit_record')): ?>
-                                                        <button
-                                                            onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
-                                                            class="btn btn-sm"
-                                                            style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                            Edit</button>
-                                                    <?php
-                endif; ?>
-                                                    <?php if (hasPermission('actions.delete_record')): ?>
-                                                        <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
-                                                            style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                            Delete</button>
-                                                    <?php
-                endif; ?>
+                                        <td><strong>
+                                                <?php echo htmlspecialchars($dept['department_name']); ?>
+                                            </strong></td>
+                                        <td>
+                                            <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
+                                        </td>
+                                        <td>
+                                            <?php if (hasPermission('actions.view_buttons')): ?>
+                                                <?php if (hasPermission('actions.edit_record')): ?>
+                                                    <button
+                                                        onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
+                                                        class="btn btn-sm"
+                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                        Edit</button>
                                                 <?php
+                endif; ?>
+                                                <?php if (hasPermission('actions.delete_record')): ?>
+                                                    <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
+                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                        Delete</button>
+                                                <?php
+                endif; ?>
+                                            <?php
             endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php
+                                        </td>
+                                    </tr>
+                                <?php
         endwhile; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                            </tbody>
+                        </table>
                         </div>
 
                         <script>

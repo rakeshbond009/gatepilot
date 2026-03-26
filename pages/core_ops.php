@@ -3911,8 +3911,7 @@ elseif ($page == 'driver-detail'):
                 <?php if (mysqli_num_rows($trips) > 0): ?>
                     <div style="margin-top: 30px;">
                         <h3 style="margin-bottom: 15px;">🚛 Recent Trip History</h3>
-                        <div class="table-wrapper">
-                            <table>
+                        <table>
                             <thead>
                                 <tr>
                                     <th>Date</th>
@@ -3953,7 +3952,6 @@ elseif ($page == 'driver-detail'):
         endwhile; ?>
                             </tbody>
                         </table>
-                        </div>
                     </div>
                 <?php
     endif; ?>
@@ -4209,8 +4207,7 @@ elseif ($page == 'vehicle-detail'):
                 <?php if (mysqli_num_rows($trips) > 0): ?>
                     <div style="margin-top: 30px;">
                         <h3 style="margin-bottom: 15px;">🚛 Recent Trip History</h3>
-                        <div class="table-wrapper">
-                            <table>
+                        <table>
                             <thead>
                                 <tr>
                                     <th>Date</th>
@@ -4251,7 +4248,6 @@ elseif ($page == 'vehicle-detail'):
         endwhile; ?>
                             </tbody>
                         </table>
-                        </div>
                     </div>
                 <?php
     endif; ?>

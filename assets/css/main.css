@@ -124,11 +124,22 @@
         /* Table wrapper for proper scrolling in cards */
         .table-wrapper {
             overflow-x: auto;
+            overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             width: 100%;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            background: #ffffff;
+        }
+
+        /* Ensure grid items don't overflow */
+        .responsive-grid-3>.card {
+            min-width: 0;
+            overflow: visible;
+        }
+
+        /* Table wrapper for proper scrolling in cards */
+        .table-wrapper {
+            overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         /* ============================================================ */
@@ -725,8 +736,8 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
-            min-width: 850px;
-            /* Force scrolling on mobile by setting a wide minimum width */
+            min-width: 600px;
+            /* Minimum width to prevent cramping */
         }
 
         th,
@@ -754,12 +765,12 @@
             overflow-x: auto;
             overflow-y: visible;
             -webkit-overflow-scrolling: touch;
+            /* Smooth scrolling on iOS */
             margin-top: 15px;
         }
 
         .table-wrapper table {
             margin-top: 0;
-            min-width: 850px;
         }
 
         /* Badge */
