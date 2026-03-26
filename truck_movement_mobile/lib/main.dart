@@ -6,6 +6,12 @@ import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Ensure WebView cookie storage is enabled and persisted across app restarts
+  if (!kIsWeb) {
+    await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
+  }
+
   runApp(const TruckMovementApp());
 }
 
@@ -18,20 +24,80 @@ class TruckMovementApp extends StatelessWidget {
       title: 'Gatepilot',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4F46E5), // Indigo Primary
+          seedColor: const Color(0xFF4F46E5),
           brightness: Brightness.light,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC), // bg-light
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         useMaterial3: true,
       ),
-      home: const WebViewScreen(),
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
+/// Splash screen that checks for a persisted login cookie
+/// before deciding which URL to open
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  static const String baseUrl = "https://gatemanagement.codepilotx.com/";
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSessionAndNavigate();
+  }
+
+  Future<void> _checkSessionAndNavigate() async {
+    String startUrl = baseUrl; // Default: home (will redirect to login if needed)
+
+    try {
+      // Check if a persistent login cookie already exists in the WebView cookie store
+      final cookieManager = CookieManager.instance();
+      final cookie = await cookieManager.getCookie(
+        url: WebUri(baseUrl),
+        name: "GATEPILOT_REMEMBER",
+      );
+
+      if (cookie != null && cookie.value.toString().isNotEmpty) {
+        // Cookie exists → go directly to dashboard so PHP can auto-login via token
+        startUrl = "${baseUrl}?page=dashboard";
+        debugPrint("Persistent cookie found → loading dashboard");
+      } else {
+        debugPrint("No persistent cookie → loading home (will show login)");
+      }
+    } catch (e) {
+      debugPrint("Cookie check error: $e");
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => WebViewScreen(startUrl: startUrl),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF1E293B),
+      body: Center(
+        child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+      ),
+    );
+  }
+}
+
 class WebViewScreen extends StatefulWidget {
-  const WebViewScreen({super.key});
+  final String startUrl;
+  const WebViewScreen({super.key, required this.startUrl});
 
   @override
   State<WebViewScreen> createState() => _WebViewScreenState();
@@ -39,20 +105,25 @@ class WebViewScreen extends StatefulWidget {
 
 class _WebViewScreenState extends State<WebViewScreen> {
   final GlobalKey webViewKey = GlobalKey();
-  final String initialUrl = "https://gatemanagement.codepilotx.com/";
 
   InAppWebViewController? webViewController;
+
   InAppWebViewSettings settings = InAppWebViewSettings(
-      isInspectable: kDebugMode,
-      mediaPlaybackRequiresUserGesture: false,
-      allowsInlineMediaPlayback: true,
-      iframeAllow: "camera; microphone",
-      iframeAllowFullscreen: true,
-      useHybridComposition: false, // Set to false to prevent emulator crashes
-      allowFileAccess: true,
-      allowContentAccess: true,
-      javaScriptCanOpenWindowsAutomatically: true,
-      supportZoom: true,
+    isInspectable: kDebugMode,
+    mediaPlaybackRequiresUserGesture: false,
+    allowsInlineMediaPlayback: true,
+    iframeAllow: "camera; microphone",
+    iframeAllowFullscreen: true,
+    useHybridComposition: false,
+    allowFileAccess: true,
+    allowContentAccess: true,
+    javaScriptCanOpenWindowsAutomatically: true,
+    supportZoom: true,
+    // Ensures cookies are stored to disk, not just in memory
+    incognito: false,
+    databaseEnabled: true,
+    domStorageEnabled: true,
+    applicationNameForUserAgent: "GatePilot/1.0",
   );
 
   @override
@@ -63,7 +134,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   Future<void> _requestPermissions() async {
     if (!kIsWeb) {
-      // Small delay to allow UI to settle before showing popups
       await Future.delayed(const Duration(milliseconds: 1500));
       try {
         await [
@@ -71,7 +141,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
           Permission.microphone,
           Permission.location,
         ].request();
-        
+
         if (await Permission.storage.isDenied) {
           await Permission.storage.request();
         }
@@ -84,20 +154,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B), // Professional Slate
+      backgroundColor: const Color(0xFF1E293B),
       body: SafeArea(
         bottom: false,
         child: PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, result) async {
             if (didPop) return;
-            if (webViewController != null && await webViewController!.canGoBack()) {
+            if (webViewController != null &&
+                await webViewController!.canGoBack()) {
               webViewController!.goBack();
             }
           },
           child: InAppWebView(
             key: webViewKey,
-            initialUrlRequest: URLRequest(url: WebUri(initialUrl)),
+            initialUrlRequest: URLRequest(url: WebUri(widget.startUrl)),
             initialSettings: settings,
             onWebViewCreated: (controller) {
               webViewController = controller;
@@ -109,22 +180,25 @@ class _WebViewScreenState extends State<WebViewScreen> {
             },
             shouldOverrideUrlLoading: (controller, navigationAction) async {
               var uri = navigationAction.request.url!;
-
-              if (![ "http", "https", "file", "chrome", "data", "javascript", "about"].contains(uri.scheme)) {
+              if (![
+                "http",
+                "https",
+                "file",
+                "chrome",
+                "data",
+                "javascript",
+                "about"
+              ].contains(uri.scheme)) {
                 if (await canLaunchUrl(uri)) {
-                  // Launch the App
-                  await launchUrl(
-                    uri,
-                  );
-                  // and cancel the request
+                  await launchUrl(uri);
                   return NavigationActionPolicy.CANCEL;
                 }
               }
-
               return NavigationActionPolicy.ALLOW;
             },
             onGeolocationPermissionsShowPrompt: (controller, origin) async {
-              return GeolocationPermissionShowPromptResponse(origin: origin, allow: true, retain: true);
+              return GeolocationPermissionShowPromptResponse(
+                  origin: origin, allow: true, retain: true);
             },
             onConsoleMessage: (controller, consoleMessage) {
               if (kDebugMode) {
@@ -132,11 +206,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
               }
             },
             onDownloadStartRequest: (controller, downloadStartRequest) async {
-               // Launch the URL to handle download via system browser
-               final validUri = Uri.parse(downloadStartRequest.url.toString());
-               if (await canLaunchUrl(validUri)) {
-                 await launchUrl(validUri, mode: LaunchMode.externalApplication);
-               }
+              final validUri =
+                  Uri.parse(downloadStartRequest.url.toString());
+              if (await canLaunchUrl(validUri)) {
+                await launchUrl(validUri,
+                    mode: LaunchMode.externalApplication);
+              }
             },
           ),
         ),
