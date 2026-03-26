@@ -215,13 +215,10 @@
         margin-bottom: 20px;
         border-radius: 12px;
         border: 1px solid #e5e7eb;
-        background: white;
-        display: block;
     }
 
     .table-wrapper table {
-        min-width: 800px;
-        border-collapse: collapse;
+        min-width: 600px;
     }
 
     @media screen and (max-width: 768px) {
@@ -963,7 +960,6 @@ function showAuditDetail(log) {
                 if (mysqli_query($conn, "DELETE FROM user_master WHERE id=$id")) {
                     logActivity($conn, 'USER_DELETE', 'Users', "Deleted user account: '$uname' (ID: $id)");
                     $_SESSION['success_msg'] = "✅ User deleted successfully!";
-                    session_write_close();
                     header("Location: ?page=admin&master=users");
                     exit;
                 }
@@ -3973,8 +3969,8 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <div class="table-wrapper" id="patrolLocTable">
-                            <table>
+                        <div class="table-wrapper">
+                            <table id="patrolLocTable">
                                 <thead>
                                     <tr>
                                         <th>Location ID</th>
@@ -4274,8 +4270,8 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <div class="table-wrapper" id="purposesTable">
-                            <table>
+                        <div class="table-wrapper">
+                            <table id="purposesTable">
                             <thead>
                                 <tr>
                                     <th>Purpose Name</th>
@@ -4477,14 +4473,12 @@ function showAuditDetail(log) {
                                 <input type="hidden" name="department_id" id="department_id">
                                 <div class="card"
                                     style="margin-bottom: 20px; border-left: 4px solid #0ea5e9; background: linear-gradient(to right, #f0f9ff 0%, white 10%);">
-                                    <div class="master-form-grid">
-                                        <div class="form-group">
-                                            <label style="font-weight: 600; color: #374151;">Department Name *</label>
-                                            <input type="text" name="department_name" id="department_name" required
-                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                                onfocus="this.style.borderColor='#0ea5e9'; this.style.boxShadow='0 0 0 3px rgba(14, 165, 233, 0.1)';"
-                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 600; color: #374151;">Department Name *</label>
+                                        <input type="text" name="department_name" id="department_name" required
+                                            style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                            onfocus="this.style.borderColor='#0ea5e9'; this.style.boxShadow='0 0 0 3px rgba(14, 165, 233, 0.1)';"
+                                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 10px;">
@@ -4518,49 +4512,47 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <div class="table-wrapper" id="departmentsTable">
-                            <table>
-                                <thead>
+                        <table id="departmentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Department Name</th>
+                                    <th>Created At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
                                     <tr>
-                                        <th>Department Name</th>
-                                        <th>Created At</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
-                                        <tr>
-                                            <td><strong>
-                                                    <?php echo htmlspecialchars($dept['department_name']); ?>
-                                                </strong></td>
-                                            <td>
-                                                <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
-                                            </td>
-                                            <td>
-                                                <?php if (hasPermission('actions.view_buttons')): ?>
-                                                    <?php if (hasPermission('actions.edit_record')): ?>
-                                                        <button
-                                                            onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
-                                                            class="btn btn-sm"
-                                                            style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                            Edit</button>
-                                                    <?php
-                    endif; ?>
-                                                    <?php if (hasPermission('actions.delete_record')): ?>
-                                                        <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
-                                                            style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                            Delete</button>
-                                                    <?php
-                    endif; ?>
+                                        <td><strong>
+                                                <?php echo htmlspecialchars($dept['department_name']); ?>
+                                            </strong></td>
+                                        <td>
+                                            <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
+                                        </td>
+                                        <td>
+                                            <?php if (hasPermission('actions.view_buttons')): ?>
+                                                <?php if (hasPermission('actions.edit_record')): ?>
+                                                    <button
+                                                        onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
+                                                        class="btn btn-sm"
+                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                        Edit</button>
                                                 <?php
                 endif; ?>
-                                            </td>
-                                        </tr>
-                                    <?php
-            endwhile; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                                                <?php if (hasPermission('actions.delete_record')): ?>
+                                                    <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
+                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                        Delete</button>
+                                                <?php
+                endif; ?>
+                                            <?php
+            endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php
+        endwhile; ?>
+                            </tbody>
+                        </table>
                         </div>
 
                         <script>
@@ -4872,8 +4864,8 @@ function showAuditDetail(log) {
                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                     </div>
 
-                    <div class="table-wrapper" id="materialsTable">
-                        <table>
+                    <div class="table-wrapper">
+                        <table id="materialsTable">
                             <thead>
                                 <tr>
                                     <th>Code</th>
@@ -5223,8 +5215,8 @@ function showAuditDetail(log) {
                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                             </div>
 
-                            <div class="table-wrapper" id="suppliersTable">
-                                <table>
+                            <div class="table-wrapper">
+                                <table id="suppliersTable">
                                 <thead>
                                     <tr>
                                         <th>Supplier Name</th>
