@@ -4344,10 +4344,13 @@ function showAuditDetail(log) {
         // Handle Save
         if (isset($_POST['save_department'])) {
             $name = mysqli_real_escape_string($conn, $_POST['department_name']);
+            $current = null;
 
             try {
                 if ($_POST['department_id']) {
-                    $id = $_POST['department_id'];
+                    $id = (int)$_POST['department_id'];
+                    $current_res = mysqli_query($conn, "SELECT department_name FROM department_master WHERE id=$id");
+                    $current = mysqli_fetch_assoc($current_res);
                     $sql = "UPDATE department_master SET department_name='$name' WHERE id=$id";
                 }
                 else {
@@ -4360,10 +4363,11 @@ function showAuditDetail(log) {
                         if ($current && $current['department_name'] != $name) {
                             $details = "Updated department: '{$current['department_name']}' -> '$name'";
                         }
-                    } else {
+                    }
+                    else {
                         $details = "Created new department: '$name'";
                     }
-                    
+
                     logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', $details);
                     $_SESSION['success_msg'] = "✅ Department saved successfully!";
                     session_write_close();
