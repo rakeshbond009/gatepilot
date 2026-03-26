@@ -2135,7 +2135,7 @@ function showAuditDetail(log) {
                                             <?php echo $driver['license_number'] ?: '-'; ?>
                                         </td>
                                         <td>
-                                            <?php echo $driver['license_expiry'] ? date('d/m/Y', strtotime($driver['license_expiry'])) : '-'; ?>
+                                            <?php echo $driver['license_expiry'] ? strtoupper(date('d-M-y', strtotime($driver['license_expiry']))) : '-'; ?>
                                         </td>
                                         <td>
                                             <?php echo $driver['transporter_name'] ?: '-'; ?>
@@ -3350,7 +3350,7 @@ function showAuditDetail(log) {
                             style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                             <div style="display: flex; gap: 10px;">
                                 <button
-                                    onclick="document.getElementById('empMasterForm').style.display='block'; document.getElementById('empMasterForm').scrollIntoView({ behavior: 'smooth' });"
+                                    onclick="document.getElementById('empMasterModal').style.display='flex'; resetEmpForm();"
                                     class="btn btn-primary" style="padding: 12px 24px;">
                                     ➕ Add New Employee
                                 </button>
@@ -3367,99 +3367,125 @@ function showAuditDetail(log) {
                                     style="background: #10b981; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer;">
                                     📂 Upload
                                 </button>
-                                <a href="data:text/csv;charset=utf-8,EmployeeID,Name,Mobile,Email,Department,VehicleNo,VehicleType,RCExpiry(DD/MM/YYYY),LicenseExpiry,PollutionExpiry,FitnessExpiry%0AE101,John Doe,9876543210,john@example.com,Logistics,MH12AB1234,Car,31/12/2025,31/12/2030,31/12/2024,"
+                                <a href="data:text/csv;charset=utf-8,EmployeeID,Name,Mobile,Email,Department,VehicleNo,VehicleType,RCExpiry,LicenseExpiry,PollutionExpiry,FitnessExpiry%0AE101,John Doe,9876543210,john@example.com,Logistics,MH12AB1234,Car,31-12-2025,31-12-2030,31-12-2024,31-12-2026"
                                     download="sample_employees.csv"
                                     style="color: #6366f1; font-size: 12px; text-decoration: underline; white-space: nowrap;">
-                                    ⬇ Sample
+                                    ⬇ Sample CSV
                                 </a>
                             </form>
                         </div>
 
-                        <div id="empMasterForm"
-                            style="display: <?php echo isset($_POST['save_employee']) && isset($error_msg) ? 'block' : 'none'; ?>; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px;">
-                            <h3 id="formTitle" style="margin-top: 0; margin-bottom: 20px;">Add New Employee</h3>
-                            <form method="POST">
-                                <input type="hidden" name="e_id" id="e_id">
-                                <div
-                                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Employee ID *</label>
-                                        <input type="text" name="employee_id" id="master_emp_id" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Employee Name *</label>
-                                        <input type="text" name="employee_name" id="master_emp_name" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Mobile *</label>
-                                        <input type="tel" name="mobile" id="master_emp_mobile" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Email *</label>
-                                        <input type="email" name="employee_email" id="master_emp_email" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Department *</label>
-                                        <select name="department" id="master_emp_dept" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                            <option value="">-- Select Department --</option>
-                                            <?php foreach ($dept_options as $dept_name): ?>
-                                                <option value="<?php echo htmlspecialchars($dept_name); ?>">
-                                                    <?php echo htmlspecialchars($dept_name); ?>
-                                                </option>
-                                            <?php
-        endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Vehicle Number *</label>
-                                        <input type="text" name="vehicle_number" id="master_emp_vehicle" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; text-transform: uppercase;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Vehicle Type *</label>
-                                        <select name="vehicle_type" id="master_emp_vehicle_type" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                            <option value="">-- Select Type --</option>
-                                            <option value="Car">Car</option>
-                                            <option value="Two Wheeler">Two Wheeler</option>
-                                            <option value="Truck">Truck</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">RC Expiry Date *</label>
-                                        <input type="date" name="rc_expiry" id="master_emp_rc" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">License Expiry Date *</label>
-                                        <input type="date" name="license_expiry" id="master_emp_license" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Pollution Expiry Date *</label>
-                                        <input type="date" name="pollution_expiry" id="master_emp_pollution" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Fitness Expiry Date (Optional)</label>
-                                        <input type="date" name="fitness_expiry" id="master_emp_fitness"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
+                        <div id="empMasterModal" class="perm-modal-overlay" style="display: none;">
+                            <div class="perm-modal-content" style="max-width: 800px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #4f46e5; color: white;">
+                                    <h3 id="formTitle" style="margin: 0;">Add New Employee</h3>
+                                    <button onclick="document.getElementById('empMasterModal').style.display='none'; resetEmpForm();" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
                                 </div>
-                                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                                    <button type="submit" name="save_employee" class="btn btn-primary"
-                                        style="flex: 2; padding: 12px;">Save Employee</button>
-                                    <button type="button"
-                                        onclick="document.getElementById('empMasterForm').style.display='none'; resetEmpForm();"
-                                        class="btn btn-secondary" style="flex: 1; padding: 12px;">Cancel</button>
+                                <div style="padding: 25px;">
+                                    <form method="POST" enctype="multipart/form-data">
+                                        <input type="hidden" name="e_id" id="e_id">
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Employee ID *</label>
+                                                <input type="text" name="employee_id" id="master_emp_id" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Employee Name *</label>
+                                                <input type="text" name="employee_name" id="master_emp_name" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Mobile *</label>
+                                                <input type="tel" name="mobile" id="master_emp_mobile" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Email *</label>
+                                                <input type="email" name="employee_email" id="master_emp_email" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Department *</label>
+                                                <select name="department" id="master_emp_dept" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                                    <option value="">-- Select Department --</option>
+                                                    <?php foreach ($dept_options as $dept_name): ?>
+                                                        <option value="<?php echo htmlspecialchars($dept_name); ?>">
+                                                            <?php echo htmlspecialchars($dept_name); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Vehicle Number</label>
+                                                <input type="text" name="vehicle_number" id="master_emp_vehicle" 
+                                                    oninput="toggleVehicleDates(this.value)"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; text-transform: uppercase;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Vehicle Type</label>
+                                                <select name="vehicle_type" id="master_emp_vehicle_type" 
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                                    <option value="">-- Select Type --</option>
+                                                    <option value="Car">Car</option>
+                                                    <option value="Two Wheeler">Two Wheeler</option>
+                                                    <option value="Truck">Truck</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Employee Photo</label>
+                                                <input type="file" name="employee_photo" accept="image/*"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 12px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">RC Expiry Date <span class="v-req" style="display:none; color:red;">*</span></label>
+                                                <input type="date" name="rc_expiry" id="master_emp_rc" 
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">License Expiry Date <span class="v-req" style="display:none; color:red;">*</span></label>
+                                                <input type="date" name="license_expiry" id="master_emp_license" 
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Pollution Expiry Date <span class="v-req" style="display:none; color:red;">*</span></label>
+                                                <input type="date" name="pollution_expiry" id="master_emp_pollution" 
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Fitness Expiry (Optional)</label>
+                                                <input type="date" name="fitness_expiry" id="master_emp_fitness"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; gap: 10px; margin-top: 25px;">
+                                            <button type="submit" name="save_employee" class="btn btn-primary"
+                                                style="flex: 2; padding: 12px;">Save Employee</button>
+                                            <button type="button"
+                                                onclick="document.getElementById('empMasterModal').style.display='none'; resetEmpForm();"
+                                                class="btn btn-secondary" style="flex: 1; padding: 12px;">Cancel</button>
+                                        </div>
+                                    </form>
                                 </div>
-                            </form>
+                            </div>
+                        </div>
+
+                        <!-- Employee Details View Modal -->
+                        <div id="empDetailsModal" class="perm-modal-overlay" style="display: none;">
+                            <div class="perm-modal-content" style="max-width: 600px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #1e293b; color: white;">
+                                    <h3 style="margin: 0;">📋 Employee Profile Details</h3>
+                                    <button onclick="document.getElementById('empDetailsModal').style.display='none'" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
+                                </div>
+                                <div id="empDetailsContent" style="padding: 25px; background: white;">
+                                    <!-- Dynamic Content -->
+                                </div>
+                                <div style="padding: 15px 25px; background: #f8fafc; text-align: right; border-top: 1px solid #e2e8f0;">
+                                    <button onclick="document.getElementById('empDetailsModal').style.display='none'" class="btn btn-secondary" style="padding: 10px 20px;">Close View</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="search-container" style="margin-bottom: 20px;">
@@ -3474,6 +3500,7 @@ function showAuditDetail(log) {
                             <table style="width: 100%; border-collapse: collapse;">
                                 <thead style="background: #f1f5f9;">
                                     <tr style="text-align: left;">
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Photo</th>
                                         <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Emp ID</th>
                                         <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Name</th>
                                         <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Vehicle</th>
@@ -3484,7 +3511,19 @@ function showAuditDetail(log) {
                                 </thead>
                                 <tbody>
                                     <?php while ($emp = mysqli_fetch_assoc($employees)): ?>
-                                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                                        <tr style="border-bottom: 1px solid #e2e8f0; cursor: pointer;" title="Click to view details"
+                                            onclick='viewEmployeeDetails(<?php echo json_encode($emp); ?>)'>
+                                            <td style="padding: 12px; text-align: center;">
+                                                <?php if (!empty($emp['photo'])): ?>
+                                                    <img src="uploads/employees/<?php echo $emp['photo']; ?>" 
+                                                         style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; cursor: pointer;"
+                                                         onclick="showPhotoModal('uploads/employees/<?php echo $emp['photo']; ?>', '<?php echo addslashes($emp['employee_name']); ?>')"
+                                                         onerror="this.src='https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random'">
+                                                <?php else: ?>
+                                                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random" 
+                                                         style="width: 40px; height: 40px; border-radius: 50%; opacity: 0.7;">
+                                                <?php endif; ?>
+                                            </td>
                                             <td style="padding: 12px;">
                                                 <?php echo htmlspecialchars($emp['employee_id']); ?>
                                             </td>
@@ -3518,7 +3557,7 @@ function showAuditDetail(log) {
             ]);
 ?>
                                                 <button
-                                                    onclick='showEmployeeQR(<?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp_qr_data); ?>)'
+                                                    onclick='event.stopPropagation(); showEmployeeQR(<?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp_qr_data); ?>)'
                                                     class="btn btn-sm"
                                                     style="background: #8b5cf6; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none;">🖼️
                                                     QR Code</button>
@@ -3527,13 +3566,13 @@ function showAuditDetail(log) {
                                                 <?php if (hasPermission('actions.view_buttons')): ?>
                                                     <?php if (hasPermission('actions.edit_record')): ?>
                                                         <button
-                                                            onclick='editEmployeeMaster(<?php echo $emp["id"]; ?>, <?php echo json_encode($emp["employee_id"]); ?>, <?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["mobile"]); ?>, <?php echo json_encode($emp["email"] ?? ""); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp["vehicle_type"] ?? ""); ?>, <?php echo json_encode($emp["rc_expiry"] ?? ""); ?>, <?php echo json_encode($emp["license_expiry"] ?? ""); ?>, <?php echo json_encode($emp["pollution_expiry"] ?? ""); ?>, <?php echo json_encode($emp["fitness_expiry"] ?? ""); ?>)'
+                                                            onclick='event.stopPropagation(); editEmployeeMaster(<?php echo $emp["id"]; ?>, <?php echo json_encode($emp["employee_id"]); ?>, <?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["mobile"]); ?>, <?php echo json_encode($emp["email"] ?? ""); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp["vehicle_type"] ?? ""); ?>, <?php echo json_encode($emp["rc_expiry"] ?? ""); ?>, <?php echo json_encode($emp["license_expiry"] ?? ""); ?>, <?php echo json_encode($emp["pollution_expiry"] ?? ""); ?>, <?php echo json_encode($emp["fitness_expiry"] ?? ""); ?>)'
                                                             class="btn btn-sm"
-                                                            style="background: #3b82f6; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none;">Edit</button>
+                                                            style="background: #3b82f6; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none; font-weight: 600;">Edit Profile</button>
                                                     <?php
                 endif; ?>
                                                     <?php if (hasPermission('actions.delete_record')): ?>
-                                                        <button onclick="deleteEmployee(<?php echo $emp['id']; ?>)" class="btn btn-sm"
+                                                        <button onclick="event.stopPropagation(); deleteEmployee(<?php echo $emp['id']; ?>)" class="btn btn-sm"
                                                             style="background: #ef4444; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none; margin-left: 5px;">Delete</button>
                                                     <?php
                 endif; ?>
@@ -3563,9 +3602,99 @@ function showAuditDetail(log) {
                                 document.getElementById('master_emp_pollution').value = pollution || '';
                                 document.getElementById('master_emp_fitness').value = fitness || '';
 
+                                toggleVehicleDates(vehicle || ""); // Set mandatory requirements based on vehicle
+
                                 document.getElementById('formTitle').textContent = 'Edit Employee';
-                                document.getElementById('empMasterForm').style.display = 'block';
-                                document.getElementById('empMasterForm').scrollIntoView({ behavior: 'smooth' });
+                                document.getElementById('empMasterModal').style.display = 'flex';
+                            }
+
+                            function viewEmployeeDetails(emp) {
+                                const photo = emp.photo ? 'uploads/employees/' + emp.photo : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp.employee_name);
+                                const content = `
+                                    <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
+                                        <img src="${photo}" style="width: 100px; height: 100px; border-radius: 12px; object-fit: cover; border: 3px solid #e2e8f0;">
+                                        <div>
+                                            <h2 style="margin: 0; color: #1e293b;">${emp.employee_name}</h2>
+                                            <p style="margin: 5px 0; color: #64748b; font-weight: 600;">ID: ${emp.employee_id}</p>
+                                            <span style="background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;">${emp.department}</span>
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                        <div>
+                                            <label style="display: block; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Contact info</label>
+                                            <p style="margin: 5px 0; font-weight: 600; color: #334155;">📞 ${emp.mobile}</p>
+                                            <p style="margin: 5px 0; font-weight: 600; color: #334155;">✉️ ${emp.email || 'N/A'}</p>
+                                            <p style="margin: 5px 0; font-weight: 600; color: #334155;">🏢 Dept: ${emp.department}</p>
+                                        </div>
+                                        <div>
+                                            <label style="display: block; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Vehicle</label>
+                                            <p style="margin: 5px 0; font-weight: 600; color: #334155;">🚚 ${emp.vehicle_number}</p>
+                                            <p style="margin: 5px 0; color: #64748b; font-size: 13px;">Type: ${emp.vehicle_type || 'N/A'}</p>
+                                        </div>
+                                            <div>
+                                                <small style="color: #64748b;">RC Expiry:</small><br>
+                                                <strong>${formatDateJS(emp.rc_expiry)}</strong>
+                                            </div>
+                                            <div>
+                                                <small style="color: #64748b;">License Expiry:</small><br>
+                                                <strong>${formatDateJS(emp.license_expiry)}</strong>
+                                            </div>
+                                            <div>
+                                                <small style="color: #64748b;">Pollution Expiry:</small><br>
+                                                <strong>${formatDateJS(emp.pollution_expiry)}</strong>
+                                            </div>
+                                            <div>
+                                                <small style="color: #64748b;">Fitness Expiry:</small><br>
+                                                <strong>${formatDateJS(emp.fitness_expiry)}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                document.getElementById('empDetailsContent').innerHTML = content;
+                                document.getElementById('empDetailsModal').style.display = 'flex';
+                            }
+
+                            function formatDateJS(dateStr) {
+                                if (!dateStr || dateStr === '0000-00-00' || dateStr === 'NULL')
+                                    return 'N/A';
+                                const d = new Date(dateStr);
+                                if (isNaN(d.getTime()))
+                                    return dateStr;
+                                const day = String(d.getDate()).padStart(2, '0');
+                                const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+                                const month = monthNames[d.getMonth()];
+                                const year = String(d.getFullYear()).slice(-2);
+                                return `${day}-${month}-${year}`;
+                            }
+
+                            function toggleVehicleDates(vehicleValue) {
+                                const isMandatory = vehicleValue.trim() !== "";
+                                const dateFields = ['master_emp_rc', 'master_emp_license', 'master_emp_pollution'];
+                                const starIcons = document.querySelectorAll('.v-req');
+                                
+                                dateFields.forEach(id => {
+                                    const el = document.getElementById(id);
+                                    if(el) {
+                                        el.required = isMandatory;
+                                    }
+                                });
+
+                                starIcons.forEach(icon => {
+                                    icon.style.display = isMandatory ? 'inline' : 'none';
+                                });
+                            }
+
+                            function showPhotoModal(src, name) {
+                                event.stopPropagation();
+                                Swal.fire({
+                                    title: name,
+                                    imageUrl: src,
+                                    imageAlt: name,
+                                    imageWidth: 400,
+                                    showCloseButton: true,
+                                    showConfirmButton: false,
+                                    background: '#f8fafc'
+                                });
                             }
 
                             function resetEmpForm() {
@@ -3582,6 +3711,8 @@ function showAuditDetail(log) {
                                 document.getElementById('master_emp_license').value = '';
                                 document.getElementById('master_emp_pollution').value = '';
                                 document.getElementById('master_emp_fitness').value = '';
+
+                                toggleVehicleDates(""); // Reset mandatory requirements
 
                                 document.getElementById('formTitle').textContent = 'Add New Employee';
                             }
@@ -4105,7 +4236,7 @@ function showAuditDetail(log) {
                                             </span>
                                         </td>
                                         <td>
-                                            <?php echo date('d/m/Y', strtotime($purpose['created_at'])); ?>
+                                            <?php echo strtoupper(date('d-M-y', strtotime($purpose['created_at']))); ?>
                                         </td>
                                         <td>
                                             <?php if (hasPermission('actions.view_buttons')): ?>
@@ -4322,7 +4453,7 @@ function showAuditDetail(log) {
                                                 <?php echo htmlspecialchars($dept['department_name']); ?>
                                             </strong></td>
                                         <td>
-                                            <?php echo date('d/m/Y', strtotime($dept['created_at'])); ?>
+                                            <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
                                         </td>
                                         <td>
                                             <?php if (hasPermission('actions.view_buttons')): ?>
@@ -5136,7 +5267,7 @@ function showAuditDetail(log) {
                                                 onmouseout="this.style.background='white'"
                                                 onclick='showAuditDetail(<?php echo htmlspecialchars(json_encode($log), ENT_QUOTES); ?>)'>
                                                 <td style="padding: 12px; font-size: 13px; color: #64748b; white-space: nowrap;">
-                                                    <?php echo date('d/m/y H:i:s', strtotime($log['created_at'])); ?>
+                                                    <?php echo strtoupper(date('d-M-y H:i:s', strtotime($log['created_at']))); ?>
                                                 </td>
                                                 <td style="padding: 12px; font-size: 14px;"><strong><?php echo htmlspecialchars($log['username']); ?></strong></td>
                                                 <td style="padding: 12px;">

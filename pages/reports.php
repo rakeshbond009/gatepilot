@@ -297,7 +297,7 @@ elseif ($page == 'view-registers'):
                                                                 echo '<span class="badge badge-primary" style="font-size: 11px;">' . ucwords(str_replace('_', ' ', $val)) . '</span>';
                                                             }
                                                             elseif (strpos($field, 'date') !== false && $val && $val != '-' && strtotime($val)) {
-                                                                echo date('d-m-Y', strtotime($val)) . (strpos($val, ':') ? ' <span style="color:#9ca3af; font-size:12px;">' . date('h:i A', strtotime($val)) . '</span>' : '');
+                                                                echo date('d-M-Y', strtotime($val)) . (strpos($val, ':') ? ' <span style="color:#9ca3af; font-size:12px;">' . date('h:i A', strtotime($val)) . '</span>' : '');
                                                             }
                                                             elseif (strpos($field, 'time') !== false && $val && $val != '-' && strlen($val) <= 8) {
                                                                 echo date('h:i A', strtotime($val));

@@ -143,6 +143,7 @@ CREATE TABLE `employee_master` (
   `fitness_expiry` date DEFAULT NULL,
   `vehicle_type` varchar(50) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
+  `photo` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `employee_id` (`employee_id`),
   KEY `idx_vehicle` (`vehicle_number`)

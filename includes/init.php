@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.1840');
+    define('APP_VERSION', '26.03.26.1950');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -796,14 +796,13 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
             $error_count = 0;
             $first_row = true;
 
+            $imported_names = [];
             while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
                 if ($first_row) {
                     $first_row = false;
                     continue; // Skip header
                 }
 
-                // Expected CSV Format:
-                // ID, Name, Mobile, Email, Dept, Vehicle No, Type, RC Exp, Lic Exp, Poll Exp, Fit Exp
                 $emp_id = mysqli_real_escape_string($conn, $data[0] ?? '');
                 $name = mysqli_real_escape_string($conn, $data[1] ?? '');
                 $mobile = mysqli_real_escape_string($conn, $data[2] ?? '');
@@ -812,16 +811,13 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $vehicle = strtoupper(mysqli_real_escape_string($conn, $data[5] ?? ''));
                 $vehicle_type = mysqli_real_escape_string($conn, $data[6] ?? '');
 
-                // Helper to format date or NULL
-                $formatDate = function ($d) use ($conn) {
+                $formatDate = function ($d) {
                     $d = trim($d);
                     if (empty($d))
                         return "NULL";
-                    // Try to convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD
                     if (preg_match('/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/', $d, $matches)) {
                         return "'" . $matches[3] . '-' . $matches[2] . '-' . $matches[1] . "'";
                     }
-                    // Utilize strtotime for other formats
                     $ts = strtotime($d);
                     return $ts ? "'" . date('Y-m-d', $ts) . "'" : "NULL";
                 };
@@ -832,7 +828,13 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $fitness_expiry = $formatDate($data[10] ?? '');
 
                 if (!empty($emp_id) && !empty($name)) {
-                    // Generate QR Data
+                    // Check for duplicate
+                    $dup_check = mysqli_query($conn, "SELECT id FROM employee_master WHERE employee_id='$emp_id'");
+                    if (mysqli_num_rows($dup_check) > 0) {
+                        $error_count++;
+                        continue;
+                    }
+
                     $qr_data = json_encode([
                         'type' => 'employee',
                         'id' => $emp_id,
@@ -855,6 +857,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                     try {
                         if (mysqli_query($conn, $sql)) {
                             $success_count++;
+                            $imported_names[] = "$name ($emp_id)";
                         }
                         else {
                             $error_count++;
@@ -866,7 +869,11 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 }
             }
             fclose($handle);
-            logActivity($conn, 'EMPLOYEE_IMPORT', 'Masters', "Imported $success_count employees from CSV.");
+            $log_details = "Imported $success_count employees from CSV.";
+            if (!empty($imported_names)) {
+                $log_details .= " Names: " . implode(", ", $imported_names);
+            }
+            logActivity($conn, 'EMPLOYEE_IMPORT', 'Masters', $log_details);
             $_SESSION['success_msg'] = "✅ Imported $success_count employees. Skipped $error_count duplicates/errors.";
             header("Location: ?page=admin&master=employees");
             exit;
@@ -892,9 +899,27 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
         $pollution_expiry = !empty($_POST['pollution_expiry']) ? "'" . mysqli_real_escape_string($conn, $_POST['pollution_expiry']) . "'" : "NULL";
         $fitness_expiry = !empty($_POST['fitness_expiry']) ? "'" . mysqli_real_escape_string($conn, $_POST['fitness_expiry']) . "'" : "NULL";
 
+        // Photo Upload Handling
+        $photo_path = '';
+        if (isset($_FILES['employee_photo']) && $_FILES['employee_photo']['error'] == 0) {
+            $ext = pathinfo($_FILES['employee_photo']['name'], PATHINFO_EXTENSION);
+            $filename = "emp_" . $emp_id . "_" . time() . "." . $ext;
+            if (move_uploaded_file($_FILES['employee_photo']['tmp_name'], EMPLOYEE_UPLOAD_DIR . $filename)) {
+                $photo_path = $filename;
+            }
+        }
+
         $id = isset($_POST['e_id']) ? $_POST['e_id'] : null;
 
         try {
+            // Duplicate Check for NEW employee or changing EmpID of existing
+            $dup_id = $id ? $id : 0;
+            $dup_check = mysqli_query($conn, "SELECT id FROM employee_master WHERE employee_id='$emp_id' AND id != $dup_id");
+            if (mysqli_num_rows($dup_check) > 0) {
+                $_SESSION['error_msg'] = "❌ Error: Employee ID '$emp_id' already exists!";
+                header("Location: ?page=admin&master=employees");
+                exit;
+            }
             // Generate QR data automatically with department
             $qr_data = json_encode([
                 'type' => 'employee',
@@ -909,8 +934,13 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $current = mysqli_fetch_assoc($current_res);
                 $changes = [];
                 if ($current) {
-                    if ($current['employee_id'] !== $emp_id)
+                    if (ctype_digit(strval($current['employee_id'])) && ctype_digit(strval($emp_id)) && $current['employee_id'] != $emp_id) {
                         $changes[] = "EmpID: [{$current['employee_id']} ➔ $emp_id]";
+                    }
+                    elseif ($current['employee_id'] !== $emp_id) {
+                        $changes[] = "EmpID: [{$current['employee_id']} ➔ $emp_id]";
+                    }
+
                     if ($current['employee_name'] !== $name)
                         $changes[] = "Name: [{$current['employee_name']} ➔ $name]";
                     if ($current['mobile'] !== $mobile)
@@ -923,6 +953,27 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                         $changes[] = "Vehicle: [{$current['vehicle_number']} ➔ $vehicle]";
                     if ($current['vehicle_type'] !== $vehicle_type)
                         $changes[] = "Type: [{$current['vehicle_type']} ➔ $vehicle_type]";
+
+                    // Compare Expiry Dates (Handling NULL vs empty/quoted string)
+                    $old_rc = $current['rc_expiry'] ? date('Y-m-d', strtotime($current['rc_expiry'])) : 'NULL';
+                    $new_rc = trim($rc_expiry, "'");
+                    if ($old_rc != $new_rc)
+                        $changes[] = "RC Exp: [$old_rc ➔ $new_rc]";
+
+                    $old_lic = $current['license_expiry'] ? date('Y-m-d', strtotime($current['license_expiry'])) : 'NULL';
+                    $new_lic = trim($license_expiry, "'");
+                    if ($old_lic != $new_lic)
+                        $changes[] = "Lic Exp: [$old_lic ➔ $new_lic]";
+
+                    $old_poll = $current['pollution_expiry'] ? date('Y-m-d', strtotime($current['pollution_expiry'])) : 'NULL';
+                    $new_poll = trim($pollution_expiry, "'");
+                    if ($old_poll != $new_poll)
+                        $changes[] = "Poll Exp: [$old_poll ➔ $new_poll]";
+
+                    $old_fit = $current['fitness_expiry'] ? date('Y-m-d', strtotime($current['fitness_expiry'])) : 'NULL';
+                    $new_fit = trim($fitness_expiry, "'");
+                    if ($old_fit != $new_fit)
+                        $changes[] = "Fit Exp: [$old_fit ➔ $new_fit]";
                 }
 
                 $sql = "UPDATE employee_master SET 
@@ -937,8 +988,12 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                         license_expiry=$license_expiry,
                         pollution_expiry=$pollution_expiry,
                         fitness_expiry=$fitness_expiry,
-                        qr_code_data='$qr_data' 
-                        WHERE id=$id";
+                        qr_code_data='$qr_data'";
+                if (!empty($photo_path)) {
+                    $sql .= ", photo='$photo_path'";
+                    $changes[] = "Photo updated";
+                }
+                $sql .= " WHERE id=$id";
 
                 if (mysqli_query($conn, $sql)) {
                     $details = "Updated employee: '$name' (ID: $emp_id)";
@@ -955,11 +1010,11 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $sql = "INSERT INTO employee_master (
                             employee_id, employee_name, mobile, email, department, vehicle_number, 
                             vehicle_type, rc_expiry, license_expiry, pollution_expiry, fitness_expiry, 
-                            qr_code_data
+                            qr_code_data, photo
                         ) VALUES (
                             '$emp_id', '$name', '$mobile', '$email', '$dept', '$vehicle', 
                             '$vehicle_type', $rc_expiry, $license_expiry, $pollution_expiry, $fitness_expiry, 
-                            '$qr_data'
+                            '$qr_data', '$photo_path'
                         )";
 
                 if (mysqli_query($conn, $sql)) {
@@ -1307,6 +1362,10 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
                 }
 
                 $q_parsed = mysqli_real_escape_string($conn, $q_parsed_final);
+                // Check for Employee Photo column
+mysqli_query($conn, "ALTER TABLE employee_master ADD COLUMN IF NOT EXISTS photo VARCHAR(255) AFTER qr_code_data");
+
+$is_logged_in = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
                 $u_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
 
                 $log_sql = "INSERT INTO qr_scan_logs (inward_id, qr_raw_data, qr_type, parsed_data, scan_status, scanned_by) 

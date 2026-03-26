@@ -147,6 +147,7 @@ define('DRIVER_UPLOAD_DIR', UPLOAD_DIR . 'drivers/');
 define('LICENSE_UPLOAD_DIR', UPLOAD_DIR . 'licenses/');
 define('VEHICLE_UPLOAD_DIR', UPLOAD_DIR . 'vehicles/');
 define('LOGO_UPLOAD_DIR', UPLOAD_DIR . 'logo/');
+define('EMPLOYEE_UPLOAD_DIR', UPLOAD_DIR . 'employees/');
 
 // Create upload directories if they don't exist
 if (!is_dir(UPLOAD_DIR))
@@ -159,6 +160,8 @@ if (!is_dir(VEHICLE_UPLOAD_DIR))
     mkdir(VEHICLE_UPLOAD_DIR, 0755, true);
 if (!is_dir(LOGO_UPLOAD_DIR))
     mkdir(LOGO_UPLOAD_DIR, 0755, true);
+if (!is_dir(EMPLOYEE_UPLOAD_DIR))
+    mkdir(EMPLOYEE_UPLOAD_DIR, 0755, true);
 
 // Display environment info (only for debugging - remove in production)
 if ($is_local && isset($_GET['debug_env'])) {

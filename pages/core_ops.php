@@ -1507,7 +1507,7 @@ elseif ($page == 'inside'):
                                             <?php echo $entry['transporter_name'] ?: '-'; ?>
                                         </td>
                                         <td>
-                                            <?php echo date('d/m/Y h:i A', strtotime($entry['inward_datetime'])); ?>
+                                            <?php echo strtoupper(date('d-M-y h:i A', strtotime($entry['inward_datetime']))); ?>
                                         </td>
                                         <td>
                                             <?php if ($entry['permit_validity']):
@@ -1515,7 +1515,7 @@ elseif ($page == 'inside'):
 ?>
                                                 <span
                                                     style="color: <?php echo $is_expired ? '#ef4444' : '#10b981'; ?>; font-weight: 600;">
-                                                    <?php echo date('d/m/Y', strtotime($entry['permit_validity'])); ?>
+                                                    <?php echo strtoupper(date('d-M-y', strtotime($entry['permit_validity']))); ?>
                                                     <?php echo $is_expired ? ' (Exp)' : ''; ?>
                                                 </span>
                                             <?php
@@ -1700,7 +1700,7 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                         <tr>
                             <th>Inward Time</th>
                             <td>
-                                <?php echo date('d/m/Y h:i A', strtotime($entry['inward_datetime'])); ?>
+                                <?php echo strtoupper(date('d-M-y h:i A', strtotime($entry['inward_datetime']))); ?>
                             </td>
                         </tr>
                         <tr>
@@ -1722,7 +1722,7 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                         <tr>
                             <th>Outward Time</th>
                             <td>
-                                <?php echo date('d/m/Y h:i A', strtotime($outward['outward_datetime'])); ?>
+                                <?php echo strtoupper(date('d-M-y h:i A', strtotime($outward['outward_datetime']))); ?>
                             </td>
                         </tr>
                         <tr>
@@ -2285,7 +2285,7 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                             <?php echo htmlspecialchars($outgoing_checklist['document_id'] ?? 'VCPL/LOG/FR/02'); ?>
                             |
                             Date:
-                            <?php echo $outgoing_checklist['document_date'] ? date('d/m/Y', strtotime($outgoing_checklist['document_date'])) : 'N/A'; ?>
+                            <?php echo $outgoing_checklist['document_date'] ? date('d-M-y', strtotime($outgoing_checklist['document_date'])) : 'N/A'; ?>
                         </p>
 
                         <div
@@ -2605,13 +2605,13 @@ elseif ($page == 'loading-details'):
                     <tr>
                         <th>Document Date</th>
                         <td>
-                            <?php echo $entry['document_date'] ? date('d/m/Y', strtotime($entry['document_date'])) : 'N/A'; ?>
+                            <?php echo $entry['document_date'] ? date('d-M-y', strtotime($entry['document_date'])) : 'N/A'; ?>
                         </td>
                     </tr>
                     <tr>
                         <th>Reporting Date/Time</th>
                         <td>
-                            <?php echo date('d/m/Y h:i A', strtotime($entry['reporting_datetime'])); ?>
+                            <?php echo date('d-M-y h:i A', strtotime($entry['reporting_datetime'])); ?>
                         </td>
                     </tr>
                     <tr>
@@ -3054,7 +3054,7 @@ elseif ($page == 'unloading-details'):
                     <tr>
                         <th>Reporting Date/Time</th>
                         <td>
-                            <?php echo date('d/m/Y h:i A', strtotime($entry['reporting_datetime'])); ?>
+                            <?php echo date('d-M-y h:i A', strtotime($entry['reporting_datetime'])); ?>
                         </td>
                     </tr>
                     <tr>
@@ -6038,7 +6038,7 @@ elseif ($page == 'reports'):
                                                     <?php echo htmlspecialchars($entry['vehicle_number']); ?>
                                                 </strong></td>
                                             <td>
-                                                <?php echo date('d/m/Y h:i A', strtotime($entry['inward_datetime'])); ?>
+                                                <?php echo strtoupper(date('d-M-y h:i A', strtotime($entry['inward_datetime']))); ?>
                                             </td>
                                             <td>
                                                 <?php if ($entry['outward_datetime']): ?>
