@@ -3896,35 +3896,29 @@ function showAuditDetail(log) {
                                 <div class="card"
                                     style="border-left: 4px solid #4f46e5; background: #f8fafc; margin-bottom: 20px;">
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                        <div class="form-group" style="grid-column: span 2; margin-bottom: 5px;">
+                                            <h4 id="form_title" style="margin:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
+                                        </div>
                                         <div class="form-group" id="loc_id_group" style="display:none;">
                                             <label style="font-weight: 600;">Location ID (Auto-generated)</label>
                                             <?php 
                                                 $new_auto_id = "PAT-" . date('His') . rand(10,99);
                                             ?>
                                             <input type="text" name="location_id" id="p_location_id" value="<?php echo $new_auto_id; ?>"
-                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; background: #f1f5f9;" readonly>
+                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; background: #f1f5f9; width: 100%;" readonly>
                                         </div>
-                                        <div class="form-group">
-                                            <h4 id="form_title" style="margin-top:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
-                                        </div>
-                                        <div class="form-group"></div>
                                         <div class="form-group">
                                             <label style="font-weight: 600;">Location Name *</label>
                                             <input type="text" name="location_name" id="p_location_name" required
-                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px;">
+                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; width: 100%;">
                                         </div>
                                         <div class="form-group">
                                             <label style="font-weight: 600;">Area / Site / Building</label>
                                             <input type="text" name="area_site_building" id="p_area"
                                                 placeholder="e.g. Warehouse A, Main Gate"
-                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px;">
+                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; width: 100%;">
                                         </div>
-                                        <div class="form-group" style="display:none;">
-                                            <label style="font-weight: 600;">QR Code Data</label>
-                                            <input type="text" name="qr_code_data" id="p_qr_data"
-                                                placeholder="Defaults to Location ID if empty"
-                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px;">
-                                        </div>
+                                        <input type="hidden" name="qr_code_data" id="p_qr_data">
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 10px;">
