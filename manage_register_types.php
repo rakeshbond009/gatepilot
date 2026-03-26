@@ -98,9 +98,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($current['is_active'] != $is_active)
                     $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " -> " . ($is_active ? 'Active' : 'Inactive') . "]";
 
-                // Simple check for JSON changes
-                if (json_encode(json_decode($current['fields_json'])) != json_encode(json_decode($fields_json_raw))) {
-                    $changes[] = "Fields configuration modified";
+                // Detailed check for JSON field changes
+                $old_fields = json_decode($current['fields_json'], true) ?: [];
+                $new_fields = json_decode($fields_json_raw, true) ?: [];
+
+                if (json_encode($old_fields) !== json_encode($new_fields)) {
+                    $old_fields_map = [];
+                    foreach ($old_fields as $f) if (isset($f['name'])) $old_fields_map[$f['name']] = $f;
+                    
+                    $new_fields_map = [];
+                    foreach ($new_fields as $f) if (isset($f['name'])) $new_fields_map[$f['name']] = $f;
+
+                    $field_audit = [];
+                    // Check for additions
+                    foreach ($new_fields_map as $name => $f) {
+                        if (!isset($old_fields_map[$name])) {
+                            $field_audit[] = "Added field '" . ($f['label'] ?? $name) . "'";
+                        }
+                    }
+                    // Check for deletions
+                    foreach ($old_fields_map as $name => $f) {
+                        if (!isset($new_fields_map[$name])) {
+                            $field_audit[] = "Removed field '" . ($f['label'] ?? $name) . "'";
+                        }
+                    }
+                    // Check for modifications
+                    foreach ($new_fields_map as $name => $f) {
+                        if (isset($old_fields_map[$name]) && json_encode($f) !== json_encode($old_fields_map[$name])) {
+                            $field_audit[] = "Modified field '" . ($f['label'] ?? $name) . "'";
+                        }
+                    }
+
+                    if (!empty($field_audit)) {
+                        $changes[] = "Fields: [" . implode(", ", $field_audit) . "]";
+                    }
                 }
             }
 
