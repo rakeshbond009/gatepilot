@@ -215,10 +215,13 @@
         margin-bottom: 20px;
         border-radius: 12px;
         border: 1px solid #e5e7eb;
+        background: #ffffff;
     }
 
     .table-wrapper table {
-        min-width: 600px;
+        min-width: 850px;
+        width: 100%;
+        border-collapse: collapse;
     }
 
     @media screen and (max-width: 768px) {
@@ -4512,47 +4515,49 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <table id="departmentsTable">
-                            <thead>
-                                <tr>
-                                    <th>Department Name</th>
-                                    <th>Created At</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
+                        <div class="table-wrapper">
+                            <table id="departmentsTable">
+                                <thead>
                                     <tr>
-                                        <td><strong>
-                                                <?php echo htmlspecialchars($dept['department_name']); ?>
-                                            </strong></td>
-                                        <td>
-                                            <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
-                                        </td>
-                                        <td>
-                                            <?php if (hasPermission('actions.view_buttons')): ?>
-                                                <?php if (hasPermission('actions.edit_record')): ?>
-                                                    <button
-                                                        onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
-                                                        class="btn btn-sm"
-                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                        Edit</button>
-                                                <?php
-                endif; ?>
-                                                <?php if (hasPermission('actions.delete_record')): ?>
-                                                    <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
-                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                        Delete</button>
-                                                <?php
-                endif; ?>
-                                            <?php
-            endif; ?>
-                                        </td>
+                                        <th>Department Name</th>
+                                        <th>Created At</th>
+                                        <th>Action</th>
                                     </tr>
-                                <?php
+                                </thead>
+                                <tbody>
+                                    <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
+                                        <tr>
+                                            <td><strong>
+                                                    <?php echo htmlspecialchars($dept['department_name']); ?>
+                                                </strong></td>
+                                            <td>
+                                                <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
+                                            </td>
+                                            <td>
+                                                <?php if (hasPermission('actions.view_buttons')): ?>
+                                                    <?php if (hasPermission('actions.edit_record')): ?>
+                                                        <button
+                                                            onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
+                                                            class="btn btn-sm"
+                                                            style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                            Edit</button>
+                                                    <?php
+                endif; ?>
+                                                    <?php if (hasPermission('actions.delete_record')): ?>
+                                                        <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
+                                                            style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                            Delete</button>
+                                                    <?php
+                endif; ?>
+                                                <?php
+            endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php
         endwhile; ?>
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        </div>
                         </div>
 
                         <script>
