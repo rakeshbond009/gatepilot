@@ -51,46 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (isset($_POST['update_fields'])) {
-        $id = intval($_POST['type_id']);
-        $title = mysqli_real_escape_string($conn, $_POST['title'] ?? '');
-        $icon = mysqli_real_escape_string($conn, $_POST['icon'] ?? '');
-        $color = mysqli_real_escape_string($conn, $_POST['color'] ?? '');
-        $is_active = isset($_POST['is_active']) ? 1 : 0;
-        $fields_json_raw = $_POST['fields_json'] ?? '[]';
-        $fields_json_esc = mysqli_real_escape_string($conn, $fields_json_raw);
-
-        $test = json_decode($fields_json_raw);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $sql = "UPDATE register_types SET 
-                    title = '$title',
-                    icon = '$icon',
-                    color = '$color',
-                    is_active = $is_active,
-                    fields_json = '$fields_json_esc' 
-                    WHERE id = $id";
-            if (mysqli_query($conn, $sql)) {
-                logActivity($conn, 'REGISTER_CONFIG_UPDATE', 'Config', "Updated register configuration for: '$title' (ID: $id)");
-                $message = "✅ Success: Register type '$title' updated.";
-                $msg_type = 'success';
-            }
-            else {
-                $message = "❌ Error: " . mysqli_error($conn);
-                $msg_type = 'error';
-            }
-        }
-        else {
-            $message = "❌ Error: Invalid JSON structure. Update aborted.";
-            $msg_type = 'error';
-        }
-    }
-
+    // prioritized deletion to avoid duplicate logs with update
     if (isset($_POST['delete_type']) && $_POST['delete_type'] == '1') {
         $id = intval($_POST['type_id']);
         // Check if entries exist
         $slug_res = mysqli_query($conn, "SELECT slug FROM register_types WHERE id = $id");
         $slug_row = mysqli_fetch_assoc($slug_res);
-        $slug = $slug_row['slug'];
+        $slug = $slug_row['slug'] ?? '';
 
         $check_entries = mysqli_query($conn, "SELECT id FROM manual_registers WHERE register_type = '$slug' LIMIT 1");
         if (mysqli_num_rows($check_entries) > 0) {
@@ -103,6 +70,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = "✅ Success: Register type deleted.";
                 $msg_type = 'success';
             }
+        }
+    }
+    elseif (isset($_POST['update_fields'])) {
+        $id = intval($_POST['type_id']);
+        $title = mysqli_real_escape_string($conn, $_POST['title'] ?? '');
+        $icon = mysqli_real_escape_string($conn, $_POST['icon'] ?? '');
+        $color = mysqli_real_escape_string($conn, $_POST['color'] ?? '');
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $fields_json_raw = $_POST['fields_json'] ?? '[]';
+        $fields_json_esc = mysqli_real_escape_string($conn, $fields_json_raw);
+
+        $test = json_decode($fields_json_raw);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            // Fetch current state for detailed logging
+            $curr_res = mysqli_query($conn, "SELECT * FROM register_types WHERE id = $id");
+            $current = mysqli_fetch_assoc($curr_res);
+            $changes = [];
+
+            if ($current) {
+                if ($current['title'] != $_POST['title'])
+                    $changes[] = "Title: [" . $current['title'] . " -> " . $_POST['title'] . "]";
+                if ($current['icon'] != $_POST['icon'])
+                    $changes[] = "Icon: [" . $current['icon'] . " -> " . $_POST['icon'] . "]";
+                if ($current['color'] != $_POST['color'])
+                    $changes[] = "Color: [" . $current['color'] . " -> " . $_POST['color'] . "]";
+                if ($current['is_active'] != $is_active)
+                    $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " -> " . ($is_active ? 'Active' : 'Inactive') . "]";
+
+                // Simple check for JSON changes
+                if (json_encode(json_decode($current['fields_json'])) != json_encode(json_decode($fields_json_raw))) {
+                    $changes[] = "Fields configuration modified";
+                }
+            }
+
+            $sql = "UPDATE register_types SET 
+                    title = '$title',
+                    icon = '$icon',
+                    color = '$color',
+                    is_active = $is_active,
+                    fields_json = '$fields_json_esc' 
+                    WHERE id = $id";
+            if (mysqli_query($conn, $sql)) {
+                $details = "Updated register configuration for: '$title' (ID: $id)";
+                if (!empty($changes)) {
+                    $details .= " | Changes: " . implode(", ", $changes);
+                }
+                logActivity($conn, 'REGISTER_CONFIG_UPDATE', 'Config', $details);
+                $message = "✅ Success: Register type '$title' updated.";
+                $msg_type = 'success';
+            }
+            else {
+                $message = "❌ Error: " . mysqli_error($conn);
+                $msg_type = 'error';
+            }
+        }
+        else {
+            $message = "❌ Error: Invalid JSON structure. Update aborted.";
+            $msg_type = 'error';
         }
     }
 }
