@@ -328,6 +328,13 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         
         // Audit Log: Auto Login
         logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
+        
+        // If we just auto-logged in and the user is visiting the home page, REDIRECT to dashboard instantly
+        $current_requested_page = $_GET['page'] ?? 'login';
+        if ($current_requested_page == 'login' && !isset($_GET['reauth'])) {
+            header('Location: ?page=dashboard');
+            exit;
+        }
     } else {
         // Standardize HTTPS and Domain check (handling Hostinger proxies and port numbers)
         $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
