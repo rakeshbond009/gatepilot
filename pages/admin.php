@@ -434,14 +434,14 @@ function showAuditDetail(log) {
         if ($all_success) {
             $webhook = getSetting($conn, 'hostinger_webhook');
             if ($webhook) {
-                // Use cURL for a reliable webhook POST (Hostinger requires POST, not GET)
+                // Hostinger auto-deploy uses a simple GET request to the webhook URL
                 $ch = curl_init($webhook);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, '');
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'Accept: application/json']);
+                curl_setopt($ch, CURLOPT_HTTPGET, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($ch, CURLOPT_USERAGENT, 'GatePilot-Deploy/1.0');
                 $webhook_response = curl_exec($ch);
                 $webhook_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 $webhook_error = curl_error($ch);
@@ -451,10 +451,11 @@ function showAuditDetail(log) {
                     $output[] = "<strong style='color:#ef4444;'># Hostinger Webhook FAILED: $webhook_error</strong>";
                     $all_success = false;
                 } elseif ($webhook_http_code >= 200 && $webhook_http_code < 300) {
-                    $output[] = "<strong style='color:#10b981;'># Hostinger Webhook Triggered: HTTP $webhook_http_code ✅</strong>";
+                    $output[] = "<strong style='color:#10b981;'># Hostinger Webhook Triggered: HTTP $webhook_http_code ✅ — Auto-deploy started!</strong>";
                 } else {
                     $output[] = "<strong style='color:#f59e0b;'># Hostinger Webhook Response: HTTP $webhook_http_code ⚠️</strong>\n" . htmlspecialchars($webhook_response ?: '(empty response)');
                 }
+
             } else {
                 $output[] = "<strong style='color:#f59e0b;'># No Hostinger Webhook URL set. Save one in settings to enable auto-deploy.</strong>";
             }
