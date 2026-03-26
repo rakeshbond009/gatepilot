@@ -289,24 +289,7 @@ function hasPermission($key)
     return false;
 }
 
-// Persistent Login Debug Mode (only if requested via URL)
-if (isset($_GET['debug_auth'])) {
-    echo "<div style='background:#000; color:#0f0; padding:10px; font-family:monospace; position:fixed; bottom:0; left:0; width:100%; z-index:99999; font-size:12px; max-height:200px; overflow:auto;'>";
-    echo "--- AUTH DEBUG ---<br>";
-    echo "Cookie Present: " . (isset($_COOKIE['GATEPILOT_REMEMBER']) ? 'YES' : 'NO') . "<br>";
-    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
-        echo "Cookie Value: " . substr($_COOKIE['GATEPILOT_REMEMBER'], 0, 8) . "...<br>";
-    }
-    echo "Is Logged In: " . (isLoggedIn() ? 'YES' : 'NO') . "<br>";
-    echo "HTTPS Detection: " . ($is_https ? 'ON' : 'OFF') . "<br>";
-    echo "Current Domain: " . $current_domain . "<br>";
-    
-    $check_table = mysqli_query($conn, "SHOW TABLES LIKE 'user_sessions'");
-    echo "User Sessions Table: " . (mysqli_num_rows($check_table) > 0 ? 'EXISTS' : 'MISSING') . "<br>";
-    echo "------------------</div>";
-}
-
-// Persistent Login (Remember Me / Login Forever)
+// Persistent Login (Remember Me / Login Forever) — runs BEFORE any output
 if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
     $query = "SELECT u.* FROM user_sessions s 
@@ -314,7 +297,6 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
               WHERE s.token = '$token' AND u.is_active = 1 
               LIMIT 1";
     $token_result = mysqli_query($conn, $query);
-    
     if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
         $_SESSION['user_id'] = $row['id'];
         $_SESSION['username'] = $row['username'];
@@ -322,26 +304,19 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $_SESSION['role'] = $row['role'];
         $_SESSION['super_admin'] = (int)$row['super_admin'];
         $_SESSION['permissions'] = $row['permissions'];
-        
-        // Update last used timestamp
         mysqli_query($conn, "UPDATE user_sessions SET last_used_at = CURRENT_TIMESTAMP WHERE token = '$token'");
-        
-        // Audit Log: Auto Login
         logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
-        
-        // If we just auto-logged in and the user is visiting the home page, REDIRECT to dashboard instantly
-        $current_requested_page = $_GET['page'] ?? 'login';
-        if ($current_requested_page == 'login' && !isset($_GET['reauth'])) {
+        // Redirect to dashboard — clear output buffer first to guarantee header() works
+        $current_requested_page = $_GET['page'] ?? '';
+        if (in_array($current_requested_page, ['', 'login']) && !isset($_GET['reauth'])) {
+            ob_end_clean();
             header('Location: ?page=dashboard');
             exit;
         }
     } else {
-        // Standardize HTTPS and Domain check (handling Hostinger proxies and port numbers)
         $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
                     (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
         $current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
-
-        // Invalid or expired token, clear cookie
         setcookie('GATEPILOT_REMEMBER', '', [
             'expires' => time() - 3600,
             'path' => '/',
@@ -352,6 +327,22 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         ]);
     }
 }
+
+// Auth Debug Mode (append ?debug_auth=1 to any URL to see state)
+if (isset($_GET['debug_auth'])) {
+    echo "<div style='background:#000; color:#0f0; padding:10px; font-family:monospace; position:fixed; bottom:0; left:0; width:100%; z-index:99999; font-size:12px; max-height:200px; overflow:auto;'>";
+    echo "--- AUTH DEBUG ---<br>";
+    echo "Cookie Present: " . (isset($_COOKIE['GATEPILOT_REMEMBER']) ? 'YES' : 'NO') . "<br>";
+    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+        echo "Cookie Value: " . substr($_COOKIE['GATEPILOT_REMEMBER'], 0, 8) . "...<br>";
+    }
+    echo "Is Logged In (after auto-login): " . (isLoggedIn() ? 'YES' : 'NO') . "<br>";
+    echo "HTTPS: " . ($is_https ?? 'N/A') . " | Domain: " . ($current_domain ?? 'N/A') . "<br>";
+    $check_table = mysqli_query($conn, "SHOW TABLES LIKE 'user_sessions'");
+    echo "user_sessions Table: " . (mysqli_num_rows($check_table) > 0 ? 'EXISTS' : 'MISSING') . "<br>";
+    echo "------------------</div>";
+}
+
 
 // Page routing
 $page = isset($_GET['page']) ? $_GET['page'] : (isLoggedIn() ? 'dashboard' : 'login');
