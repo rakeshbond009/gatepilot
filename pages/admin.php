@@ -4017,7 +4017,7 @@ function showAuditDetail(log) {
                         </button>
 
                         <div id="purposeForm" style="display: none; margin-bottom: 20px;">
-                            <form method="POST" onsubmit="this.querySelector('button[type=submit]').innerHTML='⏳ Saving...'; this.querySelector('button[type=submit]').disabled=true;">
+                            <form method="POST" onsubmit="this.querySelector('button[type=submit]').innerHTML='⏳ Saving...';">
                                 <input type="hidden" name="purpose_id" id="purpose_id">
                                 <div class="card"
                                     style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
