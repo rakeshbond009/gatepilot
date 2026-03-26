@@ -1389,18 +1389,18 @@ function showAuditDetail(log) {
 
                     if ($current) {
                         $changes = [];
-                        if ($current['transporter_name'] !== $_POST['transporter_name'])
-                            $changes[] = "Name: [{$current['transporter_name']} ➔ {$_POST['transporter_name']}]";
-                        if ($current['contact_person'] !== $_POST['contact_person'])
-                            $changes[] = "Contact: [{$current['contact_person']} ➔ {$_POST['contact_person']}]";
-                        if ($current['mobile'] !== $_POST['mobile'])
-                            $changes[] = "Mobile: [{$current['mobile']} ➔ {$_POST['mobile']}]";
-                        if ($current['email'] !== $_POST['email'])
-                            $changes[] = "Email: [{$current['email']} ➔ {$_POST['email']}]";
-                        if ($current['address'] !== $_POST['address'])
+                        if ($current['transporter_name'] != $_POST['transporter_name'])
+                            $changes[] = "Name: [{$current['transporter_name']} -> {$_POST['transporter_name']}]";
+                        if ($current['contact_person'] != $_POST['contact_person'])
+                            $changes[] = "Contact: [{$current['contact_person']} -> {$_POST['contact_person']}]";
+                        if ($current['mobile'] != $_POST['mobile'])
+                            $changes[] = "Mobile: [{$current['mobile']} -> {$_POST['mobile']}]";
+                        if ($current['email'] != $_POST['email'])
+                            $changes[] = "Email: [{$current['email']} -> {$_POST['email']}]";
+                        if ($current['address'] != $_POST['address'])
                             $changes[] = "Address: [Updated]";
-                        if ($current['gst_number'] !== $_POST['gst_number'])
-                            $changes[] = "GST: [{$current['gst_number']} ➔ {$_POST['gst_number']}]";
+                        if ($current['gst_number'] != $_POST['gst_number'])
+                            $changes[] = "GST: [{$current['gst_number']} -> {$_POST['gst_number']}]";
 
                         $sql = "UPDATE transporter_master SET transporter_name='$name', contact_person='$person', 
                                 mobile='$mobile', email='$email', address='$address', gst_number='$gst' WHERE id=$id";
@@ -1831,14 +1831,14 @@ function showAuditDetail(log) {
 
                     if ($current) {
                         $changes = [];
-                        if ($current['driver_name'] !== $_POST['driver_name'])
-                            $changes[] = "Name: [{$current['driver_name']} ➔ {$_POST['driver_name']}]";
-                        if ($current['mobile'] !== $_POST['mobile'])
-                            $changes[] = "Mobile: [{$current['mobile']} ➔ {$_POST['mobile']}]";
-                        if ($current['license_number'] !== $_POST['license_number'])
-                            $changes[] = "License: [{$current['license_number']} ➔ {$_POST['license_number']}]";
-                        if ($current['license_expiry'] !== $_POST['license_expiry'])
-                            $changes[] = "Expiry: [{$current['license_expiry']} ➔ {$_POST['license_expiry']}]";
+                        if ($current['driver_name'] != $_POST['driver_name'])
+                            $changes[] = "Name: [{$current['driver_name']} -> {$_POST['driver_name']}]";
+                        if ($current['mobile'] != $_POST['mobile'])
+                            $changes[] = "Mobile: [{$current['mobile']} -> {$_POST['mobile']}]";
+                        if ($current['license_number'] != $_POST['license_number'])
+                            $changes[] = "License: [{$current['license_number']} -> {$_POST['license_number']}]";
+                        if ($current['license_expiry'] != $_POST['license_expiry'])
+                            $changes[] = "Expiry: [{$current['license_expiry']} -> {$_POST['license_expiry']}]";
                         if ($current['transporter_id'] != $trans_id) {
                             $old_t_id = (int)$current['transporter_id'];
                             $new_t_val = ($trans_id !== 'NULL') ? (int)$trans_id : 0;
@@ -1849,10 +1849,10 @@ function showAuditDetail(log) {
                             $new_t_res = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$new_t_val");
                             $new_t_name = ($new_t_row = mysqli_fetch_assoc($new_t_res)) ? $new_t_row['transporter_name'] : 'None';
 
-                            $changes[] = "Transporter: [$old_t_name ➔ $new_t_name]";
+                            $changes[] = "Transporter: [$old_t_name -> $new_t_name]";
                         }
                         if ($current['is_active'] != $is_active)
-                            $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " ➔ " . ($is_active ? 'Active' : 'Inactive') . "]";
+                            $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " -> " . ($is_active ? 'Active' : 'Inactive') . "]";
 
                         $sql = "UPDATE driver_master SET driver_name='$name', mobile='$mobile', 
                                 license_number='$license', license_expiry='$expiry', transporter_id=$trans_id, is_active=$is_active";
@@ -1874,7 +1874,8 @@ function showAuditDetail(log) {
                             logActivity($conn, 'DRIVER_UPDATE', 'Drivers', $details);
                             $success_msg = "✅ Driver updated successfully!";
                             $_SESSION['success_msg'] = $success_msg;
-                            header("Location: ?page=admin&master=drivers");
+                            session_write_close();
+                            header("Location: ?page=admin&master=drivers&t=" . time());
                             exit;
                         }
                         else {
@@ -1893,7 +1894,8 @@ function showAuditDetail(log) {
                         logActivity($conn, 'DRIVER_CREATE', 'Drivers', "Created driver: '$name' (Mobile: $mobile)");
                         $success_msg = "✅ Driver added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
-                        header("Location: ?page=admin&master=drivers");
+                        session_write_close();
+                        header("Location: ?page=admin&master=drivers&t=" . time());
                         exit;
                     }
                     else {
@@ -2490,24 +2492,24 @@ function showAuditDetail(log) {
 
                     if ($current) {
                         $changes = [];
-                        if ($current['maker'] !== $_POST['maker'])
-                            $changes[] = "Maker: [{$current['maker']} ➔ {$_POST['maker']}]";
-                        if ($current['model'] !== $_POST['model'])
-                            $changes[] = "Model: [{$current['model']} ➔ {$_POST['model']}]";
-                        if ($current['fuel_type'] !== $_POST['fuel_type'])
-                            $changes[] = "Fuel: [{$current['fuel_type']} ➔ {$_POST['fuel_type']}]";
-                        if ($current['registration_validity'] !== $_POST['registration_validity'])
-                            $changes[] = "Reg Validity: [{$current['registration_validity']} ➔ {$_POST['registration_validity']}]";
-                        if ($current['fitness_validity'] !== $_POST['fitness_validity'])
-                            $changes[] = "Fitness: [{$current['fitness_validity']} ➔ {$_POST['fitness_validity']}]";
-                        if ($current['pollution_validity'] !== $_POST['pollution_validity'])
-                            $changes[] = "Pollution: [{$current['pollution_validity']} ➔ {$_POST['pollution_validity']}]";
-                        if ($current['insurance_validity'] !== $_POST['insurance_validity'])
-                            $changes[] = "Insurance: [{$current['insurance_validity']} ➔ {$_POST['insurance_validity']}]";
-                        if (($current['permit_validity'] ?? '') !== $permit_validity)
-                            $changes[] = "Permit: [Updated]";
-                        if ($current['rc_owner_name'] !== $_POST['rc_owner_name'])
-                            $changes[] = "Owner: [{$current['rc_owner_name']} ➔ {$_POST['rc_owner_name']}]";
+                        if ($current['maker'] != $_POST['maker'])
+                            $changes[] = "Maker: [{$current['maker']} -> {$_POST['maker']}]";
+                        if ($current['model'] != $_POST['model'])
+                            $changes[] = "Model: [{$current['model']} -> {$_POST['model']}]";
+                        if ($current['fuel_type'] != $_POST['fuel_type'])
+                            $changes[] = "Fuel: [{$current['fuel_type']} -> {$_POST['fuel_type']}]";
+                        if ($current['registration_validity'] != $_POST['registration_validity'])
+                            $changes[] = "Reg Validity: [{$current['registration_validity']} -> {$_POST['registration_validity']}]";
+                        if ($current['fitness_validity'] != $_POST['fitness_validity'])
+                            $changes[] = "Fitness: [{$current['fitness_validity']} -> {$_POST['fitness_validity']}]";
+                        if ($current['pollution_validity'] != $_POST['pollution_validity'])
+                            $changes[] = "Pollution: [{$current['pollution_validity']} -> {$_POST['pollution_validity']}]";
+                        if ($current['insurance_validity'] != $_POST['insurance_validity'])
+                            $changes[] = "Insurance: [{$current['insurance_validity']} -> {$_POST['insurance_validity']}]";
+                        if (($current['permit_validity'] ?? '') != $permit_validity)
+                            $changes[] = "Permit: [{$current['permit_validity']} -> $permit_validity]";
+                        if (($current['rc_owner_name'] ?? '') != $_POST['rc_owner_name'])
+                            $changes[] = "Owner: [{$current['rc_owner_name']} -> {$_POST['rc_owner_name']}]";
                         if ($current['driver_id'] != $driver_id)
                             $changes[] = "Primary Driver: [Updated ID]";
 
