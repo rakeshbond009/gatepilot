@@ -311,15 +311,13 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $_SESSION['permissions'] = $row['permissions'];
         mysqli_query($conn, "UPDATE user_sessions SET last_used_at = CURRENT_TIMESTAMP WHERE token = '$token'");
         logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
-        // Redirect to dashboard — save session first, then redirect with absolute URL
+        // Redirect to dashboard — save session first, use clean absolute URL
         $current_requested_page = $_GET['page'] ?? '';
         if (in_array($current_requested_page, ['', 'login']) && !isset($_GET['reauth'])) {
             session_write_close(); // Force session to disk before redirect
-            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+            $protocol = $is_https ? 'https' : 'http';
             $host = $_SERVER['HTTP_HOST'];
-            $script = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-            $absolute_url = $protocol . '://' . $host . $script . '/?page=dashboard';
-            header('Location: ' . $absolute_url, true, 302);
+            header('Location: ' . $protocol . '://' . $host . '/?page=dashboard', true, 302);
             exit;
         }
     } else {
@@ -358,10 +356,7 @@ $page = isset($_GET['page']) ? $_GET['page'] : (isLoggedIn() ? 'dashboard' : 'lo
 
 // If already logged in but trying to access the login page, redirect to dashboard
 if (isLoggedIn() && $page == 'login' && !isset($_GET['reauth'])) {
-    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
-    $script = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-    header('Location: ' . $protocol . '://' . $host . $script . '/?page=dashboard', true, 302);
+    header('Location: ' . ($is_https ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/?page=dashboard', true, 302);
     exit;
 }
 
