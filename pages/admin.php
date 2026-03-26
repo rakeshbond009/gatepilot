@@ -1831,14 +1831,15 @@ function showAuditDetail(log) {
 
                     if ($current) {
                         $changes = [];
-                        if ($current['driver_name'] != $_POST['driver_name'])
-                            $changes[] = "Name: [{$current['driver_name']} -> {$_POST['driver_name']}]";
-                        if ($current['mobile'] != $_POST['mobile'])
-                            $changes[] = "Mobile: [{$current['mobile']} -> {$_POST['mobile']}]";
-                        if ($current['license_number'] != $_POST['license_number'])
-                            $changes[] = "License: [{$current['license_number']} -> {$_POST['license_number']}]";
-                        if ($current['license_expiry'] != $_POST['license_expiry'])
-                            $changes[] = "Expiry: [{$current['license_expiry']} -> {$_POST['license_expiry']}]";
+                        if (trim($current['driver_name'] ?? '') != trim($_POST['driver_name']))
+                            $changes[] = "Name: [" . trim($current['driver_name'] ?? '') . " -> " . trim($_POST['driver_name']) . "]";
+                        if (trim($current['mobile'] ?? '') != trim($_POST['mobile']))
+                            $changes[] = "Mobile: [" . trim($current['mobile'] ?? '') . " -> " . trim($_POST['mobile']) . "]";
+                        if (trim($current['license_number'] ?? '') != trim($_POST['license_number']))
+                            $changes[] = "License: [" . trim($current['license_number'] ?? '') . " -> " . trim($_POST['license_number']) . "]";
+                        if (trim($current['license_expiry'] ?? '') != trim($_POST['license_expiry']))
+                            $changes[] = "Expiry: [" . trim($current['license_expiry'] ?? '') . " -> " . trim($_POST['license_expiry']) . "]";
+
                         if ($current['transporter_id'] != $trans_id) {
                             $old_t_id = (int)$current['transporter_id'];
                             $new_t_val = ($trans_id !== 'NULL') ? (int)$trans_id : 0;
