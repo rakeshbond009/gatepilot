@@ -1033,8 +1033,9 @@ function showAuditDetail(log) {
                                     $log_details = "Updated User: Username: '$username'";
                                     if (!empty($changes)) { $log_details .= ", " . implode(", ", $changes); }
                                     logActivity($conn, 'USER_UPDATE', 'Users', $log_details);
-                                    $success_msg = "✅ User updated successfully!";
-                                    showAppModal('Success', $success_msg, 'success');
+                                    $_SESSION['success_msg'] = "✅ User updated successfully!";
+                                    header("Location: ?page=admin&master=users");
+                                    exit;
                                 }
                                 else {
                                     $error_msg = "❌ Error updating user: " . mysqli_error($conn);
@@ -1058,7 +1059,9 @@ function showAuditDetail(log) {
                         if (mysqli_query($conn, $sql)) {
                             logActivity($conn, 'USER_CREATE', 'Users', "Created new user: '$username' Role: '$role'");
                             $success_msg = "✅ User created successfully!";
-                            showAppModal('Success', $success_msg, 'success');
+                            $_SESSION['success_msg'] = $success_msg;
+                            header("Location: ?page=admin&master=users");
+                            exit;
                         }
                         else {
                             $error_msg = "❌ Error creating user: " . mysqli_error($conn);
@@ -1394,6 +1397,9 @@ function showAuditDetail(log) {
                             }
                             logActivity($conn, 'TRANSPORTER_UPDATE', 'Transporters', $details);
                             $success_msg = "✅ Transporter updated successfully!";
+                            $_SESSION['success_msg'] = $success_msg;
+                            header("Location: ?page=admin&master=transporters");
+                            exit;
                         }
                         else {
                             $error_msg = "❌ Error updating transporter: " . mysqli_error($conn);
@@ -1410,6 +1416,9 @@ function showAuditDetail(log) {
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created transporter: '$name'");
                         $success_msg = "✅ Transporter added successfully!";
+                        $_SESSION['success_msg'] = $success_msg;
+                        header("Location: ?page=admin&master=transporters");
+                        exit;
                     }
                     else {
                         $error_msg = "❌ Error adding transporter: " . mysqli_error($conn);
@@ -1845,6 +1854,9 @@ function showAuditDetail(log) {
                             }
                             logActivity($conn, 'DRIVER_UPDATE', 'Drivers', $details);
                             $success_msg = "✅ Driver updated successfully!";
+                            $_SESSION['success_msg'] = $success_msg;
+                            header("Location: ?page=admin&master=drivers");
+                            exit;
                         }
                         else {
                             $error_msg = "❌ Error updating driver: " . mysqli_error($conn);
@@ -1861,6 +1873,9 @@ function showAuditDetail(log) {
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'DRIVER_CREATE', 'Drivers', "Created driver: '$name' (Mobile: $mobile)");
                         $success_msg = "✅ Driver added successfully!";
+                        $_SESSION['success_msg'] = $success_msg;
+                        header("Location: ?page=admin&master=drivers");
+                        exit;
                     }
                     else {
                         $error_msg = "❌ Error adding driver: " . mysqli_error($conn);
@@ -2503,6 +2518,9 @@ function showAuditDetail(log) {
                             }
 
                             $success_msg = "✅ Vehicle updated successfully!";
+                            $_SESSION['success_msg'] = $success_msg;
+                            header("Location: ?page=admin&master=vehicles");
+                            exit;
                         }
                         else {
                             $error_msg = "❌ Error updating vehicle: " . mysqli_error($conn);
@@ -2545,6 +2563,9 @@ function showAuditDetail(log) {
                             }
 
                             $success_msg = "✅ Vehicle added successfully!";
+                            $_SESSION['success_msg'] = $success_msg;
+                            header("Location: ?page=admin&master=vehicles");
+                            exit;
                         }
                         else {
                             $error_msg = "❌ Error adding vehicle: " . mysqli_error($conn);
@@ -3658,14 +3679,18 @@ function showAuditDetail(log) {
                             $details .= ", " . implode(", ", $changes);
                         }
                         logActivity($conn, 'PATROL_UPDATE', 'Patrol', $details);
-                        $success_msg = "✅ Patrol location updated successfully!";
+                        $_SESSION['success_msg'] = "✅ Patrol location updated successfully!";
+                        header("Location: ?page=admin&master=patrol");
+                        exit;
                     }
                 }
                 else {
                     $sql = "INSERT INTO patrol_locations (location_id, location_name, area_site_building, qr_code_data) VALUES ('$loc_id', '$name', '$area', '$qr_data')";
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created patrol location: '$name' (ID: $loc_id)");
-                        $success_msg = "✅ Patrol location added successfully!";
+                        $_SESSION['success_msg'] = "✅ Patrol location added successfully!";
+                        header("Location: ?page=admin&master=patrol");
+                        exit;
                     }
                 }
             }
@@ -3914,7 +3939,9 @@ function showAuditDetail(log) {
             if (mysqli_query($conn, $sql)) {
                 $log_type = (isset($_POST['purpose_id']) && $_POST['purpose_id']) ? 'PURPOSE_UPDATE' : 'PURPOSE_CREATE';
                 logActivity($conn, $log_type, 'Purposes', "Saved purpose: '$name' ($type)");
-                $success_msg = "✅ Purpose saved successfully!";
+                $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
+                header("Location: ?page=admin&master=purposes");
+                exit;
             }
         }
 
@@ -4124,7 +4151,9 @@ function showAuditDetail(log) {
                 if (mysqli_query($conn, $sql)) {
                     $log_type = ($_POST['department_id']) ? 'DEPT_UPDATE' : 'DEPT_CREATE';
                     logActivity($conn, $log_type, 'Departments', "Saved department: '$name'");
-                    $success_msg = "✅ Department saved successfully!";
+                    $_SESSION['success_msg'] = "✅ Department saved successfully!";
+                    header("Location: ?page=admin&master=departments");
+                    exit;
                 }
                 else {
                     $error_msg = "❌ Error saving department: " . mysqli_error($conn);
@@ -4410,7 +4439,9 @@ function showAuditDetail(log) {
                             $details .= ", " . implode(", ", $changes);
                         }
                         logActivity($conn, 'MATERIAL_UPDATE', 'Materials', $details);
-                        $success_msg = "✅ Material updated successfully!";
+                        $_SESSION['success_msg'] = "✅ Material updated successfully!";
+                        header("Location: ?page=admin&master=materials");
+                        exit;
                     }
                 }
                 else {
@@ -4418,7 +4449,9 @@ function showAuditDetail(log) {
                                 VALUES ('$code', '$desc', '$cat')";
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created material: '$desc' (Code: $code)");
-                        $success_msg = "✅ Material added successfully!";
+                        $_SESSION['success_msg'] = "✅ Material added successfully!";
+                        header("Location: ?page=admin&master=materials");
+                        exit;
                     }
                 }
             }
@@ -4758,7 +4791,9 @@ function showAuditDetail(log) {
                             $details .= ", " . implode(", ", $changes);
                         }
                         logActivity($conn, 'SUPPLIER_UPDATE', 'Suppliers', $details);
-                        $success_msg = "✅ Supplier updated successfully!";
+                        $_SESSION['success_msg'] = "✅ Supplier updated successfully!";
+                        header("Location: ?page=admin&master=suppliers");
+                        exit;
                     }
                 }
                 else {
@@ -4766,7 +4801,9 @@ function showAuditDetail(log) {
                                 VALUES ('$supp', '$supp_code')";
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created supplier: '$supp' (Code: $supp_code)");
-                        $success_msg = "✅ Supplier added successfully!";
+                        $_SESSION['success_msg'] = "✅ Supplier added successfully!";
+                        header("Location: ?page=admin&master=suppliers");
+                        exit;
                     }
                 }
             }
