@@ -79,11 +79,14 @@ if (is_writable($session_save_path)) {
 $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
             (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
+// Extract domain without port (very important for some browsers)
+$current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
+
 // Ensure the session cookie is as persistent and secure as possible
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
     'path' => '/',
-    'domain' => $_SERVER['HTTP_HOST'] ?? '',
+    'domain' => $current_domain,
     'secure' => $is_https,
     'httponly' => true,
     'samesite' => 'Lax'

@@ -312,15 +312,16 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         // Audit Log: Auto Login
         logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
     } else {
-        // Standardize HTTPS check (handling Hostinger proxies)
+        // Standardize HTTPS and Domain check (handling Hostinger proxies and port numbers)
         $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
                     (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
 
         // Invalid or expired token, clear cookie
         setcookie('GATEPILOT_REMEMBER', '', [
             'expires' => time() - 3600,
             'path' => '/',
-            'domain' => $_SERVER['HTTP_HOST'] ?? '',
+            'domain' => $current_domain,
             'secure' => $is_https,
             'httponly' => true,
             'samesite' => 'Lax'
@@ -409,15 +410,16 @@ if ($page == 'login' && isset($_POST['login'])) {
             
             $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
             if (mysqli_query($conn, $token_sql)) {
-                // Standardize HTTPS check (handling Hostinger proxies)
+                // Standardize HTTPS and Domain check (handling Hostinger proxies and port numbers)
                 $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
                             (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+                $current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
 
                 // Set persistent login cookie for 1 year
                 $cookie_params = [
                     'expires' => time() + (365 * 24 * 60 * 60),
                     'path' => '/',
-                    'domain' => $_SERVER['HTTP_HOST'] ?? '',
+                    'domain' => $current_domain,
                     'secure' => $is_https,
                     'httponly' => true,
                     'samesite' => 'Lax'
@@ -444,15 +446,16 @@ if ($page == 'logout') {
         $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
         mysqli_query($conn, "DELETE FROM user_sessions WHERE token = '$token'");
         
-        // Standardize HTTPS check (handling Hostinger proxies)
+        // Standardize HTTPS and Domain check (handling Hostinger proxies and port numbers)
         $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
                     (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $current_domain = explode(':', $_SERVER['HTTP_HOST'] ?? '')[0];
 
         // Clear cookie using SameSite Lax signature
         setcookie('GATEPILOT_REMEMBER', '', [
             'expires' => time() - 3600,
             'path' => '/',
-            'domain' => $_SERVER['HTTP_HOST'] ?? '',
+            'domain' => $current_domain,
             'secure' => $is_https,
             'httponly' => true,
             'samesite' => 'Lax'
