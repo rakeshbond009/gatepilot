@@ -3838,7 +3838,8 @@ function showAuditDetail(log) {
                         }
                         logActivity($conn, 'PATROL_UPDATE', 'Patrol', $details);
                         $_SESSION['success_msg'] = "✅ Patrol location updated successfully!";
-                        header("Location: ?page=admin&master=patrol");
+                        session_write_close();
+                        header("Location: ?page=admin&master=patrol-locations&t=" . time());
                         exit;
                     }
                 }
@@ -3847,7 +3848,8 @@ function showAuditDetail(log) {
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created patrol location: '$name' (ID: $loc_id)");
                         $_SESSION['success_msg'] = "✅ Patrol location added successfully!";
-                        header("Location: ?page=admin&master=patrol");
+                        session_write_close();
+                        header("Location: ?page=admin&master=patrol-locations&t=" . time());
                         exit;
                     }
                 }
@@ -3894,11 +3896,18 @@ function showAuditDetail(log) {
                                 <div class="card"
                                     style="border-left: 4px solid #4f46e5; background: #f8fafc; margin-bottom: 20px;">
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                        <div class="form-group">
-                                            <label style="font-weight: 600;">Location ID * (Unique)</label>
-                                            <input type="text" name="location_id" id="p_location_id" required
-                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px;">
+                                        <div class="form-group" id="loc_id_group" style="display:none;">
+                                            <label style="font-weight: 600;">Location ID (Auto-generated)</label>
+                                            <?php 
+                                                $new_auto_id = "PAT-" . date('His') . rand(10,99);
+                                            ?>
+                                            <input type="text" name="location_id" id="p_location_id" value="<?php echo $new_auto_id; ?>"
+                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; background: #f1f5f9;" readonly>
                                         </div>
+                                        <div class="form-group">
+                                            <h4 id="form_title" style="margin-top:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
+                                        </div>
+                                        <div class="form-group"></div>
                                         <div class="form-group">
                                             <label style="font-weight: 600;">Location Name *</label>
                                             <input type="text" name="location_name" id="p_location_name" required
@@ -3910,8 +3919,8 @@ function showAuditDetail(log) {
                                                 placeholder="e.g. Warehouse A, Main Gate"
                                                 style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px;">
                                         </div>
-                                        <div class="form-group">
-                                            <label style="font-weight: 600;">QR Code Data (Optional)</label>
+                                        <div class="form-group" style="display:none;">
+                                            <label style="font-weight: 600;">QR Code Data</label>
                                             <input type="text" name="qr_code_data" id="p_qr_data"
                                                 placeholder="Defaults to Location ID if empty"
                                                 style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px;">
@@ -4050,18 +4059,32 @@ function showAuditDetail(log) {
                             document.getElementById('p_location_name').value = name;
                             document.getElementById('p_area').value = area;
                             document.getElementById('p_qr_data').value = qr;
+                            document.getElementById('loc_id_group').style.display = 'block';
+                            document.getElementById('form_title').innerHTML = '✏️ Edit Patrol Location';
                             document.getElementById('patrolLocForm').style.display = 'block';
                             document.getElementById('patrolLocForm').scrollIntoView({ behavior: 'smooth' });
                         }
                         function closePatrolLocForm() {
                             document.getElementById('patrolLocForm').style.display = 'none';
                             document.getElementById('p_id').value = '';
+                            document.getElementById('loc_id_group').style.display = 'none';
+                            document.getElementById('form_title').innerHTML = '➕ Add New Patrol Location';
                             document.querySelector('#patrolLocForm form').reset();
                         }
                         function deletePatrolLoc(id) {
-                            if (confirm('Are you sure you want to delete this patrol location?')) {
-                                window.location.href = '?page=admin&master=patrol-locations&delete_patrol_location=' + id;
-                            }
+                            Swal.fire({
+                                title: 'Are you sure?',
+                                text: "You won't be able to revert this!",
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#3085d6',
+                                confirmButtonText: 'Yes, delete it!'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    window.location.href = '?page=admin&master=patrol-locations&delete_patrol_location=' + id + '&t=' + Date.now();
+                                }
+                            });
                         }
                     </script>
 
