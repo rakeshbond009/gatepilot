@@ -289,6 +289,23 @@ function hasPermission($key)
     return false;
 }
 
+// Persistent Login Debug Mode (only if requested via URL)
+if (isset($_GET['debug_auth'])) {
+    echo "<div style='background:#000; color:#0f0; padding:10px; font-family:monospace; position:fixed; bottom:0; left:0; width:100%; z-index:99999; font-size:12px; max-height:200px; overflow:auto;'>";
+    echo "--- AUTH DEBUG ---<br>";
+    echo "Cookie Present: " . (isset($_COOKIE['GATEPILOT_REMEMBER']) ? 'YES' : 'NO') . "<br>";
+    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+        echo "Cookie Value: " . substr($_COOKIE['GATEPILOT_REMEMBER'], 0, 8) . "...<br>";
+    }
+    echo "Is Logged In: " . (isLoggedIn() ? 'YES' : 'NO') . "<br>";
+    echo "HTTPS Detection: " . ($is_https ? 'ON' : 'OFF') . "<br>";
+    echo "Current Domain: " . $current_domain . "<br>";
+    
+    $check_table = mysqli_query($conn, "SHOW TABLES LIKE 'user_sessions'");
+    echo "User Sessions Table: " . (mysqli_num_rows($check_table) > 0 ? 'EXISTS' : 'MISSING') . "<br>";
+    echo "------------------</div>";
+}
+
 // Persistent Login (Remember Me / Login Forever)
 if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
