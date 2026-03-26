@@ -1001,13 +1001,13 @@ function showAuditDetail(log) {
                             // Check for changes
                             $changes = [];
                             if ($current['full_name'] != $full_name)
-                                $changes[] = "Name: [{$current['full_name']} ➔ $full_name]";
+                                $changes[] = "Name: [{$current['full_name']} -> $full_name]";
                             if ($current['email'] != $email)
-                                $changes[] = "Email: [{$current['email']} ➔ $email]";
+                                $changes[] = "Email: [{$current['email']} -> $email]";
                             if ($current['mobile'] != $mobile)
-                                $changes[] = "Mobile: [{$current['mobile']} ➔ $mobile]";
+                                $changes[] = "Mobile: [{$current['mobile']} -> $mobile]";
                             if ($current['role'] != $role)
-                                $changes[] = "Role: [{$current['role']} ➔ $role]";
+                                $changes[] = "Role: [{$current['role']} -> $role]";
                             if ($photo_path)
                                 $changes[] = "Photo: [Updated]";
 
@@ -1043,7 +1043,8 @@ function showAuditDetail(log) {
                                     }
                                     logActivity($conn, 'USER_UPDATE', 'Users', $log_details);
                                     $_SESSION['success_msg'] = "✅ User updated successfully!";
-                                    header("Location: ?page=admin&master=users");
+                                    session_write_close();
+                                    header("Location: ?page=admin&master=users&t=" . time());
                                     exit;
                                 }
                                 else {
@@ -1069,7 +1070,8 @@ function showAuditDetail(log) {
                             logActivity($conn, 'USER_CREATE', 'Users', "Created new user: '$username' Role: '$role'");
                             $success_msg = "✅ User created successfully!";
                             $_SESSION['success_msg'] = $success_msg;
-                            header("Location: ?page=admin&master=users");
+                            session_write_close();
+                            header("Location: ?page=admin&master=users&t=" . time());
                             exit;
                         }
                         else {
@@ -1433,7 +1435,8 @@ function showAuditDetail(log) {
                         logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created transporter: '$name'");
                         $success_msg = "✅ Transporter added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
-                        header("Location: ?page=admin&master=transporters");
+                        session_write_close();
+                        header("Location: ?page=admin&master=transporters&t=" . time());
                         exit;
                     }
                     else {
@@ -2493,23 +2496,23 @@ function showAuditDetail(log) {
 
                     if ($current) {
                         $changes = [];
-                        if ($current['maker'] != $_POST['maker'])
+                        if (trim($current['maker']) != trim($_POST['maker']))
                             $changes[] = "Maker: [{$current['maker']} -> {$_POST['maker']}]";
-                        if ($current['model'] != $_POST['model'])
+                        if (trim($current['model']) != trim($_POST['model']))
                             $changes[] = "Model: [{$current['model']} -> {$_POST['model']}]";
-                        if ($current['fuel_type'] != $_POST['fuel_type'])
+                        if (trim($current['fuel_type']) != trim($_POST['fuel_type']))
                             $changes[] = "Fuel: [{$current['fuel_type']} -> {$_POST['fuel_type']}]";
-                        if ($current['registration_validity'] != $_POST['registration_validity'])
-                            $changes[] = "Reg Validity: [{$current['registration_validity']} -> {$_POST['registration_validity']}]";
-                        if ($current['fitness_validity'] != $_POST['fitness_validity'])
-                            $changes[] = "Fitness: [{$current['fitness_validity']} -> {$_POST['fitness_validity']}]";
-                        if ($current['pollution_validity'] != $_POST['pollution_validity'])
-                            $changes[] = "Pollution: [{$current['pollution_validity']} -> {$_POST['pollution_validity']}]";
-                        if ($current['insurance_validity'] != $_POST['insurance_validity'])
-                            $changes[] = "Insurance: [{$current['insurance_validity']} -> {$_POST['insurance_validity']}]";
-                        if (($current['permit_validity'] ?? '') != $permit_validity)
+                        if (trim($current['registration_validity']) != trim($_POST['registration_validity']))
+                            $changes[] = "Reg: [{$current['registration_validity']} -> {$_POST['registration_validity']}]";
+                        if (trim($current['fitness_validity']) != trim($_POST['fitness_validity']))
+                            $changes[] = "Fit: [{$current['fitness_validity']} -> {$_POST['fitness_validity']}]";
+                        if (trim($current['pollution_validity']) != trim($_POST['pollution_validity']))
+                            $changes[] = "Poll: [{$current['pollution_validity']} -> {$_POST['pollution_validity']}]";
+                        if (trim($current['insurance_validity']) != trim($_POST['insurance_validity']))
+                            $changes[] = "Ins: [{$current['insurance_validity']} -> {$_POST['insurance_validity']}]";
+                        if ((trim($current['permit_validity'] ?? '')) != (trim($permit_validity ?? '')))
                             $changes[] = "Permit: [{$current['permit_validity']} -> $permit_validity]";
-                        if (($current['rc_owner_name'] ?? '') != $_POST['rc_owner_name'])
+                        if (trim($current['rc_owner_name'] ?? '') != trim($_POST['rc_owner_name']))
                             $changes[] = "Owner: [{$current['rc_owner_name']} -> {$_POST['rc_owner_name']}]";
                         if ($current['driver_id'] != $driver_id)
                             $changes[] = "Primary Driver: [Updated ID]";
@@ -2544,7 +2547,8 @@ function showAuditDetail(log) {
 
                             $success_msg = "✅ Vehicle updated successfully!";
                             $_SESSION['success_msg'] = $success_msg;
-                            header("Location: ?page=admin&master=vehicles");
+                            session_write_close();
+                            header("Location: ?page=admin&master=vehicles&t=" . time());
                             exit;
                         }
                         else {
@@ -2589,7 +2593,8 @@ function showAuditDetail(log) {
 
                             $success_msg = "✅ Vehicle added successfully!";
                             $_SESSION['success_msg'] = $success_msg;
-                            header("Location: ?page=admin&master=vehicles");
+                            session_write_close();
+                            header("Location: ?page=admin&master=vehicles&t=" . time());
                             exit;
                         }
                         else {
@@ -3800,7 +3805,8 @@ function showAuditDetail(log) {
             if (mysqli_query($conn, "DELETE FROM patrol_locations WHERE id=$id")) {
                 logActivity($conn, 'PATROL_DELETE', 'Patrol', "Deleted patrol location: '$loc_name' (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Patrol location deleted successfully!";
-                header("Location: ?page=admin&master=patrol-locations");
+                session_write_close();
+                header("Location: ?page=admin&master=patrol-locations&t=" . time());
                 exit;
             }
             else {
@@ -3822,12 +3828,12 @@ function showAuditDetail(log) {
                     $current = mysqli_fetch_assoc($current_res);
                     $changes = [];
                     if ($current) {
-                        if ($current['location_id'] !== $loc_id)
-                            $changes[] = "LocID: [{$current['location_id']} ➔ $loc_id]";
-                        if ($current['location_name'] !== $name)
-                            $changes[] = "Name: [{$current['location_name']} ➔ $name]";
-                        if ($current['area_site_building'] !== $area)
-                            $changes[] = "Area: [{$current['area_site_building']} ➔ $area]";
+                        if (trim($current['location_id']) != trim($loc_id))
+                            $changes[] = "LocID: [{$current['location_id']} -> $loc_id]";
+                        if (trim($current['location_name']) != trim($name))
+                            $changes[] = "Name: [{$current['location_name']} -> $name]";
+                        if (trim($current['area_site_building']) != trim($area))
+                            $changes[] = "Area: [{$current['area_site_building']} -> $area]";
                     }
 
                     $sql = "UPDATE patrol_locations SET location_id='$loc_id', location_name='$name', area_site_building='$area', qr_code_data='$qr_data' WHERE id=$id";
@@ -4101,7 +4107,7 @@ function showAuditDetail(log) {
                 logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted purpose: '$p_name' ($p_type) (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
                 session_write_close();
-                header("Location: index.php?page=admin&master=purposes");
+                header("Location: index.php?page=admin&master=purposes&t=" . time());
                 exit;
             }
             else {
@@ -4126,10 +4132,10 @@ function showAuditDetail(log) {
                     $current = mysqli_fetch_assoc($current_res);
                     $changes = [];
                     if ($current) {
-                        if ($current['purpose_name'] !== $name)
-                            $changes[] = "Name: [{$current['purpose_name']} ➔ $name]";
-                        if ($current['purpose_type'] !== $type)
-                            $changes[] = "Type: [{$current['purpose_type']} ➔ $type]";
+                        if (trim($current['purpose_name']) != trim($name))
+                            $changes[] = "Name: [{$current['purpose_name']} -> $name]";
+                        if (trim($current['purpose_type']) != trim($type))
+                            $changes[] = "Type: [{$current['purpose_type']} -> $type]";
                     }
 
                     $sql = "UPDATE purpose_master SET purpose_name='$name', purpose_type='$type' WHERE id=$id";
@@ -4598,7 +4604,12 @@ function showAuditDetail(log) {
         // Handle Delete
         if (isset($_GET['delete_material'])) {
             $id = (int)$_GET['delete_material'];
+            $m_res = mysqli_query($conn, "SELECT material_description FROM material_master WHERE id=$id");
+            $m_row = mysqli_fetch_assoc($m_res);
+            $m_name = $m_row['material_description'] ?? 'Unknown';
+
             if (mysqli_query($conn, "DELETE FROM material_master WHERE id=$id")) {
+                logActivity($conn, 'MATERIAL_DELETE', 'Materials', "Deleted material: '$m_name' (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Material deleted successfully!";
                 session_write_close();
                 header("Location: ?page=admin&master=materials&t=" . time());
@@ -4668,10 +4679,10 @@ function showAuditDetail(log) {
                     $current = mysqli_fetch_assoc($current_res);
                     $changes = [];
                     if ($current) {
-                        if ($current['material_description'] !== $desc)
-                            $changes[] = "Desc: [{$current['material_description']} ➔ $desc]";
-                        if ($current['material_category'] !== $cat)
-                            $changes[] = "Cat: [{$current['material_category']} ➔ $cat]";
+                        if (trim($current['material_description'] ?? '') != trim($desc ?? ''))
+                            $changes[] = "Desc: [{$current['material_description']} -> $desc]";
+                        if (trim($current['material_category'] ?? '') != trim($cat ?? ''))
+                            $changes[] = "Cat: [{$current['material_category']} -> $cat]";
                     }
 
                     $sql = "UPDATE material_master SET material_description='$desc', material_category='$cat' WHERE id=$id";
@@ -4682,7 +4693,8 @@ function showAuditDetail(log) {
                         }
                         logActivity($conn, 'MATERIAL_UPDATE', 'Materials', $details);
                         $_SESSION['success_msg'] = "✅ Material updated successfully!";
-                        header("Location: ?page=admin&master=materials");
+                        session_write_close();
+                        header("Location: ?page=admin&master=materials&t=" . time());
                         exit;
                     }
                 }
@@ -4692,7 +4704,8 @@ function showAuditDetail(log) {
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created material: '$desc' (Code: $code)");
                         $_SESSION['success_msg'] = "✅ Material added successfully!";
-                        header("Location: ?page=admin&master=materials");
+                        session_write_close();
+                        header("Location: ?page=admin&master=materials&t=" . time());
                         exit;
                     }
                 }
@@ -5002,7 +5015,8 @@ function showAuditDetail(log) {
             if (mysqli_query($conn, "DELETE FROM supplier_master WHERE id=$id")) {
                 logActivity($conn, 'SUPPLIER_DELETE', 'Suppliers', "Deleted supplier: '$s_name' (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Supplier deleted successfully!";
-                header("Location: ?page=admin&master=suppliers");
+                session_write_close();
+                header("Location: ?page=admin&master=suppliers&t=" . time());
                 exit;
             }
             else {
@@ -5022,10 +5036,10 @@ function showAuditDetail(log) {
                     $current = mysqli_fetch_assoc($current_res);
                     $changes = [];
                     if ($current) {
-                        if ($current['supplier'] !== $supp)
-                            $changes[] = "Name: [{$current['supplier']} ➔ $supp]";
-                        if ($current['supp_code'] !== $supp_code)
-                            $changes[] = "Code: [{$current['supp_code']} ➔ $supp_code]";
+                        if (trim($current['supplier'] ?? '') != trim($supp ?? ''))
+                            $changes[] = "Name: [{$current['supplier']} -> $supp]";
+                        if (trim($current['supp_code'] ?? '') != trim($supp_code ?? ''))
+                            $changes[] = "Code: [{$current['supp_code']} -> $supp_code]";
                     }
 
                     $sql = "UPDATE supplier_master SET supplier='$supp', supp_code='$supp_code' WHERE id=$id";
@@ -5036,7 +5050,8 @@ function showAuditDetail(log) {
                         }
                         logActivity($conn, 'SUPPLIER_UPDATE', 'Suppliers', $details);
                         $_SESSION['success_msg'] = "✅ Supplier updated successfully!";
-                        header("Location: ?page=admin&master=suppliers");
+                        session_write_close();
+                        header("Location: ?page=admin&master=suppliers&t=" . time());
                         exit;
                     }
                 }
@@ -5046,7 +5061,8 @@ function showAuditDetail(log) {
                     if (mysqli_query($conn, $sql)) {
                         logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created supplier: '$supp' (Code: $supp_code)");
                         $_SESSION['success_msg'] = "✅ Supplier added successfully!";
-                        header("Location: ?page=admin&master=suppliers");
+                        session_write_close();
+                        header("Location: ?page=admin&master=suppliers&t=" . time());
                         exit;
                     }
                 }
