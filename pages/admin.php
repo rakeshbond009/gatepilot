@@ -3925,8 +3925,15 @@ function showAuditDetail(log) {
         if (isset($_GET['delete_purpose'])) {
             $id = (int)$_GET['delete_purpose'];
 
+            // Fetch info for log before deletion
+            $p_res = mysqli_query($conn, "SELECT purpose_name, purpose_type FROM purpose_master WHERE id=$id");
+            $p_row = mysqli_fetch_assoc($p_res);
+            $p_name = $p_row['purpose_name'] ?? 'Unknown';
+            $p_type = $p_row['purpose_type'] ?? 'Unknown';
+
             // Delete the purpose
             if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
+                logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted purpose: '$p_name' ($p_type) (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
                 header("Location: ?page=admin&master=purposes");
                 exit;
@@ -3949,22 +3956,36 @@ function showAuditDetail(log) {
             }
             else {
                 if ($id) {
+                    $current_res = mysqli_query($conn, "SELECT * FROM purpose_master WHERE id=$id");
+                    $current = mysqli_fetch_assoc($current_res);
+                    $changes = [];
+                    if ($current) {
+                        if ($current['purpose_name'] !== $name)
+                            $changes[] = "Name: [{$current['purpose_name']} ➔ $name]";
+                        if ($current['purpose_type'] !== $type)
+                            $changes[] = "Type: [{$current['purpose_type']} ➔ $type]";
+                    }
+
                     $sql = "UPDATE purpose_master SET purpose_name='$name', purpose_type='$type' WHERE id=$id";
+                    if (mysqli_query($conn, $sql)) {
+                        $details = "Updated Purpose: Name: '$name' (ID: $id)";
+                        if (!empty($changes)) {
+                            $details .= ", " . implode(", ", $changes);
+                        }
+                        logActivity($conn, 'PURPOSE_UPDATE', 'Purposes', $details);
+                        $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
+                        header("Location: ?page=admin&master=purposes");
+                        exit;
+                    }
                 }
                 else {
                     $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
-                }
-
-                if (mysqli_query($conn, $sql)) {
-                    $log_type = ($id) ? 'PURPOSE_UPDATE' : 'PURPOSE_CREATE';
-                    logActivity($conn, $log_type, 'Purposes', "Saved purpose: '$name' ($type)");
-                    $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
-                    header("Location: ?page=admin&master=purposes");
-                    exit;
-                }
-                else {
-                    $error_msg = "❌ Error saving purpose: " . mysqli_error($conn);
-                    showAppModal('Error', $error_msg, 'error');
+                    if (mysqli_query($conn, $sql)) {
+                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created purpose: '$name' ($type)");
+                        $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
+                        header("Location: ?page=admin&master=purposes");
+                        exit;
+                    }
                 }
             }
         }
