@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.1511');
+    define('APP_VERSION', '26.03.26.1523');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -312,13 +312,30 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         // Audit Log: Auto Login
         logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
     } else {
+        // Standardize HTTPS check (handling Hostinger proxies)
+        $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
+                    (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
         // Invalid or expired token, clear cookie
-        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
+        setcookie('GATEPILOT_REMEMBER', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => $_SERVER['HTTP_HOST'] ?? '',
+            'secure' => $is_https,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
     }
 }
 
 // Page routing
 $page = isset($_GET['page']) ? $_GET['page'] : (isLoggedIn() ? 'dashboard' : 'login');
+
+// If already logged in but trying to access the login page, redirect to dashboard
+if (isLoggedIn() && $page == 'login' && !isset($_GET['reauth'])) {
+    header('Location: ?page=dashboard');
+    exit;
+}
 
 // Change Password Action
 if ($page == 'change_password_action' && $_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -392,10 +409,20 @@ if ($page == 'login' && isset($_POST['login'])) {
             
             $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
             if (mysqli_query($conn, $token_sql)) {
-                // Set cookie for 1 year
-                $cookie_lifetime = 365 * 24 * 60 * 60;
-                $is_secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-                setcookie('GATEPILOT_REMEMBER', $token, time() + $cookie_lifetime, '/', '', $is_secure, true);
+                // Standardize HTTPS check (handling Hostinger proxies)
+                $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
+                            (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+                // Set persistent login cookie for 1 year
+                $cookie_params = [
+                    'expires' => time() + (365 * 24 * 60 * 60),
+                    'path' => '/',
+                    'domain' => $_SERVER['HTTP_HOST'] ?? '',
+                    'secure' => $is_https,
+                    'httponly' => true,
+                    'samesite' => 'Lax'
+                ];
+                setcookie('GATEPILOT_REMEMBER', $token, $cookie_params);
             }
 
             header('Location: ?page=dashboard');
@@ -413,11 +440,23 @@ if ($page == 'logout') {
         logActivity($conn, 'LOGOUT', 'Auth', "User '{$_SESSION['username']}' logged out.");
     }
 
-    // Clear Persistent Login Token if exists
     if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
         mysqli_query($conn, "DELETE FROM user_sessions WHERE token = '$token'");
-        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
+        
+        // Standardize HTTPS check (handling Hostinger proxies)
+        $is_https = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
+                    (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+        // Clear cookie using SameSite Lax signature
+        setcookie('GATEPILOT_REMEMBER', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => $_SERVER['HTTP_HOST'] ?? '',
+            'secure' => $is_https,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
     }
 
     // Clear session data
