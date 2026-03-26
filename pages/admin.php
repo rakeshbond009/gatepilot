@@ -215,16 +215,25 @@
         margin-bottom: 20px;
         border-radius: 12px;
         border: 1px solid #e5e7eb;
+        background: white;
+        display: block;
     }
 
     .table-wrapper table {
-        min-width: 600px;
+        min-width: 800px;
+        border-collapse: collapse;
     }
 
     @media screen and (max-width: 768px) {
-        .patrol-grid {
+        .patrol-grid, .master-form-grid {
             grid-template-columns: 1fr !important;
         }
+    }
+
+    .master-form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
     }
 </style>
 
@@ -954,6 +963,7 @@ function showAuditDetail(log) {
                 if (mysqli_query($conn, "DELETE FROM user_master WHERE id=$id")) {
                     logActivity($conn, 'USER_DELETE', 'Users', "Deleted user account: '$uname' (ID: $id)");
                     $_SESSION['success_msg'] = "✅ User deleted successfully!";
+                    session_write_close();
                     header("Location: ?page=admin&master=users");
                     exit;
                 }
@@ -1152,7 +1162,7 @@ function showAuditDetail(log) {
                                 <form method="POST" enctype="multipart/form-data" style="padding: 30px; background: white;">
                                     <input type="hidden" name="user_id" id="user_id">
                                     
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                    <div class="master-form-grid">
                                         <!-- Account Info -->
                                         <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
                                             <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3b82f6; display: inline-block; padding-bottom: 2px;">🔐 Account Settings</h4>
@@ -1515,7 +1525,7 @@ function showAuditDetail(log) {
                                         <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📋 Basic
                                             Information</h3>
                                     </div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Transporter Name *</label>
                                             <input type="text" name="transporter_name" id="transporter_name" required
@@ -1545,7 +1555,7 @@ function showAuditDetail(log) {
                                             Details
                                         </h3>
                                     </div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Mobile *</label>
                                             <input type="tel" name="mobile" id="trans_mobile" maxlength="10" required
@@ -1979,7 +1989,7 @@ function showAuditDetail(log) {
                                         Information
                                     </h3>
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="master-form-grid">
                                     <div class="form-group">
                                         <label style="font-weight: 600; color: #374151;">Driver Name *</label>
                                         <input type="text" name="driver_name" id="driver_name" required
@@ -2036,7 +2046,7 @@ function showAuditDetail(log) {
                                         Information
                                     </h3>
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="master-form-grid">
                                     <div class="form-group">
                                         <label style="font-weight: 600; color: #374151;">License Number *</label>
                                         <input type="text" name="license_number" id="license_number" required
@@ -2678,7 +2688,7 @@ function showAuditDetail(log) {
                                             Basic
                                             Information</h3>
                                     </div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Vehicle Number *</label>
                                             <input type="text" name="vehicle_number" id="vehicle_number"
@@ -2796,7 +2806,7 @@ function showAuditDetail(log) {
                                             Validity
                                         </h3>
                                     </div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Registration Validity *</label>
                                             <input type="date" name="registration_validity" id="registration_validity" required
@@ -2847,7 +2857,7 @@ function showAuditDetail(log) {
                                             Document
                                             Photos</h3>
                                     </div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
 
                                         <!-- RC Photo -->
                                         <div
@@ -3415,7 +3425,7 @@ function showAuditDetail(log) {
                                 <div style="padding: 25px;">
                                     <form method="POST" enctype="multipart/form-data" onsubmit="showAppLoader('Saving Employee Data...')">
                                         <input type="hidden" name="e_id" id="e_id">
-                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                        <div class="master-form-grid">
                                             <div class="form-group">
                                                 <label style="font-weight: 600;">Employee ID *</label>
                                                 <input type="text" name="employee_id" id="master_emp_id" required
@@ -3920,7 +3930,7 @@ function showAuditDetail(log) {
                                 <input type="hidden" name="p_id" id="p_id">
                                 <div class="card"
                                     style="border-left: 4px solid #4f46e5; background: #f8fafc; margin-bottom: 20px;">
-                                    <div class="patrol-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
                                         <div class="form-group" style="grid-column: span 1; grid-column-end: span 2; margin-bottom: 5px;">
                                             <h4 id="form_title" style="margin:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
                                         </div>
@@ -3963,8 +3973,8 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <div class="table-wrapper">
-                            <table id="patrolLocTable">
+                        <div class="table-wrapper" id="patrolLocTable">
+                            <table>
                                 <thead>
                                     <tr>
                                         <th>Location ID</th>
@@ -4214,7 +4224,7 @@ function showAuditDetail(log) {
                                 <input type="hidden" name="purpose_id" id="purpose_id">
                                 <div class="card"
                                     style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Purpose Name *</label>
                                             <input type="text" name="purpose_name" id="purpose_name" required
@@ -4264,7 +4274,8 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <table id="purposesTable">
+                        <div class="table-wrapper" id="purposesTable">
+                            <table>
                             <thead>
                                 <tr>
                                     <th>Purpose Name</th>
@@ -4466,12 +4477,14 @@ function showAuditDetail(log) {
                                 <input type="hidden" name="department_id" id="department_id">
                                 <div class="card"
                                     style="margin-bottom: 20px; border-left: 4px solid #0ea5e9; background: linear-gradient(to right, #f0f9ff 0%, white 10%);">
-                                    <div class="form-group">
-                                        <label style="font-weight: 600; color: #374151;">Department Name *</label>
-                                        <input type="text" name="department_name" id="department_name" required
-                                            style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                            onfocus="this.style.borderColor='#0ea5e9'; this.style.boxShadow='0 0 0 3px rgba(14, 165, 233, 0.1)';"
-                                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Department Name *</label>
+                                            <input type="text" name="department_name" id="department_name" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#0ea5e9'; this.style.boxShadow='0 0 0 3px rgba(14, 165, 233, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 10px;">
@@ -4505,47 +4518,50 @@ function showAuditDetail(log) {
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
 
-                        <table id="departmentsTable">
-                            <thead>
-                                <tr>
-                                    <th>Department Name</th>
-                                    <th>Created At</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
+                        <div class="table-wrapper" id="departmentsTable">
+                            <table>
+                                <thead>
                                     <tr>
-                                        <td><strong>
-                                                <?php echo htmlspecialchars($dept['department_name']); ?>
-                                            </strong></td>
-                                        <td>
-                                            <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
-                                        </td>
-                                        <td>
-                                            <?php if (hasPermission('actions.view_buttons')): ?>
-                                                <?php if (hasPermission('actions.edit_record')): ?>
-                                                    <button
-                                                        onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
-                                                        class="btn btn-sm"
-                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                        Edit</button>
-                                                <?php
-                endif; ?>
-                                                <?php if (hasPermission('actions.delete_record')): ?>
-                                                    <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
-                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                        Delete</button>
-                                                <?php
-                endif; ?>
-                                            <?php
-            endif; ?>
-                                        </td>
+                                        <th>Department Name</th>
+                                        <th>Created At</th>
+                                        <th>Action</th>
                                     </tr>
-                                <?php
-        endwhile; ?>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
+                                        <tr>
+                                            <td><strong>
+                                                    <?php echo htmlspecialchars($dept['department_name']); ?>
+                                                </strong></td>
+                                            <td>
+                                                <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
+                                            </td>
+                                            <td>
+                                                <?php if (hasPermission('actions.view_buttons')): ?>
+                                                    <?php if (hasPermission('actions.edit_record')): ?>
+                                                        <button
+                                                            onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
+                                                            class="btn btn-sm"
+                                                            style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                            Edit</button>
+                                                    <?php
+                    endif; ?>
+                                                    <?php if (hasPermission('actions.delete_record')): ?>
+                                                        <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
+                                                            style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                            Delete</button>
+                                                    <?php
+                    endif; ?>
+                                                <?php
+                endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php
+            endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        </div>
 
                         <script>
                             function editDepartment(id, name) {
@@ -4797,7 +4813,7 @@ function showAuditDetail(log) {
                                 <input type="hidden" name="material_id" id="material_id" value="<?php echo $form_id; ?>">
                                 <div class="card"
                                     style="margin-bottom: 20px; border-left: 4px solid #06b6d4; background: linear-gradient(to right, #ecfeff 0%, white 10%);">
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Material Code *</label>
                                             <input type="text" name="material_code" id="material_code" required
@@ -4856,7 +4872,8 @@ function showAuditDetail(log) {
                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                     </div>
 
-                    <table id="materialsTable">
+                    <div class="table-wrapper" id="materialsTable">
+                        <table>
                             <thead>
                                 <tr>
                                     <th>Code</th>
@@ -5154,7 +5171,7 @@ function showAuditDetail(log) {
                                     <input type="hidden" name="supplier_id" id="supplier_id" value="<?php echo $form_id; ?>">
                                     <div class="card"
                                         style="margin-bottom: 20px; border-left: 4px solid #06b6d4; background: linear-gradient(to right, #ecfeff 0%, white 10%);">
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                        <div class="master-form-grid">
                                             <div class="form-group">
                                                 <label style="font-weight: 600; color: #374151;">Supplier Name *</label>
                                                 <input type="text" name="supplier" id="supplier" required
@@ -5206,7 +5223,8 @@ function showAuditDetail(log) {
                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                             </div>
 
-                            <table id="suppliersTable">
+                            <div class="table-wrapper" id="suppliersTable">
+                                <table>
                                 <thead>
                                     <tr>
                                         <th>Supplier Name</th>
