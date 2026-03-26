@@ -25,7 +25,7 @@
             <!-- Hero Section -->
             <section class="hero-section">
                 <!-- <div class="hero-content"> -->
-                <h2 class="hero-title">High-Density Gate Management</h2>
+                <h2 class="hero-title">High-Density Gate Management V2</h2>
                 <p class="hero-subtitle">The enterprise benchmark for automated logistics, high-precision security
                     tracking, and industrial facility oversight.</p>
 
