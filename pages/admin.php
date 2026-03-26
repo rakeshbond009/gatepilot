@@ -929,7 +929,9 @@ function showAuditDetail(log) {
 
                 if (mysqli_query($conn, "DELETE FROM user_master WHERE id=$id")) {
                     logActivity($conn, 'USER_DELETE', 'Users', "Deleted user account: '$uname' (ID: $id)");
-                    $success_msg = "✅ User deleted successfully!";
+                    $_SESSION['success_msg'] = "✅ User deleted successfully!";
+                    header("Location: ?page=admin&master=users");
+                    exit;
                 }
                 else {
                     $error_msg = "❌ Error deleting user: " . mysqli_error($conn);
@@ -1350,7 +1352,9 @@ function showAuditDetail(log) {
             // Delete the transporter
             if (mysqli_query($conn, "DELETE FROM transporter_master WHERE id=$id")) {
                 logActivity($conn, 'TRANSPORTER_DELETE', 'Transporters', "Deleted transporter: '$t_name' (ID: $id)");
-                $success_msg = "✅ Transporter deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Transporter deleted successfully!";
+                header("Location: ?page=admin&master=transporters");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting transporter: " . mysqli_error($conn);
@@ -1741,7 +1745,9 @@ function showAuditDetail(log) {
             // Then delete the driver record
             if (mysqli_query($conn, "DELETE FROM driver_master WHERE id=$id")) {
                 logActivity($conn, 'DRIVER_DELETE', 'Drivers', "Deleted driver: '$d_name' (ID: $id)");
-                $success_msg = "✅ Driver deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Driver deleted successfully!";
+                header("Location: ?page=admin&master=drivers");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting driver: " . mysqli_error($conn);
@@ -2404,7 +2410,9 @@ function showAuditDetail(log) {
             // Then delete the vehicle
             if (mysqli_query($conn, "DELETE FROM vehicle_master WHERE id=$id")) {
                 logActivity($conn, 'VEHICLE_DELETE', 'Vehicles', "Deleted vehicle: '$v_num' (ID: $id)");
-                $success_msg = "✅ Vehicle deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Vehicle deleted successfully!";
+                header("Location: ?page=admin&master=vehicles");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting vehicle: " . mysqli_error($conn);
@@ -3643,7 +3651,9 @@ function showAuditDetail(log) {
 
             if (mysqli_query($conn, "DELETE FROM patrol_locations WHERE id=$id")) {
                 logActivity($conn, 'PATROL_DELETE', 'Patrol', "Deleted patrol location: '$loc_name' (ID: $id)");
-                $success_msg = "✅ Patrol location deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Patrol location deleted successfully!";
+                header("Location: ?page=admin&master=patrol-locations");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting location: " . mysqli_error($conn);
@@ -3917,31 +3927,45 @@ function showAuditDetail(log) {
 
             // Delete the purpose
             if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
-                $success_msg = "✅ Purpose deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
+                header("Location: ?page=admin&master=purposes");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting purpose: " . mysqli_error($conn);
             }
         }
 
-        if (isset($_POST['save_purpose'])) {
-            $name = mysqli_real_escape_string($conn, $_POST['purpose_name']);
+        if (isset($_POST['purpose_name'])) {
+            $name = mysqli_real_escape_string($conn, trim($_POST['purpose_name']));
             $type = mysqli_real_escape_string($conn, $_POST['purpose_type']);
+            $id = isset($_POST['purpose_id']) ? (int)$_POST['purpose_id'] : 0;
 
-            if ($_POST['purpose_id']) {
-                $id = $_POST['purpose_id'];
-                $sql = "UPDATE purpose_master SET purpose_name='$name', purpose_type='$type' WHERE id=$id";
+            // Check for duplicate
+            $dup_check = mysqli_query($conn, "SELECT id FROM purpose_master WHERE purpose_name='$name' AND purpose_type='$type' AND id != $id AND is_active=1");
+            if (mysqli_num_rows($dup_check) > 0) {
+                $error_msg = "❌ Error: A purpose with name '$name' and type '$type' already exists!";
+                showAppModal('Error', $error_msg, 'error');
             }
             else {
-                $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
-            }
+                if ($id) {
+                    $sql = "UPDATE purpose_master SET purpose_name='$name', purpose_type='$type' WHERE id=$id";
+                }
+                else {
+                    $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
+                }
 
-            if (mysqli_query($conn, $sql)) {
-                $log_type = (isset($_POST['purpose_id']) && $_POST['purpose_id']) ? 'PURPOSE_UPDATE' : 'PURPOSE_CREATE';
-                logActivity($conn, $log_type, 'Purposes', "Saved purpose: '$name' ($type)");
-                $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
-                header("Location: ?page=admin&master=purposes");
-                exit;
+                if (mysqli_query($conn, $sql)) {
+                    $log_type = ($id) ? 'PURPOSE_UPDATE' : 'PURPOSE_CREATE';
+                    logActivity($conn, $log_type, 'Purposes', "Saved purpose: '$name' ($type)");
+                    $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
+                    header("Location: ?page=admin&master=purposes");
+                    exit;
+                }
+                else {
+                    $error_msg = "❌ Error saving purpose: " . mysqli_error($conn);
+                    showAppModal('Error', $error_msg, 'error');
+                }
             }
         }
 
@@ -3965,14 +3989,14 @@ function showAuditDetail(log) {
 
                     <div class="card" style="margin-bottom: 20px;">
                         <button
-                            onclick="document.getElementById('purposeForm').style.display='block'; document.getElementById('purposeForm').scrollIntoView({ behavior: 'smooth' });"
+                            onclick="openNewPurposeForm()"
                             class="btn btn-primary"
                             style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);">
                             ➕ Add New Purpose
                         </button>
 
                         <div id="purposeForm" style="display: none; margin-bottom: 20px;">
-                            <form method="POST">
+                            <form method="POST" onsubmit="this.querySelector('button[type=submit]').innerHTML='⏳ Saving...'; this.querySelector('button[type=submit]').disabled=true;">
                                 <input type="hidden" name="purpose_id" id="purpose_id">
                                 <div class="card"
                                     style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
@@ -4075,6 +4099,12 @@ function showAuditDetail(log) {
                         </table>
 
                         <script>
+                            function openNewPurposeForm() {
+                                document.getElementById('purpose_id').value = '';
+                                document.querySelector('#purposeForm form').reset();
+                                document.getElementById('purposeForm').style.display = 'block';
+                                document.getElementById('purposeForm').scrollIntoView({ behavior: 'smooth' });
+                            }
                             function editPurpose(id, name, type) {
                                 document.getElementById('purpose_id').value = id;
                                 document.getElementById('purpose_name').value = name;
@@ -4128,7 +4158,9 @@ function showAuditDetail(log) {
 
             // Delete the department
             if (mysqli_query($conn, "DELETE FROM department_master WHERE id=$id")) {
-                $success_msg = "✅ Department deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Department deleted successfully!";
+                header("Location: ?page=admin&master=departments");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting department: " . mysqli_error($conn);
@@ -4360,7 +4392,9 @@ function showAuditDetail(log) {
         if (isset($_GET['delete_material'])) {
             $id = (int)$_GET['delete_material'];
             if (mysqli_query($conn, "DELETE FROM material_master WHERE id=$id")) {
-                $success_msg = "✅ Material deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Material deleted successfully!";
+                header("Location: ?page=admin&master=materials");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting material: " . mysqli_error($conn);
@@ -4759,7 +4793,9 @@ function showAuditDetail(log) {
 
             if (mysqli_query($conn, "DELETE FROM supplier_master WHERE id=$id")) {
                 logActivity($conn, 'SUPPLIER_DELETE', 'Suppliers', "Deleted supplier: '$s_name' (ID: $id)");
-                $success_msg = "✅ Supplier deleted successfully!";
+                $_SESSION['success_msg'] = "✅ Supplier deleted successfully!";
+                header("Location: ?page=admin&master=suppliers");
+                exit;
             }
             else {
                 $error_msg = "❌ Error deleting supplier: " . mysqli_error($conn);
