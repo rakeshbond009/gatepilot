@@ -405,6 +405,7 @@ $vendors_result = mysqli_query($conn, $vendors_query);
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: thin;
+            padding-bottom: env(safe-area-inset-bottom, 12px);
         }
         .bottom-nav a {
             padding: 12px 20px;
@@ -416,8 +417,7 @@ $vendors_result = mysqli_query($conn, $vendors_query);
             white-space: nowrap;
             flex-shrink: 0;
             min-width: fit-content;
-        }
-        .bottom-nav a.active {
+        }        .bottom-nav a.active {
             color: #4F46E5;
             background: #EEF2FF;
         }
@@ -425,6 +425,15 @@ $vendors_result = mysqli_query($conn, $vendors_query);
             font-size: 24px;
             display: block;
             margin-bottom: 4px;
+        }
+
+        @media (min-width: 768px) {
+            .bottom-nav {
+                justify-content: space-around;
+                overflow-x: hidden;
+                padding: 0 20px;
+                padding-bottom: env(safe-area-inset-bottom, 12px);
+            }
         }
         @media print {
             .btn, .no-print, .bottom-nav {

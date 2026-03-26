@@ -343,10 +343,15 @@
                             <input type="password" name="password" required class="form-input" style="width:100%;"
                                 placeholder="••••••••">
                         </div>
+                        <div class="form-group" style="text-align: left; margin-bottom: 30px; display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" name="remember" id="remember_me" checked style="width: 20px; height: 20px; cursor: pointer; accent-color: #4f46e5;">
+                            <label for="remember_me" style="font-weight: 700; color: #64748b; font-size: 0.95rem; cursor: pointer;">Keep me signed in forever</label>
+                        </div>
                         <button type="submit" name="login" class="btn btn-primary"
                             style="width: 100%; padding: 20px; border-radius: 18px; font-weight: 900; font-size: 1.1rem; box-shadow: 0 15px 30px rgba(79, 70, 229, 0.3); border: none; cursor: pointer;">
                             SECURE SIGN IN
                         </button>
+
                     </form>
                 </div>
             </div>

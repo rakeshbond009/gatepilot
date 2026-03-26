@@ -47,14 +47,6 @@ if ($is_local) {
     define('DB_PASS', '');
     define('DB_NAME', 'truck');
     define('ENVIRONMENT', 'LOCAL');
-
-    // Fix for XAMPP session permission issues
-    $session_save_path = __DIR__ . '/sessions';
-    if (!is_dir($session_save_path)) {
-        mkdir($session_save_path, 0777, true);
-    }
-    ini_set('session.save_path', $session_save_path);
-
 }
 else {
     // ========== HOSTED ENVIRONMENT (HOSTINGER) ==========
@@ -65,6 +57,35 @@ else {
     define('DB_NAME', 'u875321134_truck'); // Your Hostinger database name
     define('ENVIRONMENT', 'PRODUCTION');
 }
+
+// ========== UNIVERSAL SESSION CONFIGURATION (FOR "LOGIN FOREVER") ==========
+// Set session lifetime to 1 year (31,536,000 seconds)
+$session_lifetime = 365 * 24 * 60 * 60;
+
+// Set PHP session configuration
+ini_set('session.gc_maxlifetime', $session_lifetime);
+ini_set('session.cookie_lifetime', $session_lifetime);
+
+// Use a custom session directory to avoid garbage collection by other apps
+$session_save_path = __DIR__ . '/sessions';
+if (!is_dir($session_save_path)) {
+    @mkdir($session_save_path, 0777, true);
+}
+if (is_writable($session_save_path)) {
+    ini_set('session.save_path', $session_save_path);
+}
+
+// Ensure the session cookie is as persistent and secure as possible
+session_set_cookie_params([
+    'lifetime' => $session_lifetime,
+    'path' => '/',
+    'domain' => $_SERVER['HTTP_HOST'] ?? '',
+    'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
+
+
 
 // Set timezone to Indian Standard Time
 date_default_timezone_set('Asia/Kolkata');

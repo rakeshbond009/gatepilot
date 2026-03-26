@@ -1522,12 +1522,12 @@
 
             /* Bottom Navigation - Mobile View: Account for safe area/Android nav bar */
             .bottom-nav {
-                padding-bottom: max(40px, env(safe-area-inset-bottom)) !important;
+                padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
                 height: auto !important;
             }
         }
 
-        @media (min-width: 769px) {
+        @media (min-width: 768px) {
 
             /* Desktop: Ensure bottom padding for web view */
             .container[style*="padding-bottom: 120px"] {

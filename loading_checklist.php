@@ -472,6 +472,7 @@ $transporters_result = mysqli_query($conn, $transporters_query);
             overflow-x: auto;
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
+            padding-bottom: env(safe-area-inset-bottom, 15px);
             scrollbar-width: thin;
         }
         
@@ -499,6 +500,15 @@ $transporters_result = mysqli_query($conn, $transporters_query);
         .bottom-nav a.active {
             color: #4F46E5;
             background: #EEF2FF;
+        }
+
+        @media (min-width: 768px) {
+            .bottom-nav {
+                justify-content: space-around;
+                overflow-x: hidden;
+                padding: 0 20px;
+                padding-bottom: env(safe-area-inset-bottom, 12px);
+            }
         }
         
         .bottom-nav a:hover {

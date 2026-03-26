@@ -1,5 +1,5 @@
 <?php
-if (!defined('APP_VERSION')) define('APP_VERSION', '26.03.26.0151');
+if (!defined('APP_VERSION')) define('APP_VERSION', '26.03.26.1105');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -349,12 +349,33 @@ if ($page == 'login' && isset($_POST['login'])) {
 // Handle logout
 if ($page == 'logout') {
     // Audit Log: Logout (must be before session_destroy)
-    logActivity($conn, 'LOGOUT', 'Auth', "User '{$_SESSION['username']}' logged out.");
+    if (isLoggedIn()) {
+        logActivity($conn, 'LOGOUT', 'Auth', "User '{$_SESSION['username']}' logged out.");
+    }
+
+    // Clear session data
+    $_SESSION = array();
+
+    // If it's desired to kill the session, also delete the session cookie.
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(
+            session_name(),
+            '',
+            time() - 42000,
+            $params["path"],
+            $params["domain"],
+            $params["secure"],
+            $params["httponly"]
+        );
+    }
 
     session_destroy();
     header('Location: ?page=login');
     exit;
 }
+
+
 
 // Message handling from session
 $session_success = null;
