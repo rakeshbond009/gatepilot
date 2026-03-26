@@ -207,6 +207,25 @@
         font-family: monospace;
         text-align: right;
     }
+
+    .table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 20px;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .table-wrapper table {
+        min-width: 600px;
+    }
+
+    @media screen and (max-width: 768px) {
+        .patrol-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
 </style>
 
 <script>
@@ -3901,8 +3920,8 @@ function showAuditDetail(log) {
                                 <input type="hidden" name="p_id" id="p_id">
                                 <div class="card"
                                     style="border-left: 4px solid #4f46e5; background: #f8fafc; margin-bottom: 20px;">
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                        <div class="form-group" style="grid-column: span 2; margin-bottom: 5px;">
+                                    <div class="patrol-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                        <div class="form-group" style="grid-column: span 1; grid-column-end: span 2; margin-bottom: 5px;">
                                             <h4 id="form_title" style="margin:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
                                         </div>
                                         <div class="form-group" id="loc_id_group" style="display:none;">
@@ -3978,7 +3997,7 @@ function showAuditDetail(log) {
                                                 </script>
                                             </td>
                                             <td>
-                                                <div style="display: flex; gap: 5px;">
+                                                <div style="display: flex; gap: 5px; min-width: 180px;">
                                                     <button
                                                         onclick="printPatrolQR(<?php echo $loc['id']; ?>, '<?php echo addslashes($loc['location_name']); ?>', '<?php echo addslashes($loc['area_site_building']); ?>', '<?php echo addslashes($loc['qr_code_data']); ?>')"
                                                         class="btn btn-sm" style="background: #10b981; color: white;">🖨️
