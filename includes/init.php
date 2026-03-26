@@ -317,12 +317,7 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
             session_write_close(); // Force session to disk before redirect
             $protocol = $is_https ? 'https' : 'http';
             $host = $_SERVER['HTTP_HOST'];
-            $redirect_url = $protocol . '://' . $host . '/?page=dashboard';
-            
-            // CRITICAL DEBUG: If we see this, the code is working and the redirect is firing
-            die("DEBUG: Auto-login successful! Redirecting to: " . $redirect_url);
-            
-            header('Location: ' . $redirect_url, true, 302);
+            header('Location: ' . $protocol . '://' . $host . '/?page=dashboard', true, 302);
             exit;
         }
     } else {

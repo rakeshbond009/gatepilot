@@ -1,5 +1,11 @@
-<?php if ($page == 'login'):
-?>
+<?php if ($page == 'login'): ?>
+    <script>
+        // CRITICAL FALLBACK: If we land here but have a remember-me cookie, 
+        // it means the server served a cached static page. Trigger redirect now.
+        if (document.cookie.indexOf('GATEPILOT_REMEMBER') !== -1 && window.location.search === '') {
+            window.location.href = window.location.origin + window.location.pathname + '?page=dashboard&auto=1';
+        }
+    </script>
         <div class="landing-page">
 <?php
     $company_logo = getSetting($conn, 'company_logo');
@@ -25,7 +31,7 @@
             <!-- Hero Section -->
             <section class="hero-section">
                 <!-- <div class="hero-content"> -->
-                <h2 class="hero-title">High-Density Gate Management V2</h2>
+                <h2 class="hero-title">High-Density Gate Management</h2>
                 <p class="hero-subtitle">The enterprise benchmark for automated logistics, high-precision security
                     tracking, and industrial facility oversight.</p>
 
