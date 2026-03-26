@@ -361,68 +361,54 @@ $filename_encoded = rawurlencode($filename);
 // Detect mobile user agent
 $is_mobile = preg_match('/(android|iphone|ipad|ipod|mobile)/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
 
-// Start output buffering to capture content for Content-Length
-ob_start();
+ob_clean(); // Ensure no stray output
 
 if ($is_mobile) {
-    // For mobile: Output CSV format (universally supported on mobile devices)
+    // For mobile: Output CSV format (using fputcsv for reliability)
     $filename = str_replace('.xls', '.csv', $filename);
-    $filename_encoded = rawurlencode($filename);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    
+    $output = fopen('php://output', 'w');
+    // Output UTF-8 BOM for Excel compatibility if needed, but fputcsv is safer without for some mobile apps
+    // fwrite($output, "\xEF\xBB\xBF"); 
 
-    // Output UTF-8 BOM for Excel/CSV compatibility
-    echo "\xEF\xBB\xBF";
+    // Header row
+    fputcsv($output, $columns);
 
-    // CSV Headers
-    echo '"' . implode('","', $columns) . '"' . "\n";
-
-    // Output data rows as CSV
+    // Data rows
     if ($result && mysqli_num_rows($result) > 0) {
         while ($row = mysqli_fetch_assoc($result)) {
             $csv_row = [];
             foreach ($columns as $col) {
-                $csv_row[] = (string) ($row[$col] ?? '');
+                $csv_row[] = $row[$col] ?? '';
             }
-            // Escape quotes and wrap in quotes
-            $csv_row = array_map(function ($field) {
-                $field = str_replace('"', '""', $field); // Escape quotes
-                return '"' . $field . '"';
-            }, $csv_row);
-            echo implode(',', $csv_row) . "\n";
+            fputcsv($output, $csv_row);
         }
     }
-
-    // Get the buffered content
-    $content = ob_get_clean();
-
-    // Set headers for CSV download (mobile-compatible)
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-
+    fclose($output);
 } else {
     // For desktop: Output Excel HTML format
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $filename_encoded);
+    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+    header('Pragma: public');
+    header('Expires: 0');
+
     // Output UTF-8 BOM for Excel compatibility
     echo "\xEF\xBB\xBF";
 
-    // Output Excel content
     echo '<html xmlns:x="urn:schemas-microsoft-com:office:excel">';
-    echo '<head>';
-    echo '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">';
-    echo '<xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>';
-    echo '<x:Name>' . htmlspecialchars('Report - ' . ucfirst($export_tab)) . '</x:Name>';
-    echo '<x:WorksheetOptions><x:Print><x:ValidPrinterInfo/></x:Print></x:WorksheetOptions>';
-    echo '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml>';
+    echo '<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">';
+    echo '<style>table { border-collapse: collapse; } th { background: #4F46E5; color: white; border: 1px solid #ccc; } td { border: 1px solid #ccc; }</style>';
     echo '</head><body>';
-
     echo '<table border="1">';
-    echo '<thead style="background-color: #4F46E5; color: white; font-weight: bold;">';
-    echo '<tr>';
+    echo '<thead><tr>';
     foreach ($columns as $col) {
         echo '<th>' . htmlspecialchars($col) . '</th>';
     }
-    echo '</tr>';
-    echo '</thead><tbody>';
+    echo '</tr></thead><tbody>';
 
-    // Output data rows
     if ($result && mysqli_num_rows($result) > 0) {
         while ($row = mysqli_fetch_assoc($result)) {
             echo '<tr>';
@@ -432,30 +418,11 @@ if ($is_mobile) {
             echo '</tr>';
         }
     } else {
-        echo '<tr><td colspan="' . count($columns) . '" style="text-align: center; padding: 20px;">No records found matching the selected filters.</td></tr>';
+        echo '<tr><td colspan="' . count($columns) . '" style="text-align: center;">No records found.</td></tr>';
     }
-
-    echo '</tbody></table>';
-    echo '</body></html>';
-
-    // Get the buffered content
-    $content = ob_get_clean();
-
-    // Set headers for Excel download (desktop)
-    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $filename_encoded);
+    echo '</tbody></table></body></html>';
 }
 
-if (!$is_mobile) {
-    header('Content-Transfer-Encoding: binary');
-}
-header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-header('Pragma: public');
-header('Expires: 0');
-header('Content-Length: ' . strlen($content));
-
-// Output the content
-echo $content;
 
 mysqli_close($conn);
 ?>
