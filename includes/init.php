@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.2011');
+    define('APP_VERSION', '26.03.26.2013');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -779,7 +779,8 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
         if (mysqli_query($conn, "DELETE FROM employee_master WHERE id=$id")) {
             logActivity($conn, 'EMPLOYEE_DELETE', 'Masters', "Deleted employee: '$e_name' (ID: $id)");
             $_SESSION['success_msg'] = "✅ Employee deleted successfully!";
-            header("Location: ?page=admin&master=employees");
+            session_write_close();
+            header("Location: ?page=admin&master=employees&t=" . time());
             exit;
         }
         else {
@@ -875,7 +876,8 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
             }
             logActivity($conn, 'EMPLOYEE_IMPORT', 'Masters', $log_details);
             $_SESSION['success_msg'] = "✅ Imported $success_count employees. Skipped $error_count duplicates/errors.";
-            header("Location: ?page=admin&master=employees");
+            session_write_close();
+            header("Location: ?page=admin&master=employees&t=" . time());
             exit;
         }
         else {
@@ -917,7 +919,8 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
             $dup_check = mysqli_query($conn, "SELECT id FROM employee_master WHERE employee_id='$emp_id' AND id != $dup_id");
             if (mysqli_num_rows($dup_check) > 0) {
                 $_SESSION['error_msg'] = "❌ Error: Employee ID '$emp_id' already exists!";
-                header("Location: ?page=admin&master=employees");
+                session_write_close();
+                header("Location: ?page=admin&master=employees&t=" . time());
                 exit;
             }
             // Generate QR data automatically with department
