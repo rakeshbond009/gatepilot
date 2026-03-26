@@ -3382,7 +3382,7 @@ function showAuditDetail(log) {
                                     <button onclick="document.getElementById('empMasterModal').style.display='none'; resetEmpForm();" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
                                 </div>
                                 <div style="padding: 25px;">
-                                    <form method="POST" enctype="multipart/form-data">
+                                    <form method="POST" enctype="multipart/form-data" onsubmit="showAppLoader('Saving Employee Data...')">
                                         <input type="hidden" name="e_id" id="e_id">
                                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                                             <div class="form-group">

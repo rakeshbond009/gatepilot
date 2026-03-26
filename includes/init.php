@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.1955');
+    define('APP_VERSION', '26.03.26.2000');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -708,7 +708,6 @@ if ($page == 'admin' && isset($_GET['remove_logo']) && isset($_SESSION['super_ad
     }
     setSetting($conn, 'company_logo', '');
     logActivity($conn, 'LOGO_REMOVE', 'Settings', "Removed company logo from the system.");
-    session_write_close();
     header('Location: ?page=admin&master=settings');
     exit;
 }
@@ -746,7 +745,6 @@ if ($page == 'admin' && isset($_POST['upload_logo']) && isset($_SESSION['super_a
                     $logo_url = 'uploads/logo/' . $filename;
                     setSetting($conn, 'company_logo', $logo_url);
                     logActivity($conn, 'LOGO_UPLOAD', 'Settings', "Uploaded new company logo: '$filename'");
-                    session_write_close();
                     header('Location: ?page=admin&master=settings&uploaded=1');
                     exit;
                 }
@@ -754,7 +752,6 @@ if ($page == 'admin' && isset($_POST['upload_logo']) && isset($_SESSION['super_a
         }
     }
     // If we get here, there was an error
-    session_write_close();
     header('Location: ?page=admin&master=settings&error=1');
     exit;
 }
@@ -763,7 +760,6 @@ if ($page == 'admin' && isset($_POST['upload_logo']) && isset($_SESSION['super_a
 if ($page == 'management') {
 
     if (!isset($_SESSION['role']) || (strtolower($_SESSION['role']) != 'admin' && strtolower($_SESSION['role']) != 'manager')) {
-        session_write_close();
         header('Location: ?page=dashboard');
         exit;
     }
@@ -783,7 +779,6 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
         if (mysqli_query($conn, "DELETE FROM employee_master WHERE id=$id")) {
             logActivity($conn, 'EMPLOYEE_DELETE', 'Masters', "Deleted employee: '$e_name' (ID: $id)");
             $_SESSION['success_msg'] = "✅ Employee deleted successfully!";
-            session_write_close();
             header("Location: ?page=admin&master=employees");
             exit;
         }
@@ -880,7 +875,6 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
             }
             logActivity($conn, 'EMPLOYEE_IMPORT', 'Masters', $log_details);
             $_SESSION['success_msg'] = "✅ Imported $success_count employees. Skipped $error_count duplicates/errors.";
-            session_write_close();
             header("Location: ?page=admin&master=employees");
             exit;
         }
@@ -923,7 +917,6 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
             $dup_check = mysqli_query($conn, "SELECT id FROM employee_master WHERE employee_id='$emp_id' AND id != $dup_id");
             if (mysqli_num_rows($dup_check) > 0) {
                 $_SESSION['error_msg'] = "❌ Error: Employee ID '$emp_id' already exists!";
-                session_write_close();
                 header("Location: ?page=admin&master=employees");
                 exit;
             }
@@ -1010,7 +1003,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                     logActivity($conn, 'EMPLOYEE_UPDATE', 'Masters', $details);
                     $_SESSION['success_msg'] = "✅ Employee updated successfully!";
                     session_write_close();
-                    header("Location: ?page=admin&master=employees");
+                    header("Location: ?page=admin&master=employees&t=" . time());
                     exit;
                 }
             }
@@ -1029,7 +1022,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                     logActivity($conn, 'EMPLOYEE_CREATE', 'Masters', "Created employee: '$name' (ID: $emp_id)");
                     $_SESSION['success_msg'] = "✅ Employee added successfully!";
                     session_write_close();
-                    header("Location: ?page=admin&master=employees");
+                    header("Location: ?page=admin&master=employees&t=" . time());
                     exit;
                 }
             }
@@ -1371,10 +1364,8 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
                 }
 
                 $q_parsed = mysqli_real_escape_string($conn, $q_parsed_final);
-                // Check for Employee Photo column
-mysqli_query($conn, "ALTER TABLE employee_master ADD COLUMN IF NOT EXISTS photo VARCHAR(255) AFTER qr_code_data");
-
-$is_logged_in = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
+                // Check for Employee Photo column                mysqli_query($conn, "ALTER TABLE employee_master ADD COLUMN IF NOT EXISTS photo VARCHAR(255) AFTER qr_code_data");
+                $is_logged_in = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
                 $u_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
 
                 $log_sql = "INSERT INTO qr_scan_logs (inward_id, qr_raw_data, qr_type, parsed_data, scan_status, scanned_by) 
