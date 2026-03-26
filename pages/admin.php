@@ -1336,7 +1336,7 @@ function showAuditDetail(log) {
                                     cancelButtonText: 'Cancel'
                                 }).then((result) => {
                                     if (result.isConfirmed) {
-                                        window.location.href = '?page=admin&master=users&delete_user=' + id;
+                                        window.location.href = '?page=admin&master=users&t=' + Date.now() + '&delete_user=' + id;
                                     }
                                 });
                             }
@@ -1363,7 +1363,8 @@ function showAuditDetail(log) {
             if (mysqli_query($conn, "DELETE FROM transporter_master WHERE id=$id")) {
                 logActivity($conn, 'TRANSPORTER_DELETE', 'Transporters', "Deleted transporter: '$t_name' (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Transporter deleted successfully!";
-                header("Location: ?page=admin&master=transporters");
+                session_write_close();
+                header("Location: ?page=admin&master=transporters&t=" . time());
                 exit;
             }
             else {
@@ -1412,7 +1413,8 @@ function showAuditDetail(log) {
                             logActivity($conn, 'TRANSPORTER_UPDATE', 'Transporters', $details);
                             $success_msg = "✅ Transporter updated successfully!";
                             $_SESSION['success_msg'] = $success_msg;
-                            header("Location: ?page=admin&master=transporters");
+                            session_write_close();
+                            header("Location: ?page=admin&master=transporters&t=" . time());
                             exit;
                         }
                         else {
@@ -1756,7 +1758,8 @@ function showAuditDetail(log) {
             if (mysqli_query($conn, "DELETE FROM driver_master WHERE id=$id")) {
                 logActivity($conn, 'DRIVER_DELETE', 'Drivers', "Deleted driver: '$d_name' (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Driver deleted successfully!";
-                header("Location: ?page=admin&master=drivers");
+                session_write_close();
+                header("Location: ?page=admin&master=drivers&t=" . time());
                 exit;
             }
             else {
@@ -2421,7 +2424,8 @@ function showAuditDetail(log) {
             if (mysqli_query($conn, "DELETE FROM vehicle_master WHERE id=$id")) {
                 logActivity($conn, 'VEHICLE_DELETE', 'Vehicles', "Deleted vehicle: '$v_num' (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Vehicle deleted successfully!";
-                header("Location: ?page=admin&master=vehicles");
+                session_write_close();
+                header("Location: ?page=admin&master=vehicles&t=" . time());
                 exit;
             }
             else {
@@ -4321,10 +4325,15 @@ function showAuditDetail(log) {
         if (isset($_GET['delete_department'])) {
             $id = (int)$_GET['delete_department'];
 
-            // Delete the department
+            $d_res = mysqli_query($conn, "SELECT department_name FROM department_master WHERE id=$id");
+            $d_row = mysqli_fetch_assoc($d_res);
+            $d_name = $d_row['department_name'] ?? 'Unknown';
+
             if (mysqli_query($conn, "DELETE FROM department_master WHERE id=$id")) {
+                logActivity($conn, 'DEPT_DELETE', 'Departments', "Deleted department: '$d_name' (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Department deleted successfully!";
-                header("Location: ?page=admin&master=departments");
+                session_write_close();
+                header("Location: ?page=admin&master=departments&t=" . time());
                 exit;
             }
             else {
@@ -4346,10 +4355,19 @@ function showAuditDetail(log) {
                 }
 
                 if (mysqli_query($conn, $sql)) {
-                    $log_type = ($_POST['department_id']) ? 'DEPT_UPDATE' : 'DEPT_CREATE';
-                    logActivity($conn, $log_type, 'Departments', "Saved department: '$name'");
+                    $details = "Saved department: '$name'";
+                    if ($_POST['department_id']) {
+                        if ($current && $current['department_name'] != $name) {
+                            $details = "Updated department: '{$current['department_name']}' -> '$name'";
+                        }
+                    } else {
+                        $details = "Created new department: '$name'";
+                    }
+                    
+                    logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', $details);
                     $_SESSION['success_msg'] = "✅ Department saved successfully!";
-                    header("Location: ?page=admin&master=departments");
+                    session_write_close();
+                    header("Location: ?page=admin&master=departments&t=" . time());
                     exit;
                 }
                 else {
@@ -4558,7 +4576,8 @@ function showAuditDetail(log) {
             $id = (int)$_GET['delete_material'];
             if (mysqli_query($conn, "DELETE FROM material_master WHERE id=$id")) {
                 $_SESSION['success_msg'] = "✅ Material deleted successfully!";
-                header("Location: ?page=admin&master=materials");
+                session_write_close();
+                header("Location: ?page=admin&master=materials&t=" . time());
                 exit;
             }
             else {

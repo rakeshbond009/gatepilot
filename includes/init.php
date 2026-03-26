@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.2013');
+    define('APP_VERSION', '26.03.26.2029');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -937,25 +937,23 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $current = mysqli_fetch_assoc($current_res);
                 $changes = [];
                 if ($current) {
-                    if (ctype_digit(strval($current['employee_id'])) && ctype_digit(strval($emp_id)) && $current['employee_id'] != $emp_id) {
-                        $changes[] = "EmpID: [{$current['employee_id']} ➔ $emp_id]";
-                    }
-                    elseif ($current['employee_id'] !== $emp_id) {
-                        $changes[] = "EmpID: [{$current['employee_id']} ➔ $emp_id]";
+                    if ($current['employee_id'] != $emp_id) {
+                        $changes[] = "EmpID: [{$current['employee_id']} -> $emp_id]";
                     }
 
-                    if ($current['employee_name'] !== $name)
-                        $changes[] = "Name: [{$current['employee_name']} ➔ $name]";
-                    if ($current['mobile'] !== $mobile)
-                        $changes[] = "Mobile: [{$current['mobile']} ➔ $mobile]";
-                    if ($current['email'] !== $email)
-                        $changes[] = "Email: [{$current['email']} ➔ $email]";
-                    if ($current['department'] !== $dept)
-                        $changes[] = "Dept: [{$current['department']} ➔ $dept]";
-                    if ($current['vehicle_number'] !== $vehicle)
-                        $changes[] = "Vehicle: [{$current['vehicle_number']} ➔ $vehicle]";
-                    if ($current['vehicle_type'] !== $vehicle_type)
-                        $changes[] = "Type: [{$current['vehicle_type']} ➔ $vehicle_type]";
+                    if ($current['employee_name'] != $name)
+                        $changes[] = "Name: [{$current['employee_name']} -> $name]";
+                    if ($current['mobile'] != $mobile)
+                        $changes[] = "Mobile: [{$current['mobile']} -> $mobile]";
+                    if ($current['email'] != $email)
+                        $changes[] = "Email: [{$current['email']} -> $email]";
+                    if ($current['department'] != $dept)
+                        $changes[] = "Dept: [{$current['department']} -> $dept]";
+                    if ($current['vehicle_number'] != $vehicle)
+                        $changes[] = "Vehicle: [{$current['vehicle_number']} -> $vehicle]";
+                    if ($current['vehicle_type'] != $vehicle_type)
+                        $changes[] = "Type: [{$current['vehicle_type']} -> $vehicle_type]";
+
 
                     // Compare Expiry Dates (Handling NULL vs empty/quoted string)
                     $old_rc = $current['rc_expiry'] ? date('Y-m-d', strtotime($current['rc_expiry'])) : 'NULL';
