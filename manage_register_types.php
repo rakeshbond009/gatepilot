@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 $sql = "INSERT INTO register_types (slug, title, icon, color, fields_json, is_active) VALUES ('$slug', '$title', '$icon', '$color', '$fields_json_stored', 1)";
                 if (mysqli_query($conn, $sql)) {
-                    logActivity($conn, 'CREATE_REGISTER', 'Register Config', "Created new register type: $title ($slug)");
+                    logActivity($conn, 'REGISTER_CONFIG_CREATE', 'Config', "Created new register type: '$title' (Slug: $slug)");
                     $message = "✅ Success: New register type '$title' created.";
                     $msg_type = 'success';
                 }
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fields_json = '$fields_json_esc' 
                     WHERE id = $id";
             if (mysqli_query($conn, $sql)) {
-                logActivity($conn, 'UPDATE_REGISTER', 'Register Config', "Updated register type: $title (ID: $id)");
+                logActivity($conn, 'REGISTER_CONFIG_UPDATE', 'Config', "Updated register configuration for: '$title' (ID: $id)");
                 $message = "✅ Success: Register type '$title' updated.";
                 $msg_type = 'success';
             }
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         else {
             if (mysqli_query($conn, "DELETE FROM register_types WHERE id = $id")) {
-                logActivity($conn, 'DELETE_REGISTER', 'Register Config', "Deleted register type (ID: $id, Slug: $slug)");
+                logActivity($conn, 'REGISTER_CONFIG_DELETE', 'Config', "Deleted register type: '$slug' (ID: $id)");
                 $message = "✅ Success: Register type deleted.";
                 $msg_type = 'success';
             }
@@ -284,7 +284,7 @@ endif; ?>
                                             <label for="active_<?php echo $type['id']; ?>">Active</label>
                                         </div>
                                         <button type="button" class="btn-toggle-json" onclick="toggleJSON('json_container_<?php echo $type['id']; ?>')">Developer Mode</button>
-                                        <button type="button" class="btn-delete" onclick="const f = this.form; showAppConfirm('Delete this register? This action is irreversible.', (res)=>{ if(res){ f.delete_type.value=1; f.submit(); } }, 'Confirm Deletion')">🗑️</button>
+                                        <button type="button" class="btn-delete" onclick="confirmDeleteRegister(this)">🗑️</button>
                                         <input type="hidden" name="delete_type" value="0">
                                     </div>
                                 </div>
@@ -413,6 +413,16 @@ endforeach; ?>
 </style>
 
 <script>
+// ==================== DELETE CONFIRMATION ====================
+function confirmDeleteRegister(btn) {
+    showAppConfirm('Delete this register? This action is irreversible if no entries exist.', function(confirmed) {
+        if (confirmed) {
+            btn.form.delete_type.value = 1;
+            btn.form.submit();
+        }
+    }, 'Confirm Deletion');
+}
+
 // ==================== CONFIG SEARCH LOGIC ====================
 function toggleConfigDropdown() {
     const dd = document.getElementById('config_dropdown_options');

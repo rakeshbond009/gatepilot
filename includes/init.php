@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.26.2250');
+    define('APP_VERSION', '26.03.26.2257');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -612,7 +612,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
 }
 
 
-
 // ==================== AUTHENTICATION CHECKS (MUST BE BEFORE HTML OUTPUT) ====================
 // Check authentication for all protected pages
 $protected_pages = [
@@ -1169,8 +1168,8 @@ if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && i
     }
 }
 
-// Handle Delete Register - GET
-if (isset($_GET['delete_register_id'])) {
+// Handle Delete Register - Moved to top
+if ($page == 'edit-register-entry' && isset($_GET['delete_register_id'])) {
     $del_id = intval($_GET['delete_register_id']);
     if (mysqli_query($conn, "DELETE FROM manual_registers WHERE id=$del_id")) {
         logActivity($conn, 'REGISTER_DELETE', 'Registers', "Deleted register entry (ID: $del_id)");
@@ -1178,28 +1177,6 @@ if (isset($_GET['delete_register_id'])) {
         header("Location: ?page=view-registers");
         exit;
     }
-}
-
-// Handle Delete Register - POST
-if (isset($_POST['delete_register_id'])) {
-    $del_id = intval($_POST['delete_register_id']);
-    if (mysqli_query($conn, "DELETE FROM manual_registers WHERE id=$del_id")) {
-        logActivity($conn, 'REGISTER_DELETE', 'Registers', "Deleted register entry (ID: $del_id)");
-        $_SESSION['success_msg'] = "✅ Register Entry Deleted Successfully!";
-    }
-    header("Location: ?page=view-registers");
-    exit;
-}
-
-// Handle Delete Material Inward - POST
-if (isset($_POST['delete_material_inward_id'])) {
-    $del_id = intval($_POST['delete_material_inward_id']);
-    if (mysqli_query($conn, "DELETE FROM register_entries WHERE id=$del_id")) {
-        logActivity($conn, 'MATERIAL_DELETE', 'Material Inward', "Deleted material entry (ID: $del_id)");
-        $_SESSION['success_msg'] = "✅ Material Inward Entry Deleted Successfully!";
-    }
-    header("Location: ?page=view-registers&type=material_inward_reg");
-    exit;
 }
 
 
