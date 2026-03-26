@@ -14,6 +14,11 @@ require_once __DIR__ . '/DynamicRegisters.php';
 
 session_start();
 
+// Prevent browser from caching authenticated pages (critical for persistent login to work)
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 // Database connection using auto-detected environment settings
 $conn = getDatabaseConnection();
 $registers_manager = new DynamicRegisters($conn);
