@@ -43,6 +43,20 @@ AddDefaultCharset UTF-8
     ExpiresByType application/javascript "access plus 1 month"
 </IfModule>
 
+# ========== CRITICAL: NO CACHE FOR PHP PAGES ==========
+# Hostinger CDN may cache root URL responses - this forces fresh PHP execution
+<FilesMatch "\.(php)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</FilesMatch>
+# Also prevent caching of the root URL itself
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_URI} ^/$
+    RewriteRule ^ - [E=no-gzip:1,E=dont-vary:1]
+</IfModule>
+Header always set Cache-Control "no-cache, no-store, must-revalidate" "expr=%{REQUEST_FILENAME} =~ /\.php$/ || %{REQUEST_URI} == '/'"
+
 # Force HTTPS (uncomment after SSL is enabled on Hostinger)
 # <IfModule mod_rewrite.c>
 #     RewriteEngine On
