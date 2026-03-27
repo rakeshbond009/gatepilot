@@ -1040,12 +1040,8 @@ endif; ?>
                 if (empId) {
                     insideRow = document.querySelector(".emp-row[data-emp-id=\"" + empId + "\"]");
                     if (!insideRow) {
-                        var rows = document.querySelectorAll(".emp-row");
-                        for (var i = 0; i < rows.length; i++) {
-                            if (rows[i].textContent.toUpperCase().indexOf(empId.toUpperCase()) !== -1) {
-                                insideRow = rows[i]; break;
-                            }
-                        }
+                        // Check if it's a vehicle number match in the list (exact match)
+                        insideRow = document.querySelector(".emp-row[data-vehicle=\"" + empId.toUpperCase() + "\"]");
                     }
                 }
 
