@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0023');
+    define('APP_VERSION', '26.03.28.0035');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -1837,7 +1837,7 @@ if ($page == 'employee-entry-action') {
                     $response['message'] = "✅ Employee inward logged successfully!";
                     $_SESSION['success_msg'] = $response['message'];
 
-                    $details = "Employee Inward Entry:\nNamed: [$employee_name]\nID: [$employee_id]\nVehicle: [$vehicle]";
+                    $details = "Employee Inward Action:\nAction: [INWARD]\nName: [$employee_name]\nID: [$employee_id]\nVehicle: [$vehicle]";
                     if (!empty($remarks))
                         $details .= "\nRemarks: [$remarks]";
                     logActivity($conn, 'EMP_INWARD', 'Employee', $details);
@@ -1864,7 +1864,7 @@ if ($page == 'employee-entry-action') {
                 $e_id = $e_row['employee_id'] ?? 'N/A';
                 $v_num = $e_row['vehicle_number'] ?? 'N/A';
 
-                $details = "Employee Outward Exit:\nName: [$e_name]\nID: [$e_id]\nVehicle: [$v_num]";
+                $details = "Employee Outward Action:\nAction: [OUTWARD]\nName: [$e_name]\nID: [$e_id]\nVehicle: [$v_num]";
                 logActivity($conn, 'EMP_OUTWARD', 'Employee', $details);
             }
             else {
@@ -1882,8 +1882,7 @@ if ($page == 'employee-entry-action') {
         exit;
     }
 
-    $redirect = isset($_POST['redirect_to']) ? $_POST['redirect_to'] : '?page=inward';
-    header("Location: $redirect");
+    // Redirection removed as per user request (handled by AJAX or frontend)
     exit;
 }
 
