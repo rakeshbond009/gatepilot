@@ -382,21 +382,24 @@ function showAuditDetail(log) {
                  detailsDiv.appendChild(header);
 
                  const remaining = headerMatch[2];
-                 // Split by: newline, pipe, ], or a comma that is followed by a Label: pattern
-                 const changes = remaining.split(/\n| \| |], |\]|, (?=[A-Z][a-z\s]+:)/); // split by ], ] or commas followed by a Key:
-                 changes.forEach(c => {
+                  // Split by: newline, pipe, ], or a comma that is followed by a Label: pattern
+                  const changes = remaining.split(/\n| \| |], |\]|, (?=[A-Z][a-z\s]+:)/); // split by ], ] or commas followed by a Key:
+                  changes.forEach(c => {
                     const clean = c.replace(/[\[\]']/g, "").trim();
                     if (!clean) return;
                     
-                    const bitSplit = clean.split(": ");
-                    if (bitSplit.length >= 2) {
-                        addRow(bitSplit[0], bitSplit.slice(1).join(": "));
-                    } else if (clean.includes(" ➔ ")) {
-                        addRow("Change", clean);
+                    // Match pattern "Label: Value" but ensure label is a simple word/phrase
+                    const fieldMatch = clean.match(/^([A-Za-z0-9 \/_-]+):\s*([\s\S]*)$/);
+                    if (fieldMatch) {
+                        addRow(fieldMatch[1], fieldMatch[2]);
+                    } else if (clean.includes(" ➔ ") || clean.includes(" -> ")) {
+                        const arrow = clean.includes(" ➔ ") ? " ➔ " : " -> ";
+                        addRow("Change", clean.replace(" -> ", " ➔ "));
                     } else {
+                        // If it doesn't look like Key: Value, just show it as a detail
                         addRow("Detail", clean);
                     }
-                 });
+                  });
             } else if (log.details.includes(", ") && log.details.includes(": ")) {
                  // Format comma-separated lists like "Vehicle: '...', Driver: '...'"
                  const segments = log.details.split(/, (?=[A-Za-z\s]+:)/); // Split only on commas that lead into a PropertyName: pattern
@@ -960,7 +963,7 @@ function showAuditDetail(log) {
                 $uname = $uname_row['username'] ?? 'Unknown';
 
                 if (mysqli_query($conn, "DELETE FROM user_master WHERE id=$id")) {
-                    logActivity($conn, 'USER_DELETE', 'Users', "Deleted user account: '$uname' (ID: $id)");
+                    logActivity($conn, 'USER_DELETE', 'Users', "Deleted User Account: Username: $uname, ID: $id");
                     $_SESSION['success_msg'] = "✅ User deleted successfully!";
                     header("Location: ?page=admin&master=users");
                     exit;
