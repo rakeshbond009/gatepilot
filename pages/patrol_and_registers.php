@@ -501,9 +501,19 @@ elseif ($page == 'tickets'):
         $action = $_POST['action'];
         $remarks = isset($_POST['remarks']) ? mysqli_real_escape_string($conn, $_POST['remarks']) : '';
 
+        // Fetch ticket and location details for audit log
+        $t_info_res = mysqli_query($conn, "SELECT t.issue_description, pl.location_name FROM patrol_issues t LEFT JOIN patrol_locations pl ON t.location_id = pl.id WHERE t.id = $ticket_id");
+        $t_info = mysqli_fetch_assoc($t_info_res);
+        $issue_desc = $t_info['issue_description'] ?? 'N/A';
+        $location = $t_info['location_name'] ?? 'N/A';
+
         if ($action == 'assign') {
             $assign_to = intval($_POST['employee_id']);
             $sql = "UPDATE patrol_issues SET status='Assigned', assigned_to=$assign_to, assigned_at=NOW(), updated_at=NOW() WHERE id=$ticket_id";
+            
+            // Get employee name for log
+            $e_info_res = mysqli_query($conn, "SELECT employee_name FROM employee_master WHERE id = $assign_to");
+            $employee_name = ($e_row = mysqli_fetch_assoc($e_info_res)) ? $e_row['employee_name'] : 'Unknown';
         }
         elseif ($action == 'resolve') {
             $sql = "UPDATE patrol_issues SET status='Resolved', resolution_remarks='$remarks', resolved_at=NOW(), updated_at=NOW() WHERE id=$ticket_id";
@@ -514,7 +524,21 @@ elseif ($page == 'tickets'):
 
         if (isset($sql) && mysqli_query($conn, $sql)) {
             $success_msg = "✅ Ticket updated successfully.";
-            logActivity($conn, 'TICKET_UPDATE', 'Patrol', "Ticket Updated:\n" . auditFromPost($_POST));
+            
+            // Enhanced Audit Log
+            $details = "Ticket Updated:\n";
+            $details .= "Action: [" . strtoupper($action) . "]\n";
+            $details .= "Ticket Id: $ticket_id\n";
+            $details .= "Location: $location\n";
+            $details .= "Issue: $issue_desc";
+            if ($action == 'assign') {
+                $details .= "\nAssigned To: $employee_name";
+            }
+            if (!empty($remarks)) {
+                $details .= "\nRemarks: $remarks";
+            }
+            
+            logActivity($conn, 'TICKET_UPDATE', 'Patrol', $details);
         }
         else {
             $error_msg = "❌ Error updating ticket: " . mysqli_error($conn);

@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.2207');
+    define('APP_VERSION', '26.03.27.2254');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -989,7 +989,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $sql .= " WHERE id=$id";
 
                 if (mysqli_query($conn, $sql)) {
-                    $details = "Updated Employee: Name: [$name] (EmpID: $emp_id)";
+                    $details = "Updated Employee Entry:\nName: [$name]\nID: [$emp_id]\nVehicle: [$v_num]\nDept/Location: [$dept]";
                     if (!empty($changes)) {
                         $details .= "\nChanges:\n" . implode("\n", $changes);
                     }
@@ -1104,7 +1104,15 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
                 VALUES ($location_id, $guard_id, '$description', '$photo_url')";
 
         if (mysqli_query($conn, $sql)) {
-            $details = "Issue Ticket Created:\n" . auditFromPost($_POST);
+            $ticket_id = mysqli_insert_id($conn);
+            $loc_res = mysqli_query($conn, "SELECT location_name FROM patrol_locations WHERE id = $location_id");
+            $loc_name = ($l_row = mysqli_fetch_assoc($loc_res)) ? $l_row['location_name'] : 'Unknown';
+            
+            $details = "Issue Ticket Created:\n";
+            $details .= "Ticket Id: $ticket_id\n";
+            $details .= "Location: $loc_name\n";
+            $details .= "Issue: $description";
+            
             if ($photo_url) {
                 $details .= "\nPhoto: [Uploaded]";
             }
@@ -1726,7 +1734,7 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
     $old = mysqli_fetch_assoc($old_res);
 
     if (mysqli_query($conn, $sql)) {
-        $inward_log = "Edited Inward Entry: ID: [$id], Vehicle: [$vehicle]";
+        $inward_log = "Edited Inward Entry: ID: [$id]\nVehicle: [$vehicle]\nDriver: [$driver]\nLocation: [$from_loc ➔ $to_loc]";
         if ($old) {
             $diff = auditDiff($old, $_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments', 'inward_datetime' => 'Datetime']);
             if ($diff)
@@ -1830,7 +1838,10 @@ if ($page == 'employee-entry-action') {
                     $response['success'] = true;
                     $response['message'] = "✅ Employee inward logged successfully!";
                     $_SESSION['success_msg'] = $response['message'];
-                    logActivity($conn, 'EMP_INWARD', 'Employee', "Employee Inward Entry:\n" . auditFromPost($_POST));
+                    
+                    $details = "Employee Inward Entry:\nNamed: [$employee_name]\nID: [$employee_id]\nVehicle: [$vehicle]";
+                    if (!empty($remarks)) $details .= "\nRemarks: [$remarks]";
+                    logActivity($conn, 'EMP_INWARD', 'Employee', $details);
                 }
                 else {
                     $response['message'] = "❌ Error logging employee entry: " . mysqli_error($conn);
@@ -1847,13 +1858,15 @@ if ($page == 'employee-entry-action') {
                 $response['message'] = "✅ Employee exit logged successfully!";
                 $_SESSION['success_msg'] = $response['message'];
 
-                // Fetch basic detail for better log
-                $e_det = mysqli_query($conn, "SELECT employee_name, employee_id FROM employee_entries WHERE id = $id");
+                // Fetch details for better log
+                $e_det = mysqli_query($conn, "SELECT employee_name, employee_id, vehicle_number FROM employee_entries WHERE id = $id");
                 $e_row = mysqli_fetch_assoc($e_det);
                 $e_name = $e_row['employee_name'] ?? 'Unknown';
                 $e_id = $e_row['employee_id'] ?? 'N/A';
+                $v_num = $e_row['vehicle_number'] ?? 'N/A';
 
-                logActivity($conn, 'EMP_OUTWARD', 'Employee', "Employee Outward Entry:\n" . auditFromPost($_POST));
+                $details = "Employee Outward Exit:\nName: [$e_name]\nID: [$e_id]\nVehicle: [$v_num]";
+                logActivity($conn, 'EMP_OUTWARD', 'Employee', $details);
             }
             else {
                 $response['message'] = "❌ Error logging employee exit: " . mysqli_error($conn);
