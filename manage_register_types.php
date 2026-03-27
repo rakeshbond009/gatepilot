@@ -95,10 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Build a much simpler, human-readable diff
             $diff_parts = [];
-            if ($current['title'] != $title) $diff_parts[] = "Title: " . $current['title'] . " -> " . $title;
-            if ($current['icon'] != $icon) $diff_parts[] = "Icon: " . $current['icon'] . " -> " . $icon;
-            if ($current['color'] != $color) $diff_parts[] = "Color: " . $current['color'] . " -> " . $color;
-            if ($current['is_active'] != $is_active) $diff_parts[] = "Status: " . ($current['is_active'] ? 'Active':'Inactive') . " -> " . ($is_active ? 'Active':'Inactive');
+            if ($current['title'] != $title) $diff_parts[] = "Title: [" . $current['title'] . " ➔ " . $title . "]";
+            if ($current['icon'] != $icon) $diff_parts[] = "Icon: [" . $current['icon'] . " ➔ " . $icon . "]";
+            if ($current['color'] != $color) $diff_parts[] = "Color: [" . $current['color'] . " ➔ " . $color . "]";
+            if ($current['is_active'] != $is_active) $diff_parts[] = "Status: [" . ($current['is_active'] ? 'Active':'Inactive') . " ➔ " . ($is_active ? 'Active':'Inactive') . "]";
             
             $old_fields = json_decode($current['fields_json'] ?? '[]', true);
             $new_fields = json_decode(stripslashes($fields_json_raw), true);
@@ -124,18 +124,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($lbl_changed || $typ_changed || $req_changed) {
                         $mText = "Field '" . ($o['label'] ?? $fname) . "': ";
                         $mSubs = [];
-                        if ($lbl_changed) $mSubs[] = "Label[" . ($o['label'] ?? 'none') . " -> " . ($n['label'] ?? 'none') . "]";
-                        if ($typ_changed) $mSubs[] = "Type[" . ($o['type'] ?? 'none') . " -> " . ($n['type'] ?? 'none') . "]";
-                        if ($req_changed) $mSubs[] = "Req[" . ($o['required'] ? 'Yes':'No') . " -> " . ($n['required'] ? 'Yes':'No') . "]";
+                        if ($lbl_changed) $mSubs[] = "Label[" . ($o['label'] ?? 'none') . " ➔ " . ($n['label'] ?? 'none') . "]";
+                        if ($typ_changed) $mSubs[] = "Type[" . ($o['type'] ?? 'none') . " ➔ " . ($n['type'] ?? 'none') . "]";
+                        if ($req_changed) $mSubs[] = "Req[" . ($o['required'] ? 'Yes':'No') . " ➔ " . ($n['required'] ? 'Yes':'No') . "]";
                         $modified[] = $mText . implode(", ", $mSubs);
                     }
                 }
             }
-            if (!empty($added)) $diff_parts[] = "Added: " . implode(", ", $added);
-            if (!empty($removed)) $diff_parts[] = "Removed: " . implode(", ", $removed);
-            if (!empty($modified)) $diff_parts[] = "Modified: " . implode("; ", $modified);
+            if (!empty($added)) $diff_parts[] = "Added: [" . implode(", ", $added) . "]";
+            if (!empty($removed)) $diff_parts[] = "Removed: [" . implode(", ", $removed) . "]";
+            if (!empty($modified)) $diff_parts[] = "Modified: [" . implode("; ", $modified) . "]";
 
-            $details = "Update Success: Register '$title'\n" . (empty($diff_parts) ? "No changes were made." : implode("\n", $diff_parts));
+            $details = "Update Success: Register '$title'";
+            if (!empty($diff_parts)) {
+                $details .= "\nChanges:\n" . implode("\n", $diff_parts);
+            } else {
+                $details .= "\nNo changes were made.";
+            }
 
             $sql = "UPDATE register_types SET 
                     title = '$title',

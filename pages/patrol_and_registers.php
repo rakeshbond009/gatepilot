@@ -533,18 +533,17 @@ elseif ($page == 'tickets'):
             $success_msg = "✅ Ticket updated successfully.";
             
             // Enhanced Audit Log
-            $details = "Ticket Updated:\n";
+            $details = "Ticket Updated: ID: [$ticket_id]\n";
             $details .= "Action: [" . strtoupper($action) . "]\n";
-            $details .= "Ticket Id: $ticket_id\n";
-            $details .= "Location: $location\n";
-            $details .= "Issue: $issue_desc\n";
-            $details .= "Assigned To: " . ($action == 'assign' ? $employee_name : $existing_assigned_name);
+            $details .= "Location: [$location]\n";
+            $details .= "Issue: [$issue_desc]\n";
+            $details .= "Assigned To: [" . ($action == 'assign' ? $employee_name : $existing_assigned_name) . "]\n";
 
             if (!empty($remarks)) {
-                $details .= "\nRemarks: $remarks";
+                $details .= "Remarks: [$remarks]";
             }
             
-            logActivity($conn, 'TICKET_UPDATE', 'Patrol', $details);
+            logActivity($conn, 'TICKET_UPDATE', 'Patrol', trim($details));
         }
         else {
             $error_msg = "❌ Error updating ticket: " . mysqli_error($conn);

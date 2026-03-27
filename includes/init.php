@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.2314');
+    define('APP_VERSION', '26.03.28.0023');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -929,22 +929,16 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $current = mysqli_fetch_assoc($current_res);
                 $changes = [];
                 if ($current) {
-                    if (trim($current['employee_id'] ?? '') != trim($emp_id)) {
-                        $changes[] = "EmpID: [" . trim($current['employee_id'] ?? '') . " -> " . trim($emp_id) . "]";
-                    }
-
-                    if (trim($current['employee_name'] ?? '') != trim($name))
-                        $changes[] = "Name: [" . trim($current['employee_name'] ?? '') . " -> " . trim($name) . "]";
-                    if (trim($current['mobile'] ?? '') != trim($mobile))
-                        $changes[] = "Mobile: [" . trim($current['mobile'] ?? '') . " -> " . trim($mobile) . "]";
-                    if (trim($current['email'] ?? '') != trim($email))
-                        $changes[] = "Email: [" . trim($current['email'] ?? '') . " -> " . trim($email) . "]";
-                    if (trim($current['department'] ?? '') != trim($dept))
-                        $changes[] = "Dept: [" . trim($current['department'] ?? '') . " -> " . trim($dept) . "]";
-                    if (trim($current['vehicle_number'] ?? '') != trim($vehicle))
-                        $changes[] = "Vehicle: [" . trim($current['vehicle_number'] ?? '') . " -> " . trim($vehicle) . "]";
-                    if (trim($current['vehicle_type'] ?? '') != trim($vehicle_type))
-                        $changes[] = "Type: [" . trim($current['vehicle_type'] ?? '') . " -> " . trim($vehicle_type) . "]";
+                    $changes_list = auditDiff($current, $_POST, ['e_id'], [
+                        'employee_id' => 'EmpID',
+                        'employee_name' => 'Name',
+                        'mobile' => 'Mobile',
+                        'email' => 'Email',
+                        'department' => 'Dept',
+                        'vehicle_number' => 'Vehicle',
+                        'vehicle_type' => 'Type'
+                    ]);
+                    $changes = $changes_list ? explode("\n", $changes_list) : [];
 
 
                     // Compare Expiry Dates (Handling NULL vs empty/quoted string)
@@ -984,7 +978,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                         qr_code_data='$qr_data'";
                 if (!empty($photo_path)) {
                     $sql .= ", photo='$photo_path'";
-                    $changes[] = "Photo updated";
+                    $changes[] = "Photo: [Updated]";
                 }
                 $sql .= " WHERE id=$id";
 
@@ -1107,12 +1101,12 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
             $ticket_id = mysqli_insert_id($conn);
             $loc_res = mysqli_query($conn, "SELECT location_name FROM patrol_locations WHERE id = $location_id");
             $loc_name = ($l_row = mysqli_fetch_assoc($loc_res)) ? $l_row['location_name'] : 'Unknown';
-            
+
             $details = "Issue Ticket Created:\n";
             $details .= "Ticket Id: $ticket_id\n";
             $details .= "Location: $loc_name\n";
             $details .= "Issue: $description";
-            
+
             if ($photo_url) {
                 $details .= "\nPhoto: [Uploaded]";
             }
@@ -1456,6 +1450,10 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
         if (mysqli_query($conn, $sql)) {
             $inward_id = mysqli_insert_id($conn);
             $details = "Inward Gate Entry:\n" . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']);
+            if ($vehicle_photo_url)
+                $details .= "\nVehicle Photo: [$vehicle_photo_url]";
+            if ($bill_photo_url)
+                $details .= "\nBill Photo: [$bill_photo_url]";
             logActivity($conn, 'INWARD_ENTRY', 'Logistics', $details);
             $success_msg = "✅ Inward entry created successfully! Entry #: $entry_num";
 
@@ -1838,9 +1836,10 @@ if ($page == 'employee-entry-action') {
                     $response['success'] = true;
                     $response['message'] = "✅ Employee inward logged successfully!";
                     $_SESSION['success_msg'] = $response['message'];
-                    
+
                     $details = "Employee Inward Entry:\nNamed: [$employee_name]\nID: [$employee_id]\nVehicle: [$vehicle]";
-                    if (!empty($remarks)) $details .= "\nRemarks: [$remarks]";
+                    if (!empty($remarks))
+                        $details .= "\nRemarks: [$remarks]";
                     logActivity($conn, 'EMP_INWARD', 'Employee', $details);
                 }
                 else {

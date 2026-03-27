@@ -316,121 +316,144 @@ function showAuditDetail(log) {
 
     const detailsDiv = document.getElementById("auditDetails");
     detailsDiv.innerHTML = "";
-    
-    const addRow = (key, val) => {
+        const addRow = (key, val) => {
         const row = document.createElement("div"); 
         row.className = "perm-change-row";
-        row.style.display = "flex";
-        row.style.justifyContent = "space-between";
-        row.style.alignItems = "center";
-        row.style.padding = "12px 18px";
-        row.style.background = "#ffffff";
-        row.style.borderRadius = "10px";
-        row.style.marginBottom = "8px";
-        row.style.border = "1px solid #eef2ff";
-        row.style.fontSize = "13px";
-        row.style.boxShadow = "0 1px 2px rgba(0,0,0,0.02)";
+        row.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:12px 18px; background:#ffffff; border-radius:12px; margin-bottom:10px; border:1px solid #eef2ff; font-size:13px; box-shadow:0 1px 3px rgba(0,0,0,0.03);";
 
         const left = document.createElement("div"); 
         left.className = "perm-key"; 
-        left.style.fontWeight = "700";
-        left.style.color = "#475569";
-        left.style.fontSize = "12px";
-        left.textContent = key;
+        left.style.cssText = "font-weight:700; color:#475569; font-size:12px; display:flex; align-items:center; gap:8px;";
+        
+        // Add subtle icons based on common keys
+        let icon = "🔹";
+        const k = key.toLowerCase();
+        if (k.includes("vehicle")) icon = "🚛";
+        else if (k.includes("driver") || k.includes("user")) icon = "👤";
+        else if (k.includes("mobile") || k.includes("phone")) icon = "📱";
+        else if (k.includes("location") || k.includes("from") || k.includes("to")) icon = "📍";
+        else if (k.includes("bill")) icon = "🧾";
+        else if (k.includes("photo") || k.includes("upload")) icon = "📸";
+        else if (k.includes("status")) icon = "🚦";
+        else if (k.includes("date") || k.includes("time")) icon = "📅";
+        
+        left.innerHTML = `<span>${icon}</span> ${key}`;
 
         const right = document.createElement("div"); 
         right.className = "perm-val";
-        right.style.color = "#1e293b";
-        right.style.fontWeight = "500";
+        right.style.cssText = "color:#1e293b; font-weight:500; text-align:right;";
         
         let displayVal = val;
-        // Handle Arrow format [Old ➔ New]
-        if (typeof val === 'string' && val.includes(' ➔ ')) {
-            const cleanVal = val.replace(/[\[\]]/g, "");
-            const parts = cleanVal.split(' ➔ ');
+        const valStr = String(val).trim();
+        
+        // Robust Photo/URL Detection
+        if (valStr.toLowerCase().includes('uploads/') || valStr.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+            const url = valStr.replace(/[\[\]']/g, "").trim();
+            displayVal = `<a href="${url}" target="_blank" style="color:#6366f1; text-decoration:none; font-weight:700; display:inline-flex; align-items:center; gap:6px; background:#eef2ff; padding:5px 12px; border-radius:6px; border:1px solid #c7d2fe; transition:all 0.2s;"><span>🖼️</span> View Upload</a>`;
+        } 
+        // Before ➔ After logic
+        else if (valStr.includes(' ➔ ') || valStr.includes(' -> ')) {
+            const arrow = valStr.includes(' ➔ ') ? ' ➔ ' : ' -> ';
+            const cleanVal = valStr.replace(/[\[\]]/g, "");
+            const parts = cleanVal.split(arrow);
             const from = parts[0].trim();
             const to = parts[1].trim();
             
             const formatVal = (v) => {
-                const upperV = String(v).toUpperCase();
-                if (upperV === 'ON' || upperV === 'TRUE' || upperV === 'YES') 
-                    return '<span style="color:#10b981; font-weight:700; background:#dcfce7; padding:2px 8px; border-radius:4px; font-size:11px;">● ON</span>';
-                if (upperV === 'OFF' || upperV === 'FALSE' || upperV === 'NO') 
-                    return '<span style="color:#ef4444; font-weight:700; background:#fef2f2; padding:2px 8px; border-radius:4px; font-size:11px;">○ OFF</span>';
-                return `<span style="color:#334155; font-weight:600;">${v}</span>` || '<i style="color:#cbd5e1">empty</i>';
+                const uv = String(v).toUpperCase();
+                if (uv === 'ON' || uv === 'TRUE' || uv === 'YES') 
+                    return '<span style="color:#10b981; font-weight:700; background:#dcfce7; padding:3px 10px; border-radius:6px; font-size:11px; border:1px solid #bbf7d0;">● ON</span>';
+                if (uv === 'OFF' || uv === 'FALSE' || uv === 'NO') 
+                    return '<span style="color:#ef4444; font-weight:700; background:#fef2f2; padding:3px 10px; border-radius:6px; font-size:11px; border:1px solid #fee2e2;">○ OFF</span>';
+                return `<span style="color:#334155; font-weight:600;">${v}</span>`;
             };
 
-            displayVal = `<div style="display:flex; align-items:center; gap:8px;">
-                            <span style="color:#94a3b8; font-size:11px; font-weight:400;">${formatVal(from)}</span> 
-                            <span style="color:#cbd5e1; font-weight:400;">→</span> 
-                            <span style="color:#4f46e5; font-weight:700;">${formatVal(to)}</span>
+            displayVal = `<div style="display:flex; align-items:center; gap:10px; justify-content:flex-end;">
+                            <span style="color:#94a3b8; font-size:11px; opacity:0.8;">${formatVal(from)}</span> 
+                            <span style="color:#cbd5e1; font-weight:bold;">→</span> 
+                            <span style="color:#1e293b;">${formatVal(to)}</span>
                           </div>`;
         }
         
         right.innerHTML = displayVal;
-        
         row.appendChild(left); 
         row.appendChild(right); 
         detailsDiv.appendChild(row);
     };
 
     try {
-        if (log.details.includes(": ")) {
-            // Simplified regex to just split into Title and Details regardless of word list
-            const headerMatch = log.details.match(/^([^:\n]+):\s*([\s\S]*)$/);
-            
-            if (headerMatch) {
-                 const header = document.createElement("div");
-                 header.style.fontWeight = "700"; header.style.marginBottom = "15px"; header.style.color = "#1e293b";
-                 header.style.fontSize = "14px";
-                 header.textContent = headerMatch[1] + ":";
-                 detailsDiv.appendChild(header);
+        const details = log.details || "";
+        
+        // 1. Title/Header Section
+        let mainContent = details;
+        const mainHeaderMatch = details.match(/^([^:\n]+):\s*([\s\S]*)$/);
+        if (mainHeaderMatch && !mainHeaderMatch[1].includes("[")) {
+            const header = document.createElement("div");
+            header.style.cssText = "font-weight:700; margin-bottom:18px; color:#1e293b; font-size:16px; border-bottom:2.5px solid #6366f1; padding-bottom:10px; display:inline-block; letter-spacing:-0.2px;";
+            header.innerHTML = `<span>📝</span> ${mainHeaderMatch[1]}`;
+            detailsDiv.appendChild(header);
+            mainContent = mainHeaderMatch[2];
+        }
 
-                 const remaining = headerMatch[2];
-                  // Split by: newline, pipe, or a comma that follows a closing bracket
-                  const changes = remaining.split(/\n| \| |(?<=\]),\s*/); // Split by newline, pipe, or '], '
-                  changes.forEach(c => {
-                    const clean = c.replace(/[\[\]']/g, "").trim();
-                    if (!clean) return;
-                    
-                    // Match pattern "Label: Value" but ensure label is a simple word/phrase
-                    const fieldMatch = clean.match(/^([A-Za-z0-9 \/_-]+):\s*([\s\S]*)$/);
-                    if (fieldMatch) {
-                        addRow(fieldMatch[1], fieldMatch[2]);
-                    } else if (clean.includes(" ➔ ") || clean.includes(" -> ")) {
-                        const arrow = clean.includes(" ➔ ") ? " ➔ " : " -> ";
-                        addRow("Change", clean.replace(" -> ", " ➔ "));
-                    } else {
-                        // If it doesn't look like Key: Value, just show it as a detail
-                        addRow("Detail", clean);
-                    }
-                  });
-            } else if (log.details.includes(", ") && log.details.includes(": ")) {
-                 // Format comma-separated lists like "Vehicle: '...', Driver: '...'"
-                 const segments = log.details.split(/, (?=[A-Za-z\s]+:)/); // Split only on commas that lead into a PropertyName: pattern
-                 segments.forEach(seg => {
-                     const clean = seg.replace(/'/g, "").trim();
-                     const parts = clean.split(": ");
-                     if (parts.length >= 2) {
-                         addRow(parts[0].trim(), parts.slice(1).join(": ").trim());
-                     } else {
-                         addRow("Detail", clean);
-                     }
-                 });
-            } else {
-                detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6; white-space:pre-wrap;">${log.details}</div>`;
+        // 2. Split into segments
+        const segments = mainContent.split(/\n| \| |(?<=\]),\s*/).map(s => s.trim()).filter(s => s.length > 0);
+        
+        let summarySectionHit = false;
+        let changeSectionHit = false;
+
+        segments.forEach(seg => {
+            const isChange = seg.toLowerCase().startsWith("changes:") || seg.includes("➔") || seg.includes("->");
+
+            // Section Divider Logic
+            if (isChange && !changeSectionHit) {
+                const divider = document.createElement("div");
+                divider.style.cssText = "margin:22px 0 15px; padding:10px 18px; background:#fff7ed; border-radius:10px; border-left:5px solid #f59e0b; color:#9a3412; font-weight:800; font-size:12px; text-transform:uppercase; letter-spacing:0.8px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 4px rgba(245,158,11,0.1);";
+                divider.innerHTML = "<span>⚡</span> Detailed Changes Detected";
+                detailsDiv.appendChild(divider);
+                changeSectionHit = true;
+            } else if (!isChange && !summarySectionHit && !changeSectionHit) {
+                const divider = document.createElement("div");
+                divider.style.cssText = "margin:5px 0 15px; padding:10px 18px; background:#f0f9ff; border-radius:10px; border-left:5px solid #0ea5e9; color:#0369a1; font-weight:800; font-size:12px; text-transform:uppercase; letter-spacing:0.8px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 4px rgba(14,165,233,0.1);";
+                divider.innerHTML = "<span>ℹ️</span> Initial Record Details";
+                detailsDiv.appendChild(divider);
+                summarySectionHit = true;
             }
-        } else {
-             detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6; white-space:pre-wrap;">${log.details}</div>`;
+
+            if (seg.toLowerCase().startsWith("changes:")) return; 
+
+            // Key-Value Parsing
+            const pairMatch = seg.match(/^([^:]+):\s*(.*)$/);
+            if (pairMatch) {
+                let label = pairMatch[1].trim();
+                let value = pairMatch[2].trim().replace(/^\[|\]$/g, "").trim(); 
+                
+                // Skip identical values in change logs
+                if (value.includes("➔")) {
+                    const vparts = value.split("➔");
+                    if (vparts.length === 2 && vparts[0].trim() === vparts[1].trim()) return;
+                }
+
+                if (label && value) {
+                    addRow(label, value);
+                }
+            } else {
+                const item = document.createElement("div");
+                item.style.cssText = "padding:12px 18px; background:#f8fafc; border-radius:10px; color:#475569; margin-bottom:10px; font-size:13px; border:1px solid #e2e8f0; border-left:4px solid #94a3b8; line-height:1.5;";
+                item.textContent = seg.replace(/[\[\]]/g, "");
+                detailsDiv.appendChild(item);
+            }
+        });
+
+        if (segments.length === 0) {
+            detailsDiv.innerHTML = `<div style="padding:30px; background:#f8fafc; border-radius:15px; color:#64748b; line-height:1.7; white-space:pre-wrap; font-size:14px; border:2px dashed #e2e8f0; text-align:center;">${details}</div>`;
         }
     } catch (e) {
+        console.error("Audit Parse Error:", e);
         detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6; white-space:pre-wrap;">${log.details}</div>`;
     }
-    
+
     const modal = document.getElementById("auditDetailModal");
     modal.style.display = "flex";
-    modal.style.alignItems = "center";
-    modal.style.justifyContent = "center";
 }
 </script>
 
@@ -1034,15 +1057,14 @@ function showAuditDetail(log) {
                         }
                         else {
                             // Check for changes
-                            $changes = [];
-                            if ($current['full_name'] != $full_name)
-                                $changes[] = "Name: [{$current['full_name']} -> $full_name]";
-                            if ($current['email'] != $email)
-                                $changes[] = "Email: [{$current['email']} -> $email]";
-                            if ($current['mobile'] != $mobile)
-                                $changes[] = "Mobile: [{$current['mobile']} -> $mobile]";
-                            if ($current['role'] != $role)
-                                $changes[] = "Role: [{$current['role']} -> $role]";
+                            $changes_list = auditDiff($current, $_POST, ['password'], [
+                                'full_name' => 'Name',
+                                'email' => 'Email',
+                                'mobile' => 'Mobile',
+                                'role' => 'Role'
+                            ]);
+                            $changes = $changes_list ? explode("\n", $changes_list) : [];
+
                             if ($photo_path)
                                 $changes[] = "Photo: [Updated]";
 
@@ -1050,7 +1072,7 @@ function showAuditDetail(log) {
                             if (!empty($password)) {
                                 $password_changed = true;
                                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                                $changes[] = "Password changed";
+                                $changes[] = "Password: [Changed]";
                             }
 
                             if (empty($changes)) {
@@ -1439,19 +1461,16 @@ function showAuditDetail(log) {
                     $current = mysqli_fetch_assoc($current_res);
 
                     if ($current) {
-                        $changes = [];
-                        if ($current['transporter_name'] != $_POST['transporter_name'])
-                            $changes[] = "Name: [{$current['transporter_name']} -> {$_POST['transporter_name']}]";
-                        if ($current['contact_person'] != $_POST['contact_person'])
-                            $changes[] = "Contact: [{$current['contact_person']} -> {$_POST['contact_person']}]";
-                        if ($current['mobile'] != $_POST['mobile'])
-                            $changes[] = "Mobile: [{$current['mobile']} -> {$_POST['mobile']}]";
-                        if ($current['email'] != $_POST['email'])
-                            $changes[] = "Email: [{$current['email']} -> {$_POST['email']}]";
+                        $changes_list = auditDiff($current, $_POST, [], [
+                            'transporter_name' => 'Name',
+                            'contact_person' => 'Contact',
+                            'mobile' => 'Mobile',
+                            'email' => 'Email',
+                            'gst_number' => 'GST',
+                        ]);
+                        $changes = $changes_list ? explode("\n", $changes_list) : [];
                         if ($current['address'] != $_POST['address'])
                             $changes[] = "Address: [Updated]";
-                        if ($current['gst_number'] != $_POST['gst_number'])
-                            $changes[] = "GST: [{$current['gst_number']} -> {$_POST['gst_number']}]";
 
                         $sql = "UPDATE transporter_master SET transporter_name='$name', contact_person='$person', 
                                 mobile='$mobile', email='$email', address='$address', gst_number='$gst' WHERE id=$id";
@@ -1884,15 +1903,13 @@ function showAuditDetail(log) {
                     $current = mysqli_fetch_assoc($current_res);
 
                     if ($current) {
-                        $changes = [];
-                        if (trim($current['driver_name'] ?? '') != trim($_POST['driver_name']))
-                            $changes[] = "Name: [" . trim($current['driver_name'] ?? '') . " -> " . trim($_POST['driver_name']) . "]";
-                        if (trim($current['mobile'] ?? '') != trim($_POST['mobile']))
-                            $changes[] = "Mobile: [" . trim($current['mobile'] ?? '') . " -> " . trim($_POST['mobile']) . "]";
-                        if (trim($current['license_number'] ?? '') != trim($_POST['license_number']))
-                            $changes[] = "License: [" . trim($current['license_number'] ?? '') . " -> " . trim($_POST['license_number']) . "]";
-                        if (trim($current['license_expiry'] ?? '') != trim($_POST['license_expiry']))
-                            $changes[] = "Expiry: [" . trim($current['license_expiry'] ?? '') . " -> " . trim($_POST['license_expiry']) . "]";
+                        $changes_list = auditDiff($current, $_POST, [], [
+                            'driver_name' => 'Name',
+                            'mobile' => 'Mobile',
+                            'license_number' => 'License',
+                            'license_expiry' => 'Expiry'
+                        ]);
+                        $changes = $changes_list ? explode("\n", $changes_list) : [];
 
                         if ($current['transporter_id'] != $trans_id) {
                             $old_t_id = (int)$current['transporter_id'];
@@ -1904,10 +1921,10 @@ function showAuditDetail(log) {
                             $new_t_res = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$new_t_val");
                             $new_t_name = ($new_t_row = mysqli_fetch_assoc($new_t_res)) ? $new_t_row['transporter_name'] : 'None';
 
-                            $changes[] = "Transporter: [$old_t_name -> $new_t_name]";
+                            $changes[] = "Transporter: [$old_t_name ➔ $new_t_name]";
                         }
                         if ($current['is_active'] != $is_active)
-                            $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " -> " . ($is_active ? 'Active' : 'Inactive') . "]";
+                            $changes[] = "Status: [" . ($current['is_active'] ? 'Active' : 'Inactive') . " ➔ " . ($is_active ? 'Active' : 'Inactive') . "]";
 
                         $sql = "UPDATE driver_master SET driver_name='$name', mobile='$mobile', 
                                 license_number='$license', license_expiry='$expiry', transporter_id=$trans_id, is_active=$is_active";
@@ -2566,27 +2583,21 @@ function showAuditDetail(log) {
                     $current = mysqli_fetch_assoc($current_res);
 
                     if ($current) {
-                        $changes = [];
-                        if (trim($current['maker']) != trim($_POST['maker']))
-                            $changes[] = "Maker: [{$current['maker']} -> {$_POST['maker']}]";
-                        if (trim($current['model']) != trim($_POST['model']))
-                            $changes[] = "Model: [{$current['model']} -> {$_POST['model']}]";
-                        if (trim($current['fuel_type']) != trim($_POST['fuel_type']))
-                            $changes[] = "Fuel: [{$current['fuel_type']} -> {$_POST['fuel_type']}]";
-                        if (trim($current['registration_validity']) != trim($_POST['registration_validity']))
-                            $changes[] = "Reg: [{$current['registration_validity']} -> {$_POST['registration_validity']}]";
-                        if (trim($current['fitness_validity']) != trim($_POST['fitness_validity']))
-                            $changes[] = "Fit: [{$current['fitness_validity']} -> {$_POST['fitness_validity']}]";
-                        if (trim($current['pollution_validity']) != trim($_POST['pollution_validity']))
-                            $changes[] = "Poll: [{$current['pollution_validity']} -> {$_POST['pollution_validity']}]";
-                        if (trim($current['insurance_validity']) != trim($_POST['insurance_validity']))
-                            $changes[] = "Ins: [{$current['insurance_validity']} -> {$_POST['insurance_validity']}]";
-                        if ((trim($current['permit_validity'] ?? '')) != (trim($permit_validity ?? '')))
-                            $changes[] = "Permit: [{$current['permit_validity']} -> $permit_validity]";
-                        if (trim($current['rc_owner_name'] ?? '') != trim($_POST['rc_owner_name']))
-                            $changes[] = "Owner: [{$current['rc_owner_name']} -> {$_POST['rc_owner_name']}]";
+                        $changes_list = auditDiff($current, $_POST, [], [
+                            'maker' => 'Maker',
+                            'model' => 'Model',
+                            'fuel_type' => 'Fuel',
+                            'registration_validity' => 'Reg',
+                            'fitness_validity' => 'Fit',
+                            'pollution_validity' => 'Poll',
+                            'insurance_validity' => 'Ins',
+                            'permit_validity' => 'Permit',
+                            'rc_owner_name' => 'Owner'
+                        ]);
+                        $changes = $changes_list ? explode("\n", $changes_list) : [];
+
                         if ($current['driver_id'] != $driver_id)
-                            $changes[] = "Primary Driver: [Updated ID]";
+                            $changes[] = "Primary Driver: [Updated]";
 
                         if ($current['transporter_id'] != ($trans_id > 0 ? $trans_id : null)) {
                             $old_tname = 'None';
@@ -2601,7 +2612,7 @@ function showAuditDetail(log) {
                                 if ($ntr = mysqli_fetch_assoc($ntq))
                                     $new_tname = $ntr['transporter_name'];
                             }
-                            $changes[] = "Transporter: [$old_tname -> $new_tname]";
+                            $changes[] = "Transporter: [$old_tname ➔ $new_tname]";
                         }
 
                         $sql = "UPDATE vehicle_master SET maker='$maker', model='$model', fuel_type='$fuel', 
@@ -5467,9 +5478,12 @@ function showAuditDetail(log) {
     // ========== AUDIT LOGS ==========
     elseif ($master_page == 'audit_logs' || $master_page == 'logs'):
         // Filtering parameters
+        // Filtering parameters (GET based as per user request to avoid persistent session sticky)
         $search = isset($_GET['q']) ? mysqli_real_escape_string($conn, $_GET['q']) : '';
         $f_module = isset($_GET['f_module']) ? mysqli_real_escape_string($conn, $_GET['f_module']) : '';
         $f_type = isset($_GET['f_type']) ? mysqli_real_escape_string($conn, $_GET['f_type']) : '';
+        $date_from = isset($_GET['date_from']) ? mysqli_real_escape_string($conn, $_GET['date_from']) : '';
+        $date_to = isset($_GET['date_to']) ? mysqli_real_escape_string($conn, $_GET['date_to']) : '';
 
         $where = "WHERE 1=1";
         if ($search)
@@ -5478,6 +5492,10 @@ function showAuditDetail(log) {
             $where .= " AND module = '$f_module'";
         if ($f_type)
             $where .= " AND activity_type = '$f_type'";
+        if ($date_from)
+            $where .= " AND DATE(created_at) >= '$date_from'";
+        if ($date_to)
+            $where .= " AND DATE(created_at) <= '$date_to'";
 
         // Fetch Audit Logs - showing latest 1000 entries
         $audit_query = "SELECT * FROM audit_logs $where ORDER BY created_at DESC LIMIT 1000";
@@ -5499,6 +5517,39 @@ function showAuditDetail(log) {
                             </div>
                         </div>
 
+                        <!-- Active Filter Indicator -->
+                        <?php if ($search || $f_module || $f_type || $date_from || $date_to): ?>
+                        <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <span style="font-size: 13px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 5px;">
+                                    <span style="font-size: 16px;">🔍</span> Active Filters:
+                                </span>
+                                <?php if ($search): ?>
+                                    <span style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        Search: "<?php echo htmlspecialchars($search); ?>"
+                                    </span>
+                                <?php endif; ?>
+                                <?php if ($f_module): ?>
+                                    <span style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        Module: <?php echo htmlspecialchars($f_module); ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php if ($f_type): ?>
+                                    <span style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        Activity: <?php echo htmlspecialchars($f_type); ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php if ($date_from || $date_to): ?>
+                                    <span style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        Date: <?php echo $date_from ?: '...'; ?> to <?php echo $date_to ?: 'now'; ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <a href="?page=admin&master=audit_logs" style="text-decoration: none; font-size: 11px; font-weight: 700; color: #ef4444; background: #fee2e2; padding: 6px 15px; border-radius: 8px; border: 1px solid #fecaca; transition: all 0.2s; white-space: nowrap;">
+                                ✕ Clear All
+                            </a>
+                        </div>
+                        <?php endif; ?>
 
                         <div class="card" style="margin-bottom: 20px;">
                             <div class="table-wrapper" id="auditLogsTable">
@@ -5833,6 +5884,14 @@ endif; ?>
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: 600;">Search Keyword</label>
                 <input type="text" name="q" value="<?php echo htmlspecialchars($search ?? ''); ?>" placeholder="Username, Details, IP..." style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 10px;">📅 Date Range</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="date" name="date_from" value="<?php echo htmlspecialchars($date_from ?? ''); ?>" style="flex: 1; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                    <span style="color: #6b7280;">to</span>
+                    <input type="date" name="date_to" value="<?php echo htmlspecialchars($date_to ?? ''); ?>" style="flex: 1; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                </div>
             </div>
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: 600;">Module</label>

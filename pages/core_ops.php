@@ -3468,22 +3468,36 @@ elseif ($page == 'edit-inward'):
 
                     <div class="form-group">
                         <label>Transporter Name</label>
-                        <input type="text" name="transporter_name"
-                            value="<?php echo htmlspecialchars($entry['transporter_name']); ?>">
-                        <?php if ($entry['transporter_id']): ?>
-                            <input type="hidden" name="transporter_id" value="<?php echo $entry['transporter_id']; ?>">
-                        <?php
-    endif; ?>
+                        <input type="hidden" name="transporter_id" id="edit_transporter_id_hidden" value="<?php echo $entry['transporter_id']; ?>">
+                        <input type="text" name="transporter_name" id="edit_transporter_name"
+                            value="<?php echo htmlspecialchars($entry['transporter_name']); ?>"
+                            list="edit_transporter_list" autocomplete="off"
+                            style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; width: 100%;">
+                        <datalist id="edit_transporter_list">
+                            <?php
+                            mysqli_data_seek($transporters, 0);
+                            while ($trans = mysqli_fetch_assoc($transporters)):
+                                echo '<option data-id="' . $trans['id'] . '" value="' . htmlspecialchars($trans['transporter_name'], ENT_QUOTES) . '">';
+                            endwhile;
+                            ?>
+                        </datalist>
                     </div>
 
                     <div class="form-group">
                         <label>Purpose</label>
-                        <input type="text" name="purpose_name"
-                            value="<?php echo htmlspecialchars($entry['purpose_name']); ?>">
-                        <?php if ($entry['purpose_id']): ?>
-                            <input type="hidden" name="purpose_id" value="<?php echo $entry['purpose_id']; ?>">
-                        <?php
-    endif; ?>
+                        <input type="hidden" name="purpose_id" id="edit_purpose_id_hidden" value="<?php echo $entry['purpose_id']; ?>">
+                        <input type="text" name="purpose_name" id="edit_purpose_name"
+                            value="<?php echo htmlspecialchars($entry['purpose_name']); ?>"
+                            list="edit_purpose_list" autocomplete="off"
+                            style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; width: 100%;">
+                        <datalist id="edit_purpose_list">
+                            <?php
+                            mysqli_data_seek($purposes, 0);
+                            while ($purp = mysqli_fetch_assoc($purposes)):
+                                echo '<option data-id="' . $purp['id'] . '" value="' . htmlspecialchars($purp['purpose_name'], ENT_QUOTES) . '">';
+                            endwhile;
+                            ?>
+                        </datalist>
                     </div>
                 </div>
 
@@ -3674,6 +3688,26 @@ elseif ($page == 'edit-inward'):
                     // Wrapper for webcam callbacks
                     function updateEditPreviewWrapper_vehicle(input) { updateEditPreview(input, 'vehicle'); }
                     function updateEditPreviewWrapper_bill(input) { updateEditPreview(input, 'bill'); }
+
+                    // Sync Transporter ID from datalist
+                    document.getElementById('edit_transporter_name')?.addEventListener('input', function () {
+                        const val = this.value;
+                        const opts = document.querySelectorAll('#edit_transporter_list option');
+                        let foundId = null;
+                        opts.forEach(o => { if (o.value === val) foundId = o.getAttribute('data-id'); });
+                        const hidden = document.getElementById('edit_transporter_id_hidden');
+                        if (hidden) hidden.value = foundId || '';
+                    });
+
+                    // Sync Purpose ID from datalist
+                    document.getElementById('edit_purpose_name')?.addEventListener('input', function () {
+                        const val = this.value;
+                        const opts = document.querySelectorAll('#edit_purpose_list option');
+                        let foundId = null;
+                        opts.forEach(o => { if (o.value === val) foundId = o.getAttribute('data-id'); });
+                        const hidden = document.getElementById('edit_purpose_id_hidden');
+                        if (hidden) hidden.value = foundId || '';
+                    });
                 </script>
 
                 <?php if (!empty($entry['qr_code_data'])): ?>
