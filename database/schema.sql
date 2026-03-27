@@ -146,7 +146,7 @@ CREATE TABLE `employee_master` (
   `photo` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `employee_id` (`employee_id`),
-  KEY `idx_vehicle` (`vehicle_number`)
+  UNIQUE KEY `idx_vehicle` (`vehicle_number`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 

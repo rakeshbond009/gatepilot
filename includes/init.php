@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.2009');
+    define('APP_VERSION', '26.03.27.2132');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -915,16 +915,27 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
         $id = isset($_POST['e_id']) ? $_POST['e_id'] : null;
 
         try {
-            // Duplicate Check for NEW employee or changing EmpID of existing
+            // Duplicate Check
             $dup_id = $id ? $id : 0;
+            
+            // 1. Check for Duplicate Employee ID
             $dup_check = mysqli_query($conn, "SELECT id FROM employee_master WHERE employee_id='$emp_id' AND id != $dup_id");
             if (mysqli_num_rows($dup_check) > 0) {
-                $_SESSION['error_msg'] = "❌ Error: Employee ID '$emp_id' already exists!";
-                session_write_close();
-                header("Location: ?page=admin&master=employees&t=" . time());
-                exit;
+                $error_msg = "❌ Error: Employee ID '$emp_id' already exists!";
+                $keep_employee_form_open = true;
             }
-            // Generate QR data automatically with department
+            
+            // 2. Check for Duplicate Vehicle Number (only if provided and non-empty)
+            if (empty($error_msg) && !empty($vehicle)) {
+                $v_check = mysqli_query($conn, "SELECT id, employee_name FROM employee_master WHERE UPPER(TRIM(vehicle_number)) = UPPER('$vehicle') AND id != $dup_id");
+                if (mysqli_num_rows($v_check) > 0) {
+                    $v_row = mysqli_fetch_assoc($v_check);
+                    $error_msg = "❌ Error: Vehicle Number '$vehicle' is already assigned to '{$v_row['employee_name']}'!";
+                    $keep_employee_form_open = true;
+                }
+            }
+
+            // Generate QR data automatically
             $qr_data = json_encode([
                 'type' => 'employee',
                 'id' => $emp_id,
@@ -933,7 +944,8 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 'department' => $dept
             ]);
 
-            if ($id && !empty($id)) {
+            if (empty($error_msg)) {
+                if ($id && !empty($id)) {
                 $current_res = mysqli_query($conn, "SELECT * FROM employee_master WHERE id=$id");
                 $current = mysqli_fetch_assoc($current_res);
                 $changes = [];
@@ -1033,15 +1045,21 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 }
             }
         }
-        catch (mysqli_sql_exception $e) {
+    }
+    catch (mysqli_sql_exception $e) {
             if ($e->getCode() == 1062) { // Duplicate entry error code
                 $error_msg = "❌ Error: Employee ID '$emp_id' or Vehicle Number '$vehicle' already exists!";
             }
             else {
                 $error_msg = "❌ Database Error: " . $e->getMessage();
             }
+            $keep_employee_form_open = true;
         }
-    }
+        catch (Exception $e) {
+            $error_msg = "❌ Error: " . $e->getMessage();
+            $keep_employee_form_open = true;
+        }
+}
 }
 
 // Handle patrol scan processing
