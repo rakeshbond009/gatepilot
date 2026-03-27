@@ -3981,8 +3981,9 @@ elseif ($page == 'vehicle-detail'):
 
     $id = $_GET['id'];
     $vehicle = mysqli_fetch_assoc(mysqli_query($conn, "
-        SELECT vm.*
+        SELECT vm.*, tm.transporter_name
         FROM vehicle_master vm
+        LEFT JOIN transporter_master tm ON vm.transporter_id = tm.id
         WHERE vm.id = $id
     "));
 
@@ -4059,6 +4060,12 @@ elseif ($page == 'vehicle-detail'):
                         <td style="font-weight: 600; width: 200px;">Vehicle Number</td>
                         <td><strong style="font-size: 18px;">
                                 <?php echo $vehicle['vehicle_number']; ?>
+                            </strong></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600;">Transporter</td>
+                        <td><strong style="color: #4f46e5; font-size: 18px;">
+                                <?php echo $vehicle['transporter_name'] ?: '<span style="color:#94a3b8">Untagged</span>'; ?>
                             </strong></td>
                     </tr>
                     <tr>
