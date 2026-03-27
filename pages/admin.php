@@ -2582,17 +2582,19 @@ function showAuditDetail(log) {
                             $changes[] = "Owner: [{$current['rc_owner_name']} -> {$_POST['rc_owner_name']}]";
                         if ($current['driver_id'] != $driver_id)
                             $changes[] = "Primary Driver: [Updated ID]";
-                        
+
                         if ($current['transporter_id'] != ($trans_id > 0 ? $trans_id : null)) {
                             $old_tname = 'None';
                             if ($current['transporter_id']) {
                                 $otq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=" . $current['transporter_id']);
-                                if ($otr = mysqli_fetch_assoc($otq)) $old_tname = $otr['transporter_name'];
+                                if ($otr = mysqli_fetch_assoc($otq))
+                                    $old_tname = $otr['transporter_name'];
                             }
                             $new_tname = 'None';
                             if ($trans_id > 0) {
                                 $ntq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$trans_id");
-                                if ($ntr = mysqli_fetch_assoc($ntq)) $new_tname = $ntr['transporter_name'];
+                                if ($ntr = mysqli_fetch_assoc($ntq))
+                                    $new_tname = $ntr['transporter_name'];
                             }
                             $changes[] = "Transporter: [$old_tname -> $new_tname]";
                         }
@@ -2671,7 +2673,7 @@ function showAuditDetail(log) {
                                 $dname = $dr['driver_name'] ?? "ID: $driver_id";
                             }
 
-                             // Get Transporter Name for better logging
+                            // Get Transporter Name for better logging
                             $tname = 'None';
                             if ($trans_id > 0) {
                                 $tq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$trans_id");
@@ -4248,7 +4250,7 @@ function showAuditDetail(log) {
 
             // Delete the purpose
             if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
-                logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted Purpose: Name: ['$p_name'], Type: ['$p_type'], ID: [$id]");
+                logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted Purpose: Name: [$p_name] (ID: [$id])");
                 $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
                 session_write_close();
                 header("Location: ?page=admin&master=purposes&t=" . time());
@@ -4274,18 +4276,11 @@ function showAuditDetail(log) {
                 if ($id) {
                     $current_res = mysqli_query($conn, "SELECT * FROM purpose_master WHERE id=$id");
                     $current = mysqli_fetch_assoc($current_res);
-                    $changes = [];
-                    if ($current) {
-                        if (trim($current['purpose_name']) != trim($name))
-                            $changes[] = "Name: [{$current['purpose_name']} -> $name]";
-                        if (trim($current['purpose_type']) != trim($type))
-                            $changes[] = "Type: [{$current['purpose_type']} -> $type]";
-                    }
 
                     $sql = "UPDATE purpose_master SET purpose_name='$name', purpose_type='$type' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
-                        $diff = auditDiff($current, $_POST, ['purpose_id'], ['purpose_name' => 'Name', 'purpose_type' => 'Type']);
-                        $details = "Updated Purpose: Name: ['$name'] (ID: [$id])";
+                        $diff = auditDiff($current, $_POST, [], ['purpose_name' => 'Name', 'purpose_type' => 'Type']);
+                        $details = "Updated Purpose: Name: [$name] (ID: [$id])";
                         if (!empty($diff)) {
                             $details .= "\nChanges:\n" . $diff;
                         }
@@ -4299,7 +4294,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: Name: ['$name'], Type: ['$type']\n" . auditFromPost($_POST));
+                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: Name: [$name]\n" . auditFromPost($_POST, [], ['purpose_name' => 'Name', 'purpose_type' => 'Type']));
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=purposes&t=" . time());
