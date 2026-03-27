@@ -2635,7 +2635,27 @@ function showAuditDetail(log) {
 
                         if (mysqli_query($conn, $sql)) {
                             $new_vehicle_id = mysqli_insert_id($conn);
-                            logActivity($conn, 'VEHICLE_CREATE', 'Vehicles', "Created Vehicle: " . auditFromPost($_POST));
+
+                            // Get Driver Name for better logging
+                            $dname = 'None';
+                            if ($driver_id > 0) {
+                                $dq = mysqli_query($conn, "SELECT driver_name FROM driver_master WHERE id=$driver_id");
+                                $dr = mysqli_fetch_assoc($dq);
+                                $dname = $dr['driver_name'] ?? "ID: $driver_id";
+                            }
+
+                            $details = "Created Vehicle: $veh_no\n" . auditFromPost($_POST, ['driver_id', 'driver_ids', 'primary_driver_id']);
+                            $details .= "\nPrimary Driver: $dname";
+
+                            // Log uploaded documents
+                            $docs_uploaded = array_keys($doc_photos);
+                            if (!empty($docs_uploaded)) {
+                                $details .= "\nDocuments: [" . implode(", ", array_map(function ($d) {
+                                    return str_replace('_path', '', strtoupper($d));
+                                }, $docs_uploaded)) . "] Uploaded";
+                            }
+
+                            logActivity($conn, 'VEHICLE_CREATE', 'Vehicles', $details);
 
                             // Insert driver assignments into vehicle_drivers table
                             foreach ($driver_ids as $did) {
@@ -2645,6 +2665,7 @@ function showAuditDetail(log) {
                             }
 
                             $success_msg = "✅ Vehicle added successfully!";
+
                             $_SESSION['success_msg'] = $success_msg;
                             session_write_close();
                             header("Location: ?page=admin&master=vehicles&t=" . time());
@@ -4161,11 +4182,11 @@ function showAuditDetail(log) {
             $p_type = $p_row['purpose_type'] ?? 'Unknown';
 
             // Delete the purpose
-            if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
-                logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted purpose: '$p_name' ($p_type) (ID: $id)");
-                $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
-                session_write_close();
-                header("Location: index.php?page=admin&master=purposes&t=" . time());
+                if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
+                    logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted Purpose: Name: $p_name, Type: $p_type, ID: $id");
+                    $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
+                    session_write_close();
+                    header("Location: ?page=admin&master=purposes&t=" . time());
                 exit;
             }
             else {
@@ -4206,7 +4227,7 @@ function showAuditDetail(log) {
                         logActivity($conn, 'PURPOSE_UPDATE', 'Purposes', $details);
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
                         session_write_close();
-                        header("Location: index.php?page=admin&master=purposes");
+                        header("Location: ?page=admin&master=purposes&t=" . time());
                         exit;
                     }
                 }
@@ -4216,7 +4237,7 @@ function showAuditDetail(log) {
                         logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: " . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
                         session_write_close();
-                        header("Location: index.php?page=admin&master=purposes");
+                        header("Location: ?page=admin&master=purposes&t=" . time());
                         exit;
                     }
                 }
