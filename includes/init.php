@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0037');
+    define('APP_VERSION', '26.03.28.0045');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -300,10 +300,13 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token_result = mysqli_query($conn, $query);
 
     if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
-        $_SESSION['user_id'] = $row['id'];
-        $_SESSION['username'] = $row['username'];
-        $_SESSION['full_name'] = $row['full_name'];
-        $_SESSION['role'] = $row['role'];
+        // Regenerate session ID for security on auto-login
+        session_regenerate_id(true);
+
+        $_SESSION['user_id']     = $row['id'];
+        $_SESSION['username']    = $row['username'];
+        $_SESSION['full_name']   = $row['full_name'];
+        $_SESSION['role']        = $row['role'];
         $_SESSION['super_admin'] = (int)$row['super_admin'];
         $_SESSION['permissions'] = $row['permissions'];
 
@@ -314,8 +317,15 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
     }
     else {
-        // Invalid or expired token, clear cookie
-        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
+        // Invalid / expired token — clear cookie with same options used when setting it
+        $clr_domain = $_cookie_domain ?? '';
+        setcookie('GATEPILOT_REMEMBER', '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'domain'   => $clr_domain,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
     }
 }
 
