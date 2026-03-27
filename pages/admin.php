@@ -1093,7 +1093,16 @@ function showAuditDetail(log) {
                                 VALUES ('$username', '$hashed_password', '$full_name', '$email', '$mobile', '$role', " . ($photo_path ? "'$photo_path'" : "NULL") . ")";
 
                         if (mysqli_query($conn, $sql)) {
-                            logActivity($conn, 'USER_CREATE', 'Users', "Created User: " . auditFromPost($_POST, ['password']));
+                            $details = "Created User: Title: [$full_name], Username: [$username]";
+                            $post_details = auditFromPost($_POST, ['password', 'username', 'full_name', 'user_id']);
+                            if (!empty($post_details)) {
+                                $details .= "\n" . $post_details;
+                            }
+                            $details .= "\nPassword: [Set]";
+                            if ($photo_path) {
+                                $details .= "\nPhoto: [Uploaded]";
+                            }
+                            logActivity($conn, 'USER_CREATE', 'Users', $details);
                             $success_msg = "✅ User created successfully!";
                             $_SESSION['success_msg'] = $success_msg;
                             session_write_close();
@@ -1177,7 +1186,6 @@ function showAuditDetail(log) {
                                                     <option value="admin">Admin</option>
                                                     <option value="manager">Manager</option>
                                                     <option value="security">Security</option>
-                                                    <option value="clerk">Clerk</option>
                                                 </select>
                                             </div>
                                             <div class="form-group">
