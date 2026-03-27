@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.1130');
+    define('APP_VERSION', '26.03.27.1141');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -1729,10 +1729,11 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
         $bill_photo_update
         WHERE id = $id";
 
+    // Fetch old record BEFORE update for diff logging
+    $old_res = mysqli_query($conn, "SELECT * FROM truck_inward WHERE id=$id");
+    $old = mysqli_fetch_assoc($old_res);
+
     if (mysqli_query($conn, $sql)) {
-        // Fetch old record for diff logging
-        $old_res = mysqli_query($conn, "SELECT * FROM truck_inward WHERE id=$id");
-        $old = mysqli_fetch_assoc($old_res);
         $inward_log = "Edited Inward Entry: ID: [$id], Vehicle: [$vehicle]";
         if ($old) {
             $diff = auditDiff($old, $_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments', 'inward_datetime' => 'Datetime']);
@@ -1784,12 +1785,13 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
         duration_hours = $duration
         WHERE id = $id";
 
+    // Fetch old record BEFORE update for diff logging
+    $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id=$inward_id");
+    $v_num = ($v_row = mysqli_fetch_assoc($v_res)) ? $v_row['vehicle_number'] : 'N/A';
+    $old_out_res = mysqli_query($conn, "SELECT * FROM truck_outward WHERE id=$id");
+    $old_out = mysqli_fetch_assoc($old_out_res);
+
     if (mysqli_query($conn, $sql)) {
-        // Fetch old record for diff logging
-        $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id=$inward_id");
-        $v_num = ($v_row = mysqli_fetch_assoc($v_res)) ? $v_row['vehicle_number'] : 'N/A';
-        $old_out_res = mysqli_query($conn, "SELECT * FROM truck_outward WHERE id=$id");
-        $old_out = mysqli_fetch_assoc($old_out_res);
         $out_log = "Edited Outward Entry: ID: [$id], Vehicle: [$v_num]";
         if ($old_out) {
             $diff = auditDiff($old_out, $_POST, [], ['outward_datetime' => 'Datetime', 'outward_remarks' => 'Remarks']);

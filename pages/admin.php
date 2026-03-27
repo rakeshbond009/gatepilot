@@ -1064,10 +1064,9 @@ function showAuditDetail(log) {
                                 $update_sql = "UPDATE user_master SET " . implode(", ", $updates) . " WHERE id=$id";
 
                                 if (mysqli_query($conn, $update_sql)) {
-                                    $diff = auditDiff($current, $_POST, ['password'], ['full_name' => 'Name', 'email' => 'Email', 'mobile' => 'Mobile', 'role' => 'Role']);
-                                    if (!empty($diff)) $changes = array_merge($changes, explode("\n", $diff));
                                     $log_details = "Updated User: Username: '$username'";
-                                    if (!empty($changes)) $log_details .= "\n" . implode("\n", $changes);
+                                    if (!empty($changes))
+                                        $log_details .= "\n" . implode("\n", $changes);
                                     logActivity($conn, 'USER_UPDATE', 'Users', $log_details);
                                     $_SESSION['success_msg'] = "✅ User updated successfully!";
                                     session_write_close();
@@ -2560,16 +2559,9 @@ function showAuditDetail(log) {
                         $sql .= " WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
-                            $diff = auditDiff($current, $_POST);
                             $details = "Updated Vehicle: Number: '$veh_no' (ID: $id)";
-                            if (!empty($diff)) {
-                                $details .= "\nChanges:\n" . $diff;
-                            }
-                            // Also log photo updates if any
-                            foreach ($doc_photos as $col => $path) {
-                                if (!str_contains($details, ucfirst(str_replace('_', ' ', $col)))) {
-                                    $details .= ", " . ucfirst(str_replace('_', ' ', $col)) . ": [Updated]";
-                                }
+                            if (!empty($changes)) {
+                                $details .= "\n" . implode("\n", $changes);
                             }
                             logActivity($conn, 'VEHICLE_UPDATE', 'Vehicles', $details);
 
@@ -5088,10 +5080,9 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE supplier_master SET supplier='$supp', supp_code='$supp_code' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
-                        $diff = auditDiff($current, $_POST, ['supplier_id'], ['supplier' => 'Name', 'supp_code' => 'Code']);
                         $details = "Updated Supplier: Name: '$supp' (Code: $supp_code)";
-                        if (!empty($diff)) {
-                            $details .= "\nChanges:\n" . $diff;
+                        if (!empty($changes)) {
+                            $details .= "\n" . implode("\n", $changes);
                         }
                         logActivity($conn, 'SUPPLIER_UPDATE', 'Suppliers', $details);
                         $_SESSION['success_msg'] = "✅ Supplier updated successfully!";
