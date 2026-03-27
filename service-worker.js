@@ -1,23 +1,25 @@
-const CACHE_NAME = 'gatepilot-v2';
+// GatePilot Service Worker - Network-First (No offline cache)
+// Removed caching to prevent chrome-error://chromewebdata/ redirect conflicts
+// when browser restores tabs from an error state.
 
 self.addEventListener('install', event => {
+    self.skipWaiting(); // Activate immediately
+});
+
+self.addEventListener('activate', event => {
+    // Clear ALL old caches on activate
     event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll([
-            './',
-            './index.php'
-        ]))
+        caches.keys().then(keys =>
+            Promise.all(keys.map(key => caches.delete(key)))
+        ).then(() => self.clients.claim())
     );
 });
 
+// Network-only: always fetch live, never serve from cache
 self.addEventListener('fetch', event => {
-    // Skip non-GET requests (POST, etc.) to avoid intercepting form submissions
-    if (event.request.method !== 'GET') {
-        return;
-    }
+    // Only handle same-origin GET requests
+    if (event.request.method !== 'GET') return;
+    if (!event.request.url.startsWith(self.location.origin)) return;
 
-    event.respondWith(
-        caches.match(event.request).then(response => {
-            return response || fetch(event.request);
-        })
-    );
+    event.respondWith(fetch(event.request));
 });
