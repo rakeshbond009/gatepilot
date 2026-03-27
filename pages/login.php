@@ -254,10 +254,10 @@
                     <ul style="list-style:none; padding:0; color:#64748b; font-size:1rem; font-weight: 600;">
                         <li style="margin-bottom:12px;"><a href="#" style="color:inherit; text-decoration:none;">Mobile
                                 App</a></li>
-                        <li style="margin-bottom:12px;"><a href="#"
-                                style="color:inherit; text-decoration:none;">Documentation</a></li>
-                        <li style="margin-bottom:12px;"><a href="#" style="color:inherit; text-decoration:none;">Help
-                                Center</a></li>
+                        <li style="margin-bottom:12px;"><a href="?page=privacy"
+                                style="color:inherit; text-decoration:none;">Privacy Policy</a></li>
+                        <li style="margin-bottom:12px;"><a href="?page=terms" style="color:inherit; text-decoration:none;">Terms
+                                of Use</a></li>
                     </ul>
                 </div>
                 <div>

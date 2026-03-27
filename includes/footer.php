@@ -27,10 +27,14 @@
     </div>
 </div>
 <?php if ($page != 'login'): ?>
-                    <!-- Footer -->
                     <div class="app-footer">
-                        <p style="margin: 0;">
-                            &copy; <?php echo date('Y'); ?> GatePilot · A CodePilotx Architecture. All Rights Reserved. <?php echo "<span style='opacity:0.6; font-size:10px; margin-left:10px;'>v" . APP_VERSION . "</span>"; ?>
+                        <p style="margin: 0; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;">
+                            <span>&copy; <?php echo date('Y'); ?> GatePilot · A CodePilotx Architecture.</span>
+                            <span style="opacity: 0.3;">|</span>
+                            <a href="?page=privacy" style="color: inherit; text-decoration: none; opacity: 0.7;">Privacy Policy</a>
+                            <span style="opacity: 0.3;">|</span>
+                            <a href="?page=terms" style="color: inherit; text-decoration: none; opacity: 0.7;">Terms of Use</a>
+                            <?php echo "<span style='opacity:0.6; font-size:10px; margin-left:10px;'>v" . APP_VERSION . "</span>"; ?>
                         </p>
                     </div>
 

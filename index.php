@@ -37,6 +37,10 @@ elseif (in_array($page, ['admin', 'user-permissions'])):
     include 'pages/admin.php';
 elseif (in_array($page, ['reports-center', 'view-registers', 'view-material-inward'])):
     include 'pages/reports.php';
+elseif ($page == 'privacy'):
+    include 'pages/privacy.php';
+elseif ($page == 'terms'):
+    include 'pages/terms.php';
 else:
     // Fallback to dashboard
     include 'pages/dashboard.php';
