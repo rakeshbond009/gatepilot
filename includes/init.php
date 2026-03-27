@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.2200');
+    define('APP_VERSION', '26.03.27.2207');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -915,15 +915,6 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
         $id = isset($_POST['e_id']) ? $_POST['e_id'] : null;
 
         try {
-            // Duplicate Check for NEW employee or changing EmpID of existing
-            $dup_id = $id ? $id : 0;
-            $dup_check = mysqli_query($conn, "SELECT id FROM employee_master WHERE employee_id='$emp_id' AND id != $dup_id");
-            if (mysqli_num_rows($dup_check) > 0) {
-                $_SESSION['error_msg'] = "❌ Error: Employee ID '$emp_id' already exists!";
-                session_write_close();
-                header("Location: ?page=admin&master=employees&t=" . time());
-                exit;
-            }
             // Generate QR data automatically with department
             $qr_data = json_encode([
                 'type' => 'employee',
@@ -2042,6 +2033,26 @@ if ($page == 'check-duplicate-vehicle') {
 
     if (!empty($v)) {
         $res = mysqli_query($conn, "SELECT employee_name FROM employee_master WHERE UPPER(TRIM(vehicle_number)) = UPPER('$v') AND id != $id");
+        if (mysqli_num_rows($res) > 0) {
+            $row = mysqli_fetch_assoc($res);
+            echo json_encode(['exists' => true, 'name' => $row['employee_name']]);
+        }
+        else {
+            echo json_encode(['exists' => false]);
+        }
+    }
+    else {
+        echo json_encode(['exists' => false]);
+    }
+    exit;
+}
+// AJAX: Check for duplicate employee ID
+if ($page == 'check-duplicate-employee-id') {
+    $emp_id = isset($_GET['emp_id']) ? strtoupper(trim(mysqli_real_escape_string($conn, $_GET['emp_id']))) : '';
+    $id = intval($_GET['id'] ?? 0);
+
+    if (!empty($emp_id)) {
+        $res = mysqli_query($conn, "SELECT employee_name FROM employee_master WHERE UPPER(TRIM(employee_id)) = UPPER('$emp_id') AND id != $id");
         if (mysqli_num_rows($res) > 0) {
             $row = mysqli_fetch_assoc($res);
             echo json_encode(['exists' => true, 'name' => $row['employee_name']]);

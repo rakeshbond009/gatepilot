@@ -3544,7 +3544,7 @@ function showAuditDetail(log) {
                                         <div class="master-form-grid">
                                             <div class="form-group">
                                                 <label style="font-weight: 600;">Employee ID *</label>
-                                                <input type="text" name="employee_id" id="master_emp_id" required
+                                                <input type="text" name="employee_id" id="master_emp_id" required onblur="checkDuplicateEmployeeID(this.value)"
                                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group">
@@ -3877,6 +3877,26 @@ function showAuditDetail(log) {
                                                     vInput.value = '';
                                                     vInput.focus();
                                                 }
+                                            });
+                                        }
+                                    });
+                            }
+
+                            function checkDuplicateEmployeeID(empId) {
+                                if (!empId) return;
+                                const currentId = (document.getElementById('e_id') || {value:0}).value;
+                                fetch(`?page=check-duplicate-employee-id&emp_id=${encodeURIComponent(empId)}&id=${currentId}`)
+                                    .then(r => r.json())
+                                    .then(data => {
+                                        if (data.exists) {
+                                            Swal.fire({
+                                                icon: 'error',
+                                                title: 'Duplicate ID Found',
+                                                text: 'Employee ID "' + empId + '" is already assigned to ' + data.name + '.',
+                                                confirmButtonColor: '#4f46e5'
+                                            }).then(() => {
+                                                const el = document.getElementById('master_emp_id');
+                                                if (el) { el.value = ''; el.focus(); }
                                             });
                                         }
                                     });
