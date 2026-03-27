@@ -87,10 +87,18 @@ endif; ?>
         function filterTable(inputId, tableId) {
             const input = document.getElementById(inputId);
             if (!input) return;
-            const filter = input.value.toUpperCase();
+            const filter = input.value.toUpperCase().trim();
             const table = document.getElementById(tableId);
             if (!table) return;
             const tr = table.getElementsByTagName("tr");
+
+            // If filter is empty, show all rows and exit early
+            if (filter === "") {
+                for (let i = 1; i < tr.length; i++) {
+                    tr[i].style.display = "";
+                }
+                return;
+            }
 
             for (let i = 1; i < tr.length; i++) {
                 let found = false;
@@ -480,11 +488,15 @@ endif; ?>
         function filterEmployeeList() {
             var input = document.getElementById("empSearch");
             if (!input) return;
-            var filter = input.value.toUpperCase();
+            var filter = input.value.toUpperCase().trim();
             var rows = document.getElementById("empInsideList");
             if (!rows) return;
             var empRows = rows.getElementsByClassName("emp-row");
             for (var i = 0; i < empRows.length; i++) {
+                if (filter === "") {
+                    empRows[i].style.display = "";
+                    continue;
+                }
                 var text = empRows[i].textContent || empRows[i].innerText;
                 empRows[i].style.display = text.toUpperCase().indexOf(filter) > -1 ? "" : "none";
             }

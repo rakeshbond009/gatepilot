@@ -1237,7 +1237,7 @@ function showAuditDetail(log) {
 
                         <div class="search-container" style="margin-bottom: 20px;">
                             <input type="text" id="userSearch" placeholder="🔍 Search Users (Name, Username, Role, Email...)" 
-                                   onkeyup="filterTable('userSearch', 'usersTable')"
+                                   oninput="filterTable('userSearch', 'usersTable')" onsearch="filterTable('userSearch', 'usersTable')"
                                    style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                    onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -1644,7 +1644,7 @@ function showAuditDetail(log) {
 
                     <div class="search-container" style="margin-bottom: 20px;">
                         <input type="text" id="transSearch" placeholder="🔍 Search Transporters (Name, Person, Mobile, GST...)" 
-                               onkeyup="filterTable('transSearch', 'transportersTable')"
+                               oninput="filterTable('transSearch', 'transportersTable')" onsearch="filterTable('transSearch', 'transportersTable')"
                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -2176,7 +2176,7 @@ function showAuditDetail(log) {
 
                     <div class="search-container" style="margin-bottom: 20px;">
                         <input type="text" id="driverSearch" placeholder="🔍 Search Drivers (Name, Mobile, License...)" 
-                               onkeyup="filterTable('driverSearch', 'driversTable')"
+                               oninput="filterTable('driverSearch', 'driversTable')" onsearch="filterTable('driverSearch', 'driversTable')"
                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -3162,7 +3162,7 @@ function showAuditDetail(log) {
 
                         <div class="search-container" style="margin-bottom: 20px;">
                         <input type="text" id="vehicleSearch" placeholder="🔍 Search Vehicles (Number, Type, Transporter...)" 
-                               onkeyup="filterTable('vehicleSearch', 'vehiclesTable')"
+                               oninput="filterTable('vehicleSearch', 'vehiclesTable')" onsearch="filterTable('vehicleSearch', 'vehiclesTable')"
                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -3645,7 +3645,7 @@ function showAuditDetail(log) {
 
                         <div class="search-container" style="margin-bottom: 20px;">
                             <input type="text" id="empMasterSearch" placeholder="🔍 Search Employees (Name, ID, Department, Vehicle...)" 
-                                   onkeyup="filterTable('empMasterSearch', 'employeesTable')"
+                                   oninput="filterTable('empMasterSearch', 'employeesTable')" onsearch="filterTable('empMasterSearch', 'employeesTable')"
                                    style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                    onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -4048,7 +4048,7 @@ function showAuditDetail(log) {
                                 <div class="card"
                                     style="border-left: 4px solid #4f46e5; background: #f8fafc; margin-bottom: 20px;">
                                     <div class="master-form-grid">
-                                        <div class="form-group" style="grid-column: span 1; grid-column-end: span 2; margin-bottom: 5px;">
+                                        <div class="form-group" style="grid-column: span 2; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
                                             <h4 id="form_title" style="margin:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
                                         </div>
                                         <div class="form-group" id="loc_id_group" style="display:none;">
@@ -4084,7 +4084,7 @@ function showAuditDetail(log) {
 
                         <div class="search-container" style="margin-bottom: 20px;">
                             <input type="text" id="patrolSearch" placeholder="🔍 Search Patrol Locations (Name, ID, Area...)" 
-                                   onkeyup="filterTable('patrolSearch', 'patrolLocTable')"
+                                   oninput="filterTable('patrolSearch', 'patrolLocTable')" onsearch="filterTable('patrolSearch', 'patrolLocTable')"
                                    style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                    onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -4379,7 +4379,7 @@ function showAuditDetail(log) {
 
                         <div class="search-container" style="margin-bottom: 20px;">
                             <input type="text" id="purposeSearch" placeholder="🔍 Search Purposes (Name, Type...)" 
-                                   onkeyup="filterTable('purposeSearch', 'purposesTable')"
+                                   oninput="filterTable('purposeSearch', 'purposesTable')" onsearch="filterTable('purposeSearch', 'purposesTable')"
                                    style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                    onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -4621,7 +4621,7 @@ function showAuditDetail(log) {
 
                         <div class="search-container" style="margin-bottom: 20px;">
                             <input type="text" id="deptSearch" placeholder="🔍 Search Departments (Name...)" 
-                                   onkeyup="filterTable('deptSearch', 'departmentsTable')"
+                                   oninput="filterTable('deptSearch', 'departmentsTable')" onsearch="filterTable('deptSearch', 'departmentsTable')"
                                    style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                    onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -4799,6 +4799,7 @@ function showAuditDetail(log) {
                     }
                 }
                 fclose($handle);
+                logActivity($conn, 'MATERIAL_IMPORT', 'Materials', "Material CSV Import Summary: Successfully imported [$success_count] items. (Skipped/Errors: $error_count)");
                 $success_msg = "✅ Imported $success_count materials. Skipped $error_count duplicates/errors.";
                 $sweet_alert_success = $success_msg;
             }
@@ -4974,7 +4975,7 @@ function showAuditDetail(log) {
 
                     <div class="search-container" style="margin-bottom: 20px;">
                         <input type="text" id="materialSearch" placeholder="🔍 Search Materials (Code, Description, Category...)" 
-                               onkeyup="filterTable('materialSearch', 'materialsTable')"
+                               oninput="filterTable('materialSearch', 'materialsTable')" onsearch="filterTable('materialSearch', 'materialsTable')"
                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
@@ -5137,7 +5138,7 @@ function showAuditDetail(log) {
                     }
                 }
                 fclose($handle);
-                logActivity($conn, 'SUPPLIER_IMPORT', 'Suppliers', "Imported [$success_count] suppliers from CSV.");
+                logActivity($conn, 'SUPPLIER_IMPORT', 'Suppliers', "Supplier CSV Import Summary: Successfully imported [$success_count] vendors. (Skipped/Errors: $error_count)");
                 $success_msg = "✅ Imported $success_count suppliers. Skipped $error_count duplicates/errors.";
                 $sweet_alert_success = $success_msg;
             }
@@ -5325,7 +5326,7 @@ function showAuditDetail(log) {
 
                             <div class="search-container" style="margin-bottom: 20px;">
                                 <input type="text" id="supplierSearch" placeholder="🔍 Search Suppliers (Name, Code...)" 
-                                       onkeyup="filterTable('supplierSearch', 'suppliersTable')"
+                                       oninput="filterTable('supplierSearch', 'suppliersTable')" onsearch="filterTable('supplierSearch', 'suppliersTable')"
                                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
                                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">

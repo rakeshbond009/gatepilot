@@ -165,7 +165,7 @@ endif; ?>
                         <?php $unique_suffix = rand(10000, 99999); ?>
                         <div class="form-group-p">
                             <label>Display Title</label>
-                            <input type="text" name="title" required placeholder="e.g. Visitor Outward" onkeyup="document.getElementById('slug_input').value = this.value ? this.value.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_<?php echo $unique_suffix; ?>' : ''">
+                            <input type="text" name="title" required placeholder="e.g. Visitor Outward" oninput="document.getElementById('slug_input').value = this.value ? this.value.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_<?php echo $unique_suffix; ?>' : ''">
                         </div>
 
                         <div class="form-group-p">
@@ -235,7 +235,7 @@ echo htmlspecialchars(json_encode($default_fields));
                         <div id="config_dropdown_options" class="dropdown-options"
                             style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2); z-index: 2000; max-height: 400px; overflow-y: auto; margin-top: 5px;">
                             <input type="text" id="config_filter_box" placeholder="Type name or slug..."
-                                onkeyup="filterConfigOptions()" onclick="event.stopPropagation()"
+                                oninput="filterConfigOptions()" onsearch="filterConfigOptions()" onclick="event.stopPropagation()"
                                 style="width: 100%; padding: 12px; border: none; border-bottom: 1px solid #e5e7eb; outline: none; background: #f8fafc; font-size: 14px; position: sticky; top: 0; box-sizing: border-box;">
                             <div id="config_list_container">
                                 <?php foreach ($types as $type): ?>
@@ -447,7 +447,7 @@ function toggleConfigDropdown() {
 }
 
 function filterConfigOptions() {
-    const filter = document.getElementById('config_filter_box').value.toLowerCase();
+    const filter = document.getElementById('config_filter_box').value.toLowerCase().trim();
     const items = document.querySelectorAll('.config-opt-item');
     items.forEach(item => {
         const text = item.getAttribute('data-search');

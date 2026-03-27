@@ -1743,7 +1743,7 @@ elseif ($page == 'register-entry'):
                         <div id="register_dropdown_options" class="dropdown-options"
                             style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2); z-index: 2000; max-height: 400px; overflow-y: auto; margin-top: 5px;">
                             <input type="text" id="register_filter_box" placeholder="Type to filter..."
-                                onkeyup="filterRegisterOptions()" onclick="event.stopPropagation()"
+                                oninput="filterRegisterOptions()" onsearch="filterRegisterOptions()" onclick="event.stopPropagation()"
                                 style="width: 100%; padding: 12px; border: none; border-bottom: 1px solid #e5e7eb; outline: none; background: #f8fafc; font-size: 14px; position: sticky; top: 0;">
                             <div id="register_list_container">
                                 <!-- Options injected by JS -->
@@ -2008,7 +2008,7 @@ elseif ($page == 'register-entry'):
             }
 
             function filterRegisterOptions() {
-                const filter = document.getElementById('register_filter_box').value.toLowerCase();
+                const filter = document.getElementById('register_filter_box').value.toLowerCase().trim();
                 const items = document.querySelectorAll('.register-option-item');
                 items.forEach(item => {
                     const text = item.getAttribute('data-text');

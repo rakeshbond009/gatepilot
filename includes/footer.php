@@ -240,7 +240,7 @@
                                     <h3 style="margin: 0; font-size: 15px;">Employees Currently Inside</h3>
                                     <div style="display: flex; gap: 8px; align-items: center;">
                                         <input type="text" id="empSearch" placeholder="Search..."
-                                            onkeyup="filterEmployeeList()"
+                                            oninput="filterEmployeeList()" onsearch="filterEmployeeList()"
                                             style="padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; width: 120px;">
                                     </div>
                                 </div>
