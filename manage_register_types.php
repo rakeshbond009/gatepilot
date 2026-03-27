@@ -102,12 +102,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $old_fields = json_decode($current['fields_json'] ?? '[]', true);
             $new_fields = json_decode(stripslashes($fields_json_raw), true);
-            $old_field_names = is_array($old_fields) ? implode(", ", array_column($old_fields, 'label')) : 'None';
-            $new_field_names = is_array($new_fields) ? implode(", ", array_column($new_fields, 'label')) : 'None';
             
-            if ($old_field_names !== $new_field_names) {
-                $diff_parts[] = "Fields Updated: [$old_field_names] to [$new_field_names]";
+            $old_map = []; foreach(($old_fields ?: []) as $f) if(isset($f['name'])) $old_map[$f['name']] = $f;
+            $new_map = []; foreach(($new_fields ?: []) as $f) if(isset($f['name'])) $new_map[$f['name']] = $f;
+            
+            $added = []; $removed = []; $modified = [];
+            $all_names = array_unique(array_merge(array_keys($old_map), array_keys($new_map)));
+            
+            foreach($all_names as $fname) {
+                if (!isset($old_map[$fname])) {
+                    $added[] = ($new_map[$fname]['label'] ?? $fname) . " [" . ($new_map[$fname]['type'] ?? 'text') . "]";
+                } elseif (!isset($new_map[$fname])) {
+                    $removed[] = ($old_map[$fname]['label'] ?? $fname);
+                } else {
+                    $o = $old_map[$fname];
+                    $n = $new_map[$fname];
+                    $lbl_changed = ($o['label'] ?? '') !== ($n['label'] ?? '');
+                    $typ_changed = ($o['type'] ?? '') !== ($n['type'] ?? '');
+                    $req_changed = ($o['required'] ?? '') !== ($n['required'] ?? '');
+                    
+                    if ($lbl_changed || $typ_changed || $req_changed) {
+                        $mText = "Field '" . ($o['label'] ?? $fname) . "': ";
+                        $mSubs = [];
+                        if ($lbl_changed) $mSubs[] = "Label[" . ($o['label'] ?? 'none') . " -> " . ($n['label'] ?? 'none') . "]";
+                        if ($typ_changed) $mSubs[] = "Type[" . ($o['type'] ?? 'none') . " -> " . ($n['type'] ?? 'none') . "]";
+                        if ($req_changed) $mSubs[] = "Req[" . ($o['required'] ? 'Yes':'No') . " -> " . ($n['required'] ? 'Yes':'No') . "]";
+                        $modified[] = $mText . implode(", ", $mSubs);
+                    }
+                }
             }
+            if (!empty($added)) $diff_parts[] = "Added: " . implode(", ", $added);
+            if (!empty($removed)) $diff_parts[] = "Removed: " . implode(", ", $removed);
+            if (!empty($modified)) $diff_parts[] = "Modified: " . implode("; ", $modified);
 
             $details = "Update Success: Register '$title'\n" . (empty($diff_parts) ? "No changes were made." : implode("\n", $diff_parts));
 
