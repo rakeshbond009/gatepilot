@@ -1476,7 +1476,7 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$person', '$mobile', '$email', '$address', '$gst')";
 
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created Transporter: [$name]\n" . auditFromPost($_POST));
+                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created Transporter:\n" . auditFromPost($_POST, [], ['transporter_name' => 'Name', 'contact_person' => 'Contact', 'mobile' => 'Mobile', 'gst_number' => 'GST']));
                         $success_msg = "✅ Transporter added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
                         session_write_close();
@@ -1950,7 +1950,7 @@ function showAuditDetail(log) {
                             }
                         }
 
-                        $details = "Created Driver: [$name]\n" . auditFromPost($_POST, ['transporter_id']);
+                        $details = "Created Driver:\n" . auditFromPost($_POST, ['transporter_id'], ['driver_name' => 'Name', 'mobile' => 'Mobile', 'license_number' => 'License', 'license_expiry' => 'Expiry']);
                         $details .= "\nTransporter: [$tname]";
                         if ($photo_path) {
                             $details .= "\nDriver Photo: [Uploaded]";
@@ -2682,7 +2682,7 @@ function showAuditDetail(log) {
                                 }
                             }
 
-                            $details = "Created Vehicle: [$veh_no]\n" . auditFromPost($_POST, ['driver_id', 'driver_ids', 'primary_driver_id', 'transporter_id']);
+                            $details = "Created Vehicle:\n" . auditFromPost($_POST, ['driver_id', 'driver_ids', 'primary_driver_id', 'transporter_id'], ['vehicle_number' => 'Number', 'maker' => 'Maker', 'model' => 'Model', 'fuel_type' => 'Fuel']);
                             $details .= "\nTransporter: [$tname]";
                             $details .= "\nPrimary Driver: [$dname]";
 
@@ -3998,7 +3998,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO patrol_locations (location_id, location_name, area_site_building, qr_code_data) VALUES ('$loc_id', '$name', '$area', '$qr_data')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created Patrol Location: [$name]\n" . auditFromPost($_POST));
+                        logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created Patrol Location:\n" . auditFromPost($_POST, [], ['location_id' => 'LocID', 'location_name' => 'Name', 'area_site_building' => 'Area']));
                         $_SESSION['success_msg'] = "✅ Patrol location added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=patrol-locations&t=" . time());
@@ -4294,7 +4294,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: Name: [$name]\n" . auditFromPost($_POST, [], ['purpose_name' => 'Name', 'purpose_type' => 'Type']));
+                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose:\n" . auditFromPost($_POST, [], ['purpose_name' => 'Name', 'purpose_type' => 'Type']));
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=purposes&t=" . time());
@@ -4533,7 +4533,7 @@ function showAuditDetail(log) {
                             $audit_details .= "\nChanges:\n" . $diff;
                     }
                     else {
-                        $audit_details = "Created Department: Name: [$name]\n" . auditFromPost($_POST);
+                        $audit_details = "Created Department:\n" . auditFromPost($_POST, [], ['department_name' => 'Name']);
                     }
                     logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', $audit_details);
                     $_SESSION['success_msg'] = "✅ Department saved successfully!";
@@ -4845,7 +4845,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO material_master (material_code, material_description, material_category) 
                                 VALUES ('$code', '$desc', '$cat')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created Material: Code: [$code]\n" . auditFromPost($_POST));
+                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created Material:\n" . auditFromPost($_POST, [], ['material_code' => 'Code', 'material_description' => 'Desc', 'material_category' => 'Cat']));
                         $_SESSION['success_msg'] = "✅ Material added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=materials&t=" . time());
@@ -5203,7 +5203,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO supplier_master (supplier, supp_code) 
                                 VALUES ('$supp', '$supp_code')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier: [$supp]\n" . auditFromPost($_POST));
+                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier:\n" . auditFromPost($_POST, [], ['supplier' => 'Name', 'supp_code' => 'Code']));
                         $_SESSION['success_msg'] = "✅ Supplier added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=suppliers&t=" . time());

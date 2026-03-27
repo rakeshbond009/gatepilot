@@ -514,7 +514,7 @@ elseif ($page == 'tickets'):
 
         if (isset($sql) && mysqli_query($conn, $sql)) {
             $success_msg = "✅ Ticket updated successfully.";
-            logActivity($conn, 'TICKET_UPDATE', 'Patrol', "Ticket Updated: ID: [#$ticket_id] | Action: [" . strtoupper($action) . "]\nDetails: " . auditFromPost($_POST));
+            logActivity($conn, 'TICKET_UPDATE', 'Patrol', "Ticket Updated:\n" . auditFromPost($_POST));
         }
         else {
             $error_msg = "❌ Error updating ticket: " . mysqli_error($conn);

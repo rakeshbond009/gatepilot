@@ -202,7 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
 
         if (mysqli_query($conn, $sql)) {
             $success = "Unloading checklist saved successfully!";
-            logActivity($conn, 'UNLOADING_CREATE', 'Checklists', "Created Unloading Checklist: Vehicle: [$vehicle_registration_number] (InwardID: $inward_id)\n" . auditFromPost($_POST));
+            logActivity($conn, 'UNLOADING_CREATE', 'Checklists', "Created Unloading Checklist:\n" . auditFromPost($_POST));
             $_POST = array();
         }
         else {

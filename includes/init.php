@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.1711');
+    define('APP_VERSION', '26.03.27.1818');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -1021,7 +1021,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                         )";
 
                 if (mysqli_query($conn, $sql)) {
-                    $details = "Created Employee: Name: [$name]\nEmpID: [$emp_id]\n" . auditFromPost($_POST);
+                    $details = "Created Employee:\n" . auditFromPost($_POST, [], ['employee_name' => 'Name', 'employee_id' => 'EmpID', 'mobile' => 'Mobile', 'department' => 'Dept', 'vehicle_number' => 'Vehicle']);
                     if ($photo_path) {
                         $details .= "\nPhoto: [Uploaded]";
                     }
@@ -1112,12 +1112,12 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
         $sql = "INSERT INTO patrol_issues (location_id, reported_by, issue_description, photo_url) 
                 VALUES ($location_id, $guard_id, '$description', '$photo_url')";
 
-        if (mysqli_query($conn, $sql)) {
-            $details = "Ticket Created: [$description]\n" . auditFromPost($_POST);
-            if ($photo_url) {
-                $details .= "\nPhoto Evidence: [Uploaded]";
-            }
-            logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
+            if (mysqli_query($conn, $sql)) {
+                $details = "Issue Ticket Created:\n" . auditFromPost($_POST);
+                if ($photo_url) {
+                    $details .= "\nPhoto: [Uploaded]";
+                }
+                logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
             $success_msg = "✅ Issue reported successfully. Ticket created.";
         }
         else {
@@ -1157,7 +1157,7 @@ if ($page == 'register-entry' && isset($_POST['save_register'])) {
             }
         }
 
-        $details = "Created Register Entry: Title: [$title], ID: [$id]";
+        $details = "Created Register Entry:";
         if (!empty($log_parts)) {
             $details .= "\n" . implode("\n", $log_parts);
         }
@@ -1456,7 +1456,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
 
         if (mysqli_query($conn, $sql)) {
             $inward_id = mysqli_insert_id($conn);
-            $details = "Inward Gate Entry: Vehicle: [$vehicle]\n" . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']);
+            $details = "Inward Gate Entry:\n" . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']);
             logActivity($conn, 'INWARD_ENTRY', 'Logistics', $details);
             $success_msg = "✅ Inward entry created successfully! Entry #: $entry_num";
 
@@ -1537,17 +1537,7 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
         $v_row = mysqli_fetch_assoc($v_res);
         $v_num = $v_row['vehicle_number'] ?? 'Unknown';
 
-        $log_details = "Outward Gate Exit: " . auditFromPost($_POST, ['number_of_seals', 'sealing_method', 'outgoing_customer_name', 'outgoing_destination'], ['outward_remarks' => 'Remarks', 'outgoing_customer_name' => 'Customer', 'outgoing_destination' => 'Destination']);
-        if ($outgoing_customer_name)
-            $log_details .= "\nCustomer: [$outgoing_customer_name]";
-        if ($outgoing_destination)
-            $log_details .= "\nDestination: [$outgoing_destination]";
-        if ($number_of_seals > 0)
-            $log_details .= "\nSeals: [$number_of_seals]";
-        if ($sealing_method)
-            $log_details .= "\nSealing Method: [$sealing_method]";
-
-        logActivity($conn, 'OUTWARD_EXIT', 'Logistics', $log_details);
+        logActivity($conn, 'OUTWARD_EXIT', 'Logistics', "Outward Gate Exit:\n" . auditFromPost($_POST, ['number_of_seals', 'sealing_method', 'outgoing_customer_name', 'outgoing_destination'], ['outward_remarks' => 'Remarks', 'outgoing_customer_name' => 'Customer', 'outgoing_destination' => 'Destination']));
 
         // ---------------- OUT-GOING CHECK (Moved from loading) ----------------
         $outgoing_reporting_datetime = mysqli_real_escape_string($conn, $_POST['outgoing_reporting_datetime'] ?? '');
@@ -1642,8 +1632,7 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
         // Update inward status
         mysqli_query($conn, "UPDATE truck_inward SET status = 'exited', is_exited = 1 WHERE id = $inward_id");
 
-        $outward_log = "Outward Gate Entry: Vehicle: [" . ($vehicle_number ?? 'Unknown') . "] (ID: $inward_id)\n" . auditFromPost($_POST);
-        logActivity($conn, 'OUTWARD_EXIT', 'Logistics', $outward_log);
+
 
         $success_msg = "✅ Outward entry completed! Duration: " . formatDuration($duration);
     }
@@ -1850,7 +1839,7 @@ if ($page == 'employee-entry-action') {
                     $response['success'] = true;
                     $response['message'] = "✅ Employee inward logged successfully!";
                     $_SESSION['success_msg'] = $response['message'];
-                    logActivity($conn, 'EMP_INWARD', 'Employee', "Log inward for $employee_name [$employee_id] on vehicle $vehicle");
+                    logActivity($conn, 'EMP_INWARD', 'Employee', "Employee Inward Entry:\n" . auditFromPost($_POST));
                 }
                 else {
                     $response['message'] = "❌ Error logging employee entry: " . mysqli_error($conn);
@@ -1873,7 +1862,7 @@ if ($page == 'employee-entry-action') {
                 $e_name = $e_row['employee_name'] ?? 'Unknown';
                 $e_id = $e_row['employee_id'] ?? 'N/A';
 
-                logActivity($conn, 'EMP_OUTWARD', 'Employee', "Log exit for $e_name [$e_id]");
+                logActivity($conn, 'EMP_OUTWARD', 'Employee', "Employee Outward Entry:\n" . auditFromPost($_POST));
             }
             else {
                 $response['message'] = "❌ Error logging employee exit: " . mysqli_error($conn);
