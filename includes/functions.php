@@ -6,6 +6,40 @@
  */
 
 /**
+ * Returns a connection to the centralized support database for issue reporting
+ */
+function getSupportDatabaseConnection() {
+    // 1. Try connecting to the Centralized Support DB
+    try {
+        $conn = @mysqli_connect(SUPPORT_DB_HOST, SUPPORT_DB_USER, SUPPORT_DB_PASS, SUPPORT_DB_NAME);
+        if ($conn) {
+            mysqli_query($conn, "SET time_zone = '+05:30'");
+            mysqli_set_charset($conn, "utf8mb4");
+            return $conn;
+        }
+    } catch (Throwable $e) {
+        error_log("CENTRAL SUPPORT DB CONNECTION FAILED: " . $e->getMessage());
+    }
+
+    // 2. FALLBACK: If local environment, use the primary local database for testing
+    if (defined('ENVIRONMENT') && ENVIRONMENT === 'LOCAL') {
+        global $conn; // Uses the main connection from init.php
+        if ($conn) {
+            // Check if app_issues table exists in primary DB
+            $res = mysqli_query($conn, "SHOW TABLES LIKE 'app_issues'");
+            if (mysqli_num_rows($res) == 0) {
+                // Initialize it locally for testing
+                include_once __DIR__ . '/../database/init_app_issues.php';
+                initAppIssuesTable($conn);
+            }
+            return $conn;
+        }
+    }
+
+    return null;
+}
+
+/**
  * ============================================================
  * DYNAMIC AUDIT HELPERS
  * ============================================================

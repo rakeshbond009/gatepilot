@@ -1,0 +1,17 @@
+{
+  "name": "Gatepilot",
+  "short_name": "Gatepilot",
+  "start_url": "./index.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "description": "Premium Industrial Gate Management Dashboard",
+  "icons": [
+    {
+      "src": "assets/app_icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

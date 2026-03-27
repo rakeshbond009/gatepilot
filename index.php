@@ -41,6 +41,8 @@ elseif ($page == 'privacy'):
     include 'pages/privacy.php';
 elseif ($page == 'terms'):
     include 'pages/terms.php';
+elseif ($page == 'app-issues'):
+    include 'pages/app_issues.php';
 else:
     // Fallback to dashboard
     include 'pages/dashboard.php';

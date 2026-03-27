@@ -62,6 +62,13 @@ else {
     define('ENVIRONMENT', 'PRODUCTION');
 }
 
+// ========== CENTRALIZED SUPPORT DATABASE (For Issue/Bug Reporting) ==========
+define('SUPPORT_DB_HOST', 'localhost');
+define('SUPPORT_DB_NAME', 'u875321134_mywebsite');
+define('SUPPORT_DB_USER', 'u875321134_rakeshwebsite');
+define('SUPPORT_DB_PASS', 'Mywebsite@2025');
+define('CLIENT_APP_NAME', 'GatePilot - Truck Movement'); // Identifies which app reported the issue
+
 // ========== UNIVERSAL SESSION CONFIGURATION (FOR "LOGIN FOREVER") ==========
 $session_lifetime = 365 * 24 * 60 * 60; // 1 year
 

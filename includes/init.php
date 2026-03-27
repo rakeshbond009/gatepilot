@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0141');
+    define('APP_VERSION', '26.03.28.0222');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -532,7 +532,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
                 'register' => isset($_POST['perm_page_register']),
                 'register_types' => isset($_POST['perm_page_register_types']),
                 'audit_logs' => isset($_POST['perm_page_audit_logs']),
-                'employee_scan' => isset($_POST['perm_page_employee_scan'])
+                'employee_scan' => isset($_POST['perm_page_employee_scan']),
+                'app_issues' => isset($_POST['perm_page_app_issues'])
             ],
             'masters' => [
                 'transporters' => isset($_POST['perm_master_transporters']),
@@ -579,6 +580,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
             'pages.register' => 'Manual Registers',
             'pages.register_types' => 'Manage Register Types',
             'pages.audit_logs' => 'Audit Logs',
+            'pages.app_issues' => 'Report Issues',
             'masters.transporters' => 'Master Transporters',
             'masters.drivers' => 'Master Drivers',
             'masters.vehicles' => 'Master Vehicles',

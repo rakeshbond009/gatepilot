@@ -125,6 +125,13 @@
                             </a>
                         <?php
     endif; ?>
+                        <?php if (hasPermission('pages.app_issues')): ?>
+                            <a href="?page=app-issues" class="<?php echo $page == 'app-issues' ? 'active' : ''; ?>">
+                                <span class="icon">🔧</span>
+                                Support
+                            </a>
+                        <?php
+    endif; ?>
                         <a href="?page=logout" class="<?php echo $page == 'logout' ? 'active' : ''; ?>">
                             <span class="icon">🚪</span>
                             Logout

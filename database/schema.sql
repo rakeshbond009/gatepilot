@@ -748,6 +748,26 @@ CREATE TABLE `vendor_master` (
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
-25 March 2026 22:30:21
+-- 
+-- Table structure for table `app_issues` (Centralized Support DB)
+-- 
+DROP TABLE IF EXISTS `app_issues`;
+CREATE TABLE `app_issues` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `app_name` VARCHAR(100) NOT NULL,
+  `client_name` VARCHAR(100),
+  `client_contact` VARCHAR(100),
+  `reported_by` VARCHAR(50),
+  `issue_type` ENUM('Bug', 'Feature Request', 'UI Issue', 'Access Issue', 'Other') DEFAULT 'Bug',
+  `priority` ENUM('Low', 'Medium', 'High', 'Critical') DEFAULT 'Medium',
+  `description` TEXT NOT NULL,
+  `photo_url` VARCHAR(255),
+  `status` ENUM('Pending', 'In Progress', 'Resolved', 'Closed', 'Invalid') DEFAULT 'Pending',
+  `admin_remarks` TEXT,
+  `reported_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_app` (`app_name`),
+  INDEX `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
+COMMIT;

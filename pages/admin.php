@@ -266,6 +266,7 @@ function openPermissionModal(user) {
         if (p.tickets) document.getElementById("p_tickets").checked = true;
         if (p.masters) document.getElementById("p_masters").checked = true;
         if (p.employee_scan) document.getElementById("p_employee_scan").checked = true;
+        if (p.app_issues) document.getElementById("p_app_issues").checked = true;
     }
     
     if (perms.masters) {
@@ -5832,6 +5833,7 @@ endif; ?>
                     <label class="perm-card"><input type="checkbox" name="perm_page_masters" id="p_masters"><div class="perm-card-content">Master Data</div></label>
                     <label class="perm-card"><input type="checkbox" name="perm_page_audit_logs" id="p_audit_logs"><div class="perm-card-content">Audit Logs</div></label>
                     <label class="perm-card"><input type="checkbox" name="perm_page_employee_scan" id="p_employee_scan"><div class="perm-card-content">Employee QR Scan</div></label>
+                    <label class="perm-card"><input type="checkbox" name="perm_page_app_issues" id="p_app_issues"><div class="perm-card-content">Report Issues</div></label>
                 </div>
             </div>
 
