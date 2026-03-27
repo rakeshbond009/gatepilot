@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.2148');
+    define('APP_VERSION', '26.03.27.2200');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -2035,4 +2035,24 @@ if ($page == 'qr-scanner' && isset($_POST['process_qr'])) {
     ];
 }
 
+// AJAX: Check for duplicate vehicle number (Direct UI validation)
+if ($page == 'check-duplicate-vehicle') {
+    $v = isset($_GET['vehicle']) ? strtoupper(trim(mysqli_real_escape_string($conn, $_GET['vehicle']))) : '';
+    $id = intval($_GET['id'] ?? 0);
+
+    if (!empty($v)) {
+        $res = mysqli_query($conn, "SELECT employee_name FROM employee_master WHERE UPPER(TRIM(vehicle_number)) = UPPER('$v') AND id != $id");
+        if (mysqli_num_rows($res) > 0) {
+            $row = mysqli_fetch_assoc($res);
+            echo json_encode(['exists' => true, 'name' => $row['employee_name']]);
+        }
+        else {
+            echo json_encode(['exists' => false]);
+        }
+    }
+    else {
+        echo json_encode(['exists' => false]);
+    }
+    exit;
+}
 ?>

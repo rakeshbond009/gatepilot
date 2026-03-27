@@ -15,6 +15,11 @@
         animation: fadeIn 0.2s ease-out;
     }
 
+    /* Ensure SweetAlert2 is always above our modals */
+    .swal2-container {
+        z-index: 20000 !important;
+    }
+
     .perm-modal-content {
         background: #ffffff;
         width: 95%;
@@ -3576,6 +3581,7 @@ function showAuditDetail(log) {
                                                 <label style="font-weight: 600;">Vehicle Number</label>
                                                 <input type="text" name="vehicle_number" id="master_emp_vehicle" 
                                                     oninput="toggleVehicleDates(this.value)"
+                                                    onblur="checkDuplicateVehicle(this.value)"
                                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; text-transform: uppercase;">
                                             </div>
                                             <div class="form-group">
@@ -3852,6 +3858,28 @@ function showAuditDetail(log) {
                                     showConfirmButton: false,
                                     background: '#f8fafc'
                                 });
+                            }
+
+                            function checkDuplicateVehicle(v) {
+                                if(!v) return;
+                                const idField = document.getElementById('e_id');
+                                const currentId = idField ? idField.value : 0;
+                                fetch(`?page=check-duplicate-vehicle&vehicle=${encodeURIComponent(v)}&id=${currentId}`)
+                                    .then(r => r.json()).then(data => {
+                                        if (data.exists) {
+                                            Swal.fire({
+                                                icon: 'error',
+                                                title: 'Duplicate Vehicle',
+                                                text: 'Vehicle number "' + v + '" is already assigned to ' + data.name + '.'
+                                            }).then(() => {
+                                                const vInput = document.getElementById('master_emp_vehicle');
+                                                if (vInput) {
+                                                    vInput.value = '';
+                                                    vInput.focus();
+                                                }
+                                            });
+                                        }
+                                    });
                             }
 
                             function resetEmpForm() {
