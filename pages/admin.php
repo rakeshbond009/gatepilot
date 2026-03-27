@@ -1941,7 +1941,17 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$mobile', '$license', '$expiry', $trans_id, " . ($photo_path ? "'$photo_path'" : "NULL") . ", " . ($license_photo_path ? "'$license_photo_path'" : "NULL") . ", $is_active)";
 
                     if (mysqli_query($conn, $sql)) {
-                        $details = "Created Driver: [$name]\n" . auditFromPost($_POST);
+                        // Get Transporter Name for better logging
+                        $tname = 'None';
+                        if (!empty($trans_id)) {
+                            $tq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$trans_id");
+                            if ($t_row = mysqli_fetch_assoc($tq)) {
+                                $tname = $t_row['transporter_name'];
+                            }
+                        }
+
+                        $details = "Created Driver: [$name]\n" . auditFromPost($_POST, ['transporter_id']);
+                        $details .= "\nTransporter: [$tname]";
                         if ($photo_path) {
                             $details .= "\nDriver Photo: [Uploaded]";
                         }
@@ -2646,7 +2656,18 @@ function showAuditDetail(log) {
                                 $dname = $dr['driver_name'] ?? "ID: $driver_id";
                             }
 
-                            $details = "Created Vehicle: [$veh_no]\n" . auditFromPost($_POST, ['driver_id', 'driver_ids', 'primary_driver_id']);
+                             // Get Transporter Name for better logging
+                            $tname = 'None';
+                            $trans_id = !empty($_POST['transporter_id']) ? intval($_POST['transporter_id']) : 0;
+                            if ($trans_id > 0) {
+                                $tq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$trans_id");
+                                if ($t_row = mysqli_fetch_assoc($tq)) {
+                                    $tname = $t_row['transporter_name'];
+                                }
+                            }
+
+                            $details = "Created Vehicle: [$veh_no]\n" . auditFromPost($_POST, ['driver_id', 'driver_ids', 'primary_driver_id', 'transporter_id']);
+                            $details .= "\nTransporter: [$tname]";
                             $details .= "\nPrimary Driver: [$dname]";
 
                             // Log uploaded documents
