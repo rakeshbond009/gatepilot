@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0118');
+    define('APP_VERSION', '26.03.28.0129');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -303,10 +303,10 @@ if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
 
     if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
         // Always stamp session from DB — session may have been GC'd on shared host
-        $_SESSION['user_id']     = $row['id'];
-        $_SESSION['username']    = $row['username'];
-        $_SESSION['full_name']   = $row['full_name'];
-        $_SESSION['role']        = $row['role'];
+        $_SESSION['user_id'] = $row['id'];
+        $_SESSION['username'] = $row['username'];
+        $_SESSION['full_name'] = $row['full_name'];
+        $_SESSION['role'] = $row['role'];
         $_SESSION['super_admin'] = (int)$row['super_admin'];
         $_SESSION['permissions'] = $row['permissions'];
 
@@ -405,10 +405,10 @@ if ($page == 'login' && isset($_POST['login'])) {
                 // Persistent cookie - 1 year, no explicit domain (browser infers), works on HTTP+HTTPS
                 $cookie_lifetime = 365 * 24 * 60 * 60;
                 setcookie('GATEPILOT_REMEMBER', $token, [
-                    'expires'  => time() + $cookie_lifetime,
-                    'path'     => '/',
-                    'domain'   => '',
-                    'secure'   => false,
+                    'expires' => time() + $cookie_lifetime,
+                    'path' => '/',
+                    'domain' => '',
+                    'secure' => false,
                     'httponly' => true,
                     'samesite' => 'Lax'
                 ]);
@@ -435,9 +435,9 @@ if ($page == 'logout') {
         mysqli_query($conn, "DELETE FROM user_sessions WHERE token = '$token'");
         $cookie_domain = $_cookie_domain ?? '';
         setcookie('GATEPILOT_REMEMBER', '', [
-            'expires'  => time() - 3600,
-            'path'     => '/',
-            'domain'   => $cookie_domain,
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => $cookie_domain,
             'httponly' => true,
             'samesite' => 'Lax'
         ]);
@@ -1549,12 +1549,26 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
 
     if (mysqli_query($conn, $sql)) {
         $outward_id = mysqli_insert_id($conn);
-        // Get vehicle number for log
-        $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id=$inward_id");
+        // Get inward details for the audit log
+        $v_res = mysqli_query($conn, "SELECT vehicle_number, driver_name, transporter_name FROM truck_inward WHERE id=$inward_id");
         $v_row = mysqli_fetch_assoc($v_res);
         $v_num = $v_row['vehicle_number'] ?? 'Unknown';
+        $d_name = $v_row['driver_name'] ?? 'Unknown';
+        $t_name = $v_row['transporter_name'] ?? 'Unknown';
 
-        logActivity($conn, 'OUTWARD_EXIT', 'Logistics', "Outward Gate Exit:\n" . auditFromPost($_POST, ['number_of_seals', 'sealing_method', 'outgoing_customer_name', 'outgoing_destination'], ['outward_remarks' => 'Remarks', 'outgoing_customer_name' => 'Customer', 'outgoing_destination' => 'Destination']));
+        $log_details = "Outward Gate Exit:\n" . 
+                      "Vehicle: [$v_num]\n" .
+                      "Driver: [$d_name]\n" .
+                      "Transporter: [$t_name]\n" .
+                      auditFromPost($_POST, [], [
+                          'outward_remarks' => 'Remarks', 
+                          'outgoing_customer_name' => 'Customer', 
+                          'outgoing_destination' => 'Destination',
+                          'number_of_seals' => 'Seals',
+                          'sealing_method' => 'Seal Method'
+                      ]);
+
+        logActivity($conn, 'OUTWARD_EXIT', 'Logistics', $log_details);
 
         // ---------------- OUT-GOING CHECK (Moved from loading) ----------------
         $outgoing_reporting_datetime = mysqli_real_escape_string($conn, $_POST['outgoing_reporting_datetime'] ?? '');

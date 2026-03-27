@@ -37,8 +37,6 @@ elseif (in_array($page, ['admin', 'user-permissions'])):
     include 'pages/admin.php';
 elseif (in_array($page, ['reports-center', 'view-registers', 'view-material-inward'])):
     include 'pages/reports.php';
-elseif ($page == 'debug_session' && isset($_SESSION['role']) && $_SESSION['role'] == 'admin'):
-    include 'tmp/debug_session.php';
 else:
     // Fallback to dashboard
     include 'pages/dashboard.php';
