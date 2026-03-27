@@ -1206,7 +1206,11 @@ function showAuditDetail(log) {
                                             </div>
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Mobile</label>
-                                                <input type="tel" name="mobile" id="p_mobile" inputmode="numeric" pattern="[0-9]*" value="<?php echo isset($_POST['mobile']) ? htmlspecialchars($_POST['mobile']) : ''; ?>" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <input type="tel" name="mobile" id="p_mobile" inputmode="numeric" 
+                                                       pattern="[0-9]{10}" maxlength="10" minlength="10" 
+                                                       title="Please enter a valid 10-digit mobile number"
+                                                       value="<?php echo isset($_POST['mobile']) ? htmlspecialchars($_POST['mobile']) : ''; ?>" 
+                                                       style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Profile Photo</label>
@@ -1936,7 +1940,14 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$mobile', '$license', '$expiry', $trans_id, " . ($photo_path ? "'$photo_path'" : "NULL") . ", " . ($license_photo_path ? "'$license_photo_path'" : "NULL") . ", $is_active)";
 
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'DRIVER_CREATE', 'Drivers', "Created Driver:\n" . auditFromPost($_POST));
+                        $details = "Created Driver: $name\n" . auditFromPost($_POST);
+                        if ($photo_path) {
+                            $details .= "\nPhoto: [Uploaded]";
+                        }
+                        if ($license_photo_path) {
+                            $details .= "\nLicense Document: [Uploaded]";
+                        }
+                        logActivity($conn, 'DRIVER_CREATE', 'Drivers', $details);
                         $success_msg = "✅ Driver added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
                         session_write_close();
