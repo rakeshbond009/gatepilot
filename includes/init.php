@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0035');
+    define('APP_VERSION', '26.03.28.0037');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -395,10 +395,18 @@ if ($page == 'login' && isset($_POST['login'])) {
 
             $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
             if (mysqli_query($conn, $token_sql)) {
-                // Set cookie for 1 year
+                // Set persistent cookie for 1 year - use options array for cross-browser SameSite support
                 $cookie_lifetime = 365 * 24 * 60 * 60;
-                $is_secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-                setcookie('GATEPILOT_REMEMBER', $token, time() + $cookie_lifetime, '/', '', $is_secure, true);
+                $cookie_domain   = $_cookie_domain ?? '';
+                $cookie_secure   = $_is_https ?? (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on');
+                setcookie('GATEPILOT_REMEMBER', $token, [
+                    'expires'  => time() + $cookie_lifetime,
+                    'path'     => '/',
+                    'domain'   => $cookie_domain,
+                    'secure'   => $cookie_secure,
+                    'httponly' => true,
+                    'samesite' => 'Lax'
+                ]);
             }
 
             header('Location: ?page=dashboard');
@@ -420,7 +428,14 @@ if ($page == 'logout') {
     if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
         mysqli_query($conn, "DELETE FROM user_sessions WHERE token = '$token'");
-        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
+        $cookie_domain = $_cookie_domain ?? '';
+        setcookie('GATEPILOT_REMEMBER', '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'domain'   => $cookie_domain,
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
     }
 
     // Clear session data

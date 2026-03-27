@@ -80,11 +80,21 @@ if (is_writable($session_save_path)) {
 }
 
 // Ensure the session cookie is as persistent and secure as possible
+// Strip port from HTTP_HOST (browsers reject cookies with port in domain)
+$_cookie_domain = '';
+if (!empty($_SERVER['HTTP_HOST'])) {
+    $host_no_port = explode(':', $_SERVER['HTTP_HOST'])[0];
+    // Leave domain empty for localhost/IP — browsers require it
+    $is_real_domain = !in_array($host_no_port, ['localhost', '127.0.0.1', '::1'])
+                      && !filter_var($host_no_port, FILTER_VALIDATE_IP);
+    $_cookie_domain = $is_real_domain ? $host_no_port : '';
+}
+$_is_https = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
-    'path' => '/',
-    'domain' => $_SERVER['HTTP_HOST'] ?? '',
-    'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on',
+    'path'     => '/',
+    'domain'   => $_cookie_domain,
+    'secure'   => $_is_https,
     'httponly' => true,
     'samesite' => 'Lax'
 ]);
