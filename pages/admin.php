@@ -382,8 +382,8 @@ function showAuditDetail(log) {
                  detailsDiv.appendChild(header);
 
                  const remaining = headerMatch[2];
-                  // Split by: newline, pipe, ], or a comma that is followed by a Label: pattern
-                  const changes = remaining.split(/\n| \| |], |\]|, (?=[A-Z][a-z\s]+:)/); // split by ], ] or commas followed by a Key:
+                  // Split by: newline, pipe, or a comma that follows a closing bracket
+                  const changes = remaining.split(/\n| \| |(?<=\]),\s*/); // Split by newline, pipe, or '], '
                   changes.forEach(c => {
                     const clean = c.replace(/[\[\]']/g, "").trim();
                     if (!clean) return;
