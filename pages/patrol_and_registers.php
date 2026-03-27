@@ -556,12 +556,17 @@ elseif ($page == 'tickets'):
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
     $loc_filter = isset($_GET['loc_filter']) ? intval($_GET['loc_filter']) : 0;
     $emp_filter = isset($_GET['emp_filter']) ? intval($_GET['emp_filter']) : 0;
+    $status_filter = isset($_GET['status_filter']) ? mysqli_real_escape_string($conn, $_GET['status_filter']) : '';
 
     $where = "WHERE 1";
-    if ($tab == 'open')
-        $where .= " AND t.status IN ('Open', 'Assigned')";
-    if ($tab == 'resolved')
-        $where .= " AND t.status IN ('Resolved', 'Closed')";
+    if ($status_filter) {
+        $where .= " AND t.status = '$status_filter'";
+    } else {
+        if ($tab == 'open')
+            $where .= " AND t.status IN ('Open', 'Assigned')";
+        if ($tab == 'resolved')
+            $where .= " AND t.status IN ('Resolved', 'Closed')";
+    }
 
     if ($search) {
         $where .= " AND (t.issue_description LIKE '%$search%' OR pl.location_name LIKE '%$search%' OR t.id = '$search')";
@@ -612,7 +617,7 @@ elseif ($page == 'tickets'):
     $all_locations = mysqli_query($conn, "SELECT id, location_name FROM patrol_locations ORDER BY location_name");
 ?>
         <div class="container">
-            <button onclick="if(history.length>1){history.back();}else{location.href='?page=tickets';}" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">
+            <button onclick="if(history.length>1){history.back();}else{location.href='?page=tickets';}" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: center;">
                 ← Back
             </button>
             <!-- Header -->
@@ -702,6 +707,17 @@ elseif ($page == 'tickets'):
                         <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8;">🔍</span>
                     </div>
 
+                    <select name="status_filter" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: white;">
+                        <option value="">All Status</option>
+                        <?php 
+                        $tab_statuses = ($tab == 'open') ? ['Open', 'Assigned'] : ['Resolved', 'Closed'];
+                        foreach($tab_statuses as $st): ?>
+                            <option value="<?php echo $st; ?>" <?php echo $status_filter == $st ? 'selected' : ''; ?>>
+                                <?php echo $st; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+
                     <select name="loc_filter" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: white;">
                         <option value="">All Locations</option>
                         <?php mysqli_data_seek($all_locations, 0); while($l = mysqli_fetch_assoc($all_locations)): ?>
@@ -721,7 +737,7 @@ elseif ($page == 'tickets'):
                     </select>
 
                     <button type="submit" class="btn btn-primary" style="padding: 8px 15px; font-size: 13px;">Filter</button>
-                    <?php if($search || $loc_filter || $emp_filter): ?>
+                    <?php if($search || $loc_filter || $emp_filter || $status_filter): ?>
                         <a href="?page=tickets&tab=<?php echo $tab; ?>" class="btn btn-secondary" style="padding: 8px 15px; font-size: 13px; text-decoration: none;">Reset</a>
                     <?php endif; ?>
                 </form>
