@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0102');
+    define('APP_VERSION', '26.03.28.0108');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -290,8 +290,10 @@ function hasPermission($key)
     return false;
 }
 
-// Persistent Login (Remember Me / Login Forever)
-if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+// Persistent Login — runs on EVERY request when a remember-cookie exists.
+// This makes auth DB-driven: even if PHP session GC kills the session file,
+// the next request immediately restores the session from the cookie token.
+if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
     $query = "SELECT u.* FROM user_sessions s 
               JOIN user_master u ON s.user_id = u.id 
@@ -300,6 +302,7 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token_result = mysqli_query($conn, $query);
 
     if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
+        // Always stamp session from DB — session may have been GC'd on shared host
         $_SESSION['user_id']     = $row['id'];
         $_SESSION['username']    = $row['username'];
         $_SESSION['full_name']   = $row['full_name'];
@@ -307,22 +310,19 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $_SESSION['super_admin'] = (int)$row['super_admin'];
         $_SESSION['permissions'] = $row['permissions'];
 
-        // Update last used timestamp
-        mysqli_query($conn, "UPDATE user_sessions SET last_used_at = CURRENT_TIMESTAMP WHERE token = '$token'");
-
-        // Audit Log: Auto Login
-        logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
+        // Throttle: only update DB timestamp once per 5 min to reduce queries
+        if (!isset($_SESSION['_token_refreshed']) || time() - $_SESSION['_token_refreshed'] > 300) {
+            mysqli_query($conn, "UPDATE user_sessions SET last_used_at = CURRENT_TIMESTAMP WHERE token = '$token'");
+            $_SESSION['_token_refreshed'] = time();
+            if (!isLoggedIn()) { // Only log if this was actually a restore (not already logged in)
+                logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
+            }
+        }
     }
     else {
-        // Invalid / expired token — clear cookie with same options used when setting it
-        $clr_domain = $_cookie_domain ?? '';
-        setcookie('GATEPILOT_REMEMBER', '', [
-            'expires'  => time() - 3600,
-            'path'     => '/',
-            'domain'   => $clr_domain,
-            'httponly' => true,
-            'samesite' => 'Lax'
-        ]);
+        // Invalid token — clear the bad cookie
+        setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        unset($_COOKIE['GATEPILOT_REMEMBER']);
     }
 }
 

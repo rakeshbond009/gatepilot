@@ -71,27 +71,27 @@ $_is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
           || (isset($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
           || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
 
-// DO NOT set an explicit domain — let the browser infer from the request host.
-// Explicitly setting domain causes compatibility issues behind proxies.
 $_cookie_domain = '';
 
-// Use a custom session directory to prevent premature garbage collection
-$session_save_path = __DIR__ . '/sessions';
-if (!is_dir($session_save_path)) {
-    @mkdir($session_save_path, 0777, true);
+// Custom session directory — only applied if writable (gitignored so may not exist on server)
+// If it doesn't exist/isn't writable, PHP uses system default — that's OK, we use DB token as fallback
+$_session_dir = __DIR__ . '/sessions';
+if (!is_dir($_session_dir)) {
+    @mkdir($_session_dir, 0755, true);
 }
-if (is_writable($session_save_path)) {
-    ini_set('session.save_path', $session_save_path);
+if (is_dir($_session_dir) && is_writable($_session_dir)) {
+    ini_set('session.save_path', $_session_dir);
 }
 
-ini_set('session.gc_maxlifetime', $session_lifetime);
+// Long-lived session: cookie persists for 1 year in browser
+ini_set('session.gc_maxlifetime', 86400 * 30); // 30 days server-side file lifetime
 ini_set('session.cookie_lifetime', $session_lifetime);
 
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
     'path'     => '/',
-    'domain'   => '',           // empty = browser infers from host (most compatible)
-    'secure'   => false,        // false = works on HTTP and HTTPS both; token is httponly so safe
+    'domain'   => '',      // empty: browser infers host — most compatible
+    'secure'   => false,   // works on both HTTP and HTTPS
     'httponly' => true,
     'samesite' => 'Lax'
 ]);
