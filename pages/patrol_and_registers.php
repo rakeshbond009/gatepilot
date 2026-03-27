@@ -501,11 +501,18 @@ elseif ($page == 'tickets'):
         $action = $_POST['action'];
         $remarks = isset($_POST['remarks']) ? mysqli_real_escape_string($conn, $_POST['remarks']) : '';
 
-        // Fetch ticket and location details for audit log
-        $t_info_res = mysqli_query($conn, "SELECT t.issue_description, pl.location_name FROM patrol_issues t LEFT JOIN patrol_locations pl ON t.location_id = pl.id WHERE t.id = $ticket_id");
+        // Fetch ticket, location, and currently assigned employee name for audit log
+        $t_info_res = mysqli_query($conn, "
+            SELECT t.issue_description, pl.location_name, em.employee_name as assigned_to_name
+            FROM patrol_issues t 
+            LEFT JOIN patrol_locations pl ON t.location_id = pl.id 
+            LEFT JOIN employee_master em ON t.assigned_to = em.id
+            WHERE t.id = $ticket_id
+        ");
         $t_info = mysqli_fetch_assoc($t_info_res);
         $issue_desc = $t_info['issue_description'] ?? 'N/A';
         $location = $t_info['location_name'] ?? 'N/A';
+        $existing_assigned_name = $t_info['assigned_to_name'] ?? 'None';
 
         if ($action == 'assign') {
             $assign_to = intval($_POST['employee_id']);
@@ -530,10 +537,9 @@ elseif ($page == 'tickets'):
             $details .= "Action: [" . strtoupper($action) . "]\n";
             $details .= "Ticket Id: $ticket_id\n";
             $details .= "Location: $location\n";
-            $details .= "Issue: $issue_desc";
-            if ($action == 'assign') {
-                $details .= "\nAssigned To: $employee_name";
-            }
+            $details .= "Issue: $issue_desc\n";
+            $details .= "Assigned To: " . ($action == 'assign' ? $employee_name : $existing_assigned_name);
+
             if (!empty($remarks)) {
                 $details .= "\nRemarks: $remarks";
             }
@@ -547,11 +553,25 @@ elseif ($page == 'tickets'):
 
     // Fetch Data
     $tab = isset($_GET['tab']) ? $_GET['tab'] : 'open';
+    $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
+    $loc_filter = isset($_GET['loc_filter']) ? intval($_GET['loc_filter']) : 0;
+    $emp_filter = isset($_GET['emp_filter']) ? intval($_GET['emp_filter']) : 0;
+
     $where = "WHERE 1";
     if ($tab == 'open')
         $where .= " AND t.status IN ('Open', 'Assigned')";
     if ($tab == 'resolved')
         $where .= " AND t.status IN ('Resolved', 'Closed')";
+
+    if ($search) {
+        $where .= " AND (t.issue_description LIKE '%$search%' OR pl.location_name LIKE '%$search%' OR t.id = '$search')";
+    }
+    if ($loc_filter > 0) {
+        $where .= " AND t.location_id = $loc_filter";
+    }
+    if ($emp_filter > 0) {
+        $where .= " AND t.assigned_to = $emp_filter";
+    }
 
     // Filter by Aging
     if (isset($_GET['aging'])) {
@@ -588,6 +608,8 @@ elseif ($page == 'tickets'):
     while ($e = mysqli_fetch_assoc($employees)) {
         $emp_options[] = $e;
     }
+
+    $all_locations = mysqli_query($conn, "SELECT id, location_name FROM patrol_locations ORDER BY location_name");
 ?>
         <div class="container">
             <button onclick="if(history.length>1){history.back();}else{location.href='?page=tickets';}" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">
@@ -657,15 +679,52 @@ elseif ($page == 'tickets'):
     endif; ?>
 
             <!-- Tabs -->
-            <div style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
-                <a href="?page=tickets&tab=open" class="tab-btn <?php echo $tab == 'open' ? 'active' : ''; ?>"
-                    style="padding: 10px 20px; text-decoration: none; font-weight: bold; display: inline-block; border-bottom: 3px solid <?php echo $tab == 'open' ? '#f59e0b' : 'transparent'; ?>; color: <?php echo $tab == 'open' ? '#d97706' : '#6b7280'; ?>;">
-                    Open / Assigned
-                </a>
-                <a href="?page=tickets&tab=resolved" class="tab-btn <?php echo $tab == 'resolved' ? 'active' : ''; ?>"
-                    style="padding: 10px 20px; text-decoration: none; font-weight: bold; display: inline-block; border-bottom: 3px solid <?php echo $tab == 'resolved' ? '#10b981' : 'transparent'; ?>; color: <?php echo $tab == 'resolved' ? '#059669' : '#6b7280'; ?>;">
-                    Resolved / Closed
-                </a>
+            <div style="margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <a href="?page=tickets&tab=open" class="tab-btn <?php echo $tab == 'open' ? 'active' : ''; ?>"
+                        style="padding: 10px 20px; text-decoration: none; font-weight: bold; display: inline-block; border-bottom: 3px solid <?php echo $tab == 'open' ? '#f59e0b' : 'transparent'; ?>; color: <?php echo $tab == 'open' ? '#d97706' : '#6b7280'; ?>;">
+                        Open / Assigned
+                    </a>
+                    <a href="?page=tickets&tab=resolved" class="tab-btn <?php echo $tab == 'resolved' ? 'active' : ''; ?>"
+                        style="padding: 10px 20px; text-decoration: none; font-weight: bold; display: inline-block; border-bottom: 3px solid <?php echo $tab == 'resolved' ? '#10b981' : 'transparent'; ?>; color: <?php echo $tab == 'resolved' ? '#059669' : '#6b7280'; ?>;">
+                        Resolved / Closed
+                    </a>
+                </div>
+                
+                <!-- Quick Filter Form -->
+                <form action="" method="GET" style="display: flex; gap: 10px; align-items: center; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 10px;">
+                    <input type="hidden" name="page" value="tickets">
+                    <input type="hidden" name="tab" value="<?php echo htmlspecialchars($tab); ?>">
+                    
+                    <div style="position: relative;">
+                        <input type="text" name="search" placeholder="Search issues..." value="<?php echo htmlspecialchars($search); ?>" 
+                            style="padding: 8px 30px 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 180px;">
+                        <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8;">🔍</span>
+                    </div>
+
+                    <select name="loc_filter" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: white;">
+                        <option value="">All Locations</option>
+                        <?php mysqli_data_seek($all_locations, 0); while($l = mysqli_fetch_assoc($all_locations)): ?>
+                            <option value="<?php echo $l['id']; ?>" <?php echo $loc_filter == $l['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($l['location_name']); ?>
+                            </option>
+                        <?php endwhile; ?>
+                    </select>
+
+                    <select name="emp_filter" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: white;">
+                        <option value="">All Assigned</option>
+                        <?php foreach($emp_options as $eo): ?>
+                            <option value="<?php echo $eo['id']; ?>" <?php echo $emp_filter == $eo['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($eo['employee_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <button type="submit" class="btn btn-primary" style="padding: 8px 15px; font-size: 13px;">Filter</button>
+                    <?php if($search || $loc_filter || $emp_filter): ?>
+                        <a href="?page=tickets&tab=<?php echo $tab; ?>" class="btn btn-secondary" style="padding: 8px 15px; font-size: 13px; text-decoration: none;">Reset</a>
+                    <?php endif; ?>
+                </form>
             </div>
 
             <div class="card" style="border-left: 8px solid #f59e0b; padding: 0; overflow: hidden;">
