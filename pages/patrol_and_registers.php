@@ -514,14 +514,7 @@ elseif ($page == 'tickets'):
 
         if (isset($sql) && mysqli_query($conn, $sql)) {
             $success_msg = "✅ Ticket updated successfully.";
-            $log_msg = "Ticket Updated: ID: [#$ticket_id], Action: [$action], Remarks: [$remarks]";
-            if ($action == 'assign') {
-                $e_res = mysqli_query($conn, "SELECT full_name FROM user_master WHERE id=$assign_to");
-                $e_row = mysqli_fetch_assoc($e_res);
-                $e_name = $e_row['full_name'] ?? 'Unknown';
-                $log_msg .= ", Assigned To: [$e_name]";
-            }
-            logActivity($conn, 'TICKET_UPDATE', 'Patrol', $log_msg);
+            logActivity($conn, 'TICKET_UPDATE', 'Patrol', "Ticket Updated: ID: [#$ticket_id] | Action: [" . strtoupper($action) . "]\nDetails: " . auditFromPost($_POST));
         }
         else {
             $error_msg = "❌ Error updating ticket: " . mysqli_error($conn);

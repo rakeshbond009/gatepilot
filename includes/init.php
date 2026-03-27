@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.0031');
+    define('APP_VERSION', '26.03.27.1130');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -11,6 +11,7 @@ ob_start(); // START OUTPUT BUFFERING TO PREVENT CORRUPTING JSON RESPONSES
 // Load configuration (auto-detects environment)
 require_once dirname(__DIR__) . '/config.php';
 require_once __DIR__ . '/DynamicRegisters.php';
+require_once __DIR__ . '/functions.php';
 
 session_start();
 
@@ -999,7 +1000,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 if (mysqli_query($conn, $sql)) {
                     $details = "Updated employee: '$name' (ID: $emp_id)";
                     if (!empty($changes)) {
-                        $details .= " | Changes: " . implode(", ", $changes);
+                        $details .= "\nChanges: " . implode("\n", $changes);
                     }
                     logActivity($conn, 'EMPLOYEE_UPDATE', 'Masters', $details);
                     $_SESSION['success_msg'] = "✅ Employee updated successfully!";
@@ -1020,7 +1021,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                         )";
 
                 if (mysqli_query($conn, $sql)) {
-                    logActivity($conn, 'EMPLOYEE_CREATE', 'Masters', "Created Employee: Name: [$name], ID: [$emp_id], Dept: [$dept], Vehicle: [$vehicle]");
+                    logActivity($conn, 'EMPLOYEE_CREATE', 'Masters', "Created Employee:\n" . auditFromPost($_POST));
                     $_SESSION['success_msg'] = "✅ Employee added successfully!";
                     session_write_close();
                     header("Location: ?page=admin&master=employees&t=" . time());
@@ -1108,11 +1109,7 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
                 VALUES ($location_id, $guard_id, '$description', '$photo_url')";
 
         if (mysqli_query($conn, $sql)) {
-            // Get location name for log
-            $l_res = mysqli_query($conn, "SELECT location_name FROM patrol_locations WHERE id=$location_id");
-            $l_row = mysqli_fetch_assoc($l_res);
-            $l_name = $l_row['location_name'] ?? 'Unknown';
-            logActivity($conn, 'PATROL_ISSUE', 'Patrol', "Ticket Created: Location: [$l_name], Description: [$description], Reported By: [{$_SESSION['full_name']}]");
+            logActivity($conn, 'PATROL_ISSUE', 'Patrol', "Ticket Created: " . auditFromPost($_POST));
             $success_msg = "✅ Issue reported successfully. Ticket created.";
         }
         else {
@@ -1132,7 +1129,7 @@ if ($page == 'register-entry' && isset($_POST['save_register'])) {
         $id = $result['id'];
         $type = $registers_manager->getType($_POST['register_type']);
         $title = $type['title'] ?? $_POST['register_type'];
-        
+
         $log_parts = [];
         if ($type && isset($type['fields'])) {
             foreach ($type['fields'] as $f) {
@@ -1140,19 +1137,23 @@ if ($page == 'register-entry' && isset($_POST['save_register'])) {
                 $f_label = $f['label'] ?? $f_name;
                 $val = $_POST[$f_name] ?? '';
                 // Map from dynamic_registers table schema if relevant
-                if ($f_name == 'in_time') $val = $_POST['in_time'] ?? '';
-                if ($f_name == 'out_time') $val = $_POST['out_time'] ?? '';
-                if ($f_name == 'date') $val = $_POST['date'] ?? '';
+                if ($f_name == 'in_time')
+                    $val = $_POST['in_time'] ?? '';
+                if ($f_name == 'out_time')
+                    $val = $_POST['out_time'] ?? '';
+                if ($f_name == 'date')
+                    $val = $_POST['date'] ?? '';
 
-                if (!empty($val)) $log_parts[] = "$f_label: [$val]";
+                if (!empty($val))
+                    $log_parts[] = "$f_label: [$val]";
             }
         }
-        
+
         $details = "Created Register Entry: Title: [$title], ID: [$id]";
         if (!empty($log_parts)) {
-            $details .= ", " . implode(", ", $log_parts);
+            $details .= "\n" . implode("\n", $log_parts);
         }
-        
+
         logActivity($conn, 'REGISTER_CREATE', 'Registers', $details);
         $_SESSION['success_msg'] = "✅ Register entry logged successfully!";
         header("Location: ?page=register-entry");
@@ -1168,19 +1169,19 @@ if ($page == 'register-entry' && isset($_POST['save_register'])) {
 if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_register'])) {
     $id = intval($_POST['id']);
     $reg_slug = $_POST['reg_type'] ?? '';
-    
+
     // Fetch Current Data for comparison
     $curr_res = mysqli_query($conn, "SELECT * FROM manual_registers WHERE id = $id");
     $current = mysqli_fetch_assoc($curr_res);
-    
+
     $type = $registers_manager->getType($reg_slug);
     $title = $type['title'] ?? $reg_slug;
-    
+
     $cols_to_update = [];
     $changes = [];
     $dynamic_data = json_decode($current['dynamic_data'] ?? '{}', true) ?: [];
     $is_dynamic_changed = false;
-    
+
     // Standard schema fields for direct mapping
     $standard_db_map = [
         'date' => 'entry_date',
@@ -1212,15 +1213,16 @@ if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && i
         foreach ($type['fields'] as $f) {
             $f_name = $f['name'];
             $f_label = $f['label'] ?? $f_name;
-            
+
             if (isset($_POST[$f_name])) {
                 $new_val = $_POST[$f_name];
-                
+
                 // Determine where it's stored
                 if (isset($standard_db_map[$f_name])) {
                     $db_col = $standard_db_map[$f_name];
                     $old_val = $current[$db_col] ?? '';
-                } else {
+                }
+                else {
                     $db_col = 'dynamic_data';
                     $old_val = $dynamic_data[$f_name] ?? '';
                 }
@@ -1232,7 +1234,7 @@ if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && i
                         $is_dynamic_changed = true;
                     }
                 }
-                
+
                 if ($db_col != 'dynamic_data') {
                     $val_esc = mysqli_real_escape_string($conn, $new_val);
                     $cols_to_update[] = "$db_col = '$val_esc'";
@@ -1250,7 +1252,9 @@ if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && i
         $sql = "UPDATE manual_registers SET " . implode(', ', $cols_to_update) . " WHERE id=$id";
         if (mysqli_query($conn, $sql)) {
             $details = "Updated Register Entry: Title: [$title], ID: [$id]";
-            if (!empty($changes)) { $details .= ", " . implode(", ", $changes); }
+            if (!empty($changes)) {
+                $details .= "\n" . implode("\n", $changes);
+            }
             logActivity($conn, 'REGISTER_UPDATE', 'Registers', $details);
             $_SESSION['success_msg'] = "✅ Register Entry Updated Successfully!";
             header("Location: ?page=view-registers");
@@ -1265,22 +1269,25 @@ if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && i
 // Handle Delete Register
 if ($page == 'edit-register-entry' && isset($_GET['delete_register_id'])) {
     $del_id = intval($_GET['delete_register_id']);
-    
+
     // Fetch summary for log
     $curr_res = mysqli_query($conn, "SELECT * FROM manual_registers WHERE id = $del_id");
     $current = mysqli_fetch_assoc($curr_res);
-    
+
     if (mysqli_query($conn, "DELETE FROM manual_registers WHERE id=$del_id")) {
         $summary = "ID: $del_id";
         if ($current) {
             $summary .= " | Details: ";
             $parts = [];
-            if (!empty($current['vehicle_no'])) $parts[] = "Vehicle: " . $current['vehicle_no'];
-            if (!empty($current['party_name'])) $parts[] = "Party: " . $current['party_name'];
-            if (!empty($current['entry_date'])) $parts[] = "Date: " . $current['entry_date'];
+            if (!empty($current['vehicle_no']))
+                $parts[] = "Vehicle: " . $current['vehicle_no'];
+            if (!empty($current['party_name']))
+                $parts[] = "Party: " . $current['party_name'];
+            if (!empty($current['entry_date']))
+                $parts[] = "Date: " . $current['entry_date'];
             $summary .= implode(", ", $parts);
         }
-        
+
         logActivity($conn, 'REGISTER_DELETE', 'Registers', "Deleted Register Entry: $summary");
         $_SESSION['success_msg'] = "✅ Register Entry Deleted Successfully!";
         header("Location: ?page=view-registers");
@@ -1441,7 +1448,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
 
         if (mysqli_query($conn, $sql)) {
             $inward_id = mysqli_insert_id($conn);
-            logActivity($conn, 'INWARD_ENTRY', 'Logistics', "Inward Gate Entry: Entry #: [$entry_num], Vehicle: [$vehicle], Driver: [$driver], Mobile: [$mobile], Transporter: [$transporter], Purpose: [$purpose], Bill: [$bill_number], From: [$from_loc], To: [$to_loc], Items: [$items_json]");
+            logActivity($conn, 'INWARD_ENTRY', 'Logistics', "Inward Gate Entry: " . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']));
             $success_msg = "✅ Inward entry created successfully! Entry #: $entry_num";
 
             // Simple QR Logging - Simplified to prevent any 500 errors
@@ -1520,20 +1527,17 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
         $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id=$inward_id");
         $v_row = mysqli_fetch_assoc($v_res);
         $v_num = $v_row['vehicle_number'] ?? 'Unknown';
-        
-        $log_details = "Outward Gate Exit: Vehicle: [$v_num], Inward ID: [$inward_id], Remarks: [$remarks]";
-        
-        // Add out-going check details to log if present
-        $outgoing_customer_name = mysqli_real_escape_string($conn, $_POST['outgoing_customer_name'] ?? '');
-        $outgoing_destination = mysqli_real_escape_string($conn, $_POST['outgoing_destination'] ?? '');
-        $number_of_seals = isset($_POST['number_of_seals']) ? intval($_POST['number_of_seals']) : 0;
-        $sealing_method = mysqli_real_escape_string($conn, $_POST['sealing_method'] ?? '');
-        
-        if ($outgoing_customer_name) $log_details .= ", Customer: [$outgoing_customer_name]";
-        if ($outgoing_destination) $log_details .= ", Destination: [$outgoing_destination]";
-        if ($number_of_seals > 0) $log_details .= ", Seals: [$number_of_seals]";
-        if ($sealing_method) $log_details .= ", Sealing Method: [$sealing_method]";
-        
+
+        $log_details = "Outward Gate Exit: " . auditFromPost($_POST, ['number_of_seals', 'sealing_method', 'outgoing_customer_name', 'outgoing_destination'], ['outward_remarks' => 'Remarks', 'outgoing_customer_name' => 'Customer', 'outgoing_destination' => 'Destination']);
+        if ($outgoing_customer_name)
+            $log_details .= "\nCustomer: [$outgoing_customer_name]";
+        if ($outgoing_destination)
+            $log_details .= "\nDestination: [$outgoing_destination]";
+        if ($number_of_seals > 0)
+            $log_details .= "\nSeals: [$number_of_seals]";
+        if ($sealing_method)
+            $log_details .= "\nSealing Method: [$sealing_method]";
+
         logActivity($conn, 'OUTWARD_EXIT', 'Logistics', $log_details);
 
         // ---------------- OUT-GOING CHECK (Moved from loading) ----------------
@@ -1726,6 +1730,20 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
         WHERE id = $id";
 
     if (mysqli_query($conn, $sql)) {
+        // Fetch old record for diff logging
+        $old_res = mysqli_query($conn, "SELECT * FROM truck_inward WHERE id=$id");
+        $old = mysqli_fetch_assoc($old_res);
+        $inward_log = "Edited Inward Entry: ID: [$id], Vehicle: [$vehicle]";
+        if ($old) {
+            $diff = auditDiff($old, $_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments', 'inward_datetime' => 'Datetime']);
+            if ($diff)
+                $inward_log .= "\nChanges:\n" . $diff;
+            if ($vehicle_photo_update)
+                $inward_log .= "\nVehicle Photo: [Updated]";
+            if ($bill_photo_update)
+                $inward_log .= "\nBill Photo: [Updated]";
+        }
+        logActivity($conn, 'INWARD_EDIT', 'Logistics', $inward_log);
         $success_msg = "✅ Inward entry updated successfully!";
         header("Location: ?page=inward-details&id=$id&success=1");
         exit;
@@ -1767,6 +1785,18 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
         WHERE id = $id";
 
     if (mysqli_query($conn, $sql)) {
+        // Fetch old record for diff logging
+        $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id=$inward_id");
+        $v_num = ($v_row = mysqli_fetch_assoc($v_res)) ? $v_row['vehicle_number'] : 'N/A';
+        $old_out_res = mysqli_query($conn, "SELECT * FROM truck_outward WHERE id=$id");
+        $old_out = mysqli_fetch_assoc($old_out_res);
+        $out_log = "Edited Outward Entry: ID: [$id], Vehicle: [$v_num]";
+        if ($old_out) {
+            $diff = auditDiff($old_out, $_POST, [], ['outward_datetime' => 'Datetime', 'outward_remarks' => 'Remarks']);
+            if ($diff)
+                $out_log .= "\nChanges:\n" . $diff;
+        }
+        logActivity($conn, 'OUTWARD_EDIT', 'Logistics', $out_log);
         $success_msg = "✅ Outward entry updated successfully!";
         header("Location: ?page=outward-details&id=$inward_id&success=1");
         exit;

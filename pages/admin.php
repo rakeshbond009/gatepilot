@@ -371,7 +371,8 @@ function showAuditDetail(log) {
 
     try {
         if (log.details.includes(": ")) {
-            const headerMatch = log.details.match(/^([^:]+(?:updated|changes|created|entry|deleted|recorded)[^:]*):\s*(.*)$/i);
+            // Simplified regex to just split into Title and Details regardless of word list
+            const headerMatch = log.details.match(/^([^:\n]+):\s*([\s\S]*)$/);
             
             if (headerMatch) {
                  const header = document.createElement("div");
@@ -381,7 +382,8 @@ function showAuditDetail(log) {
                  detailsDiv.appendChild(header);
 
                  const remaining = headerMatch[2];
-                 const changes = remaining.split(/], |\]|, (?=[A-Z][a-z]+:)/); // split by ], ] or commas followed by a Key:
+                 // Split by: newline, pipe, ], or a comma that is followed by a Label: pattern
+                 const changes = remaining.split(/\n| \| |], |\]|, (?=[A-Z][a-z\s]+:)/); // split by ], ] or commas followed by a Key:
                  changes.forEach(c => {
                     const clean = c.replace(/[\[\]']/g, "").trim();
                     if (!clean) return;
@@ -408,13 +410,13 @@ function showAuditDetail(log) {
                      }
                  });
             } else {
-                detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6;">${log.details}</div>`;
+                detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6; white-space:pre-wrap;">${log.details}</div>`;
             }
         } else {
-             detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6;">${log.details}</div>`;
+             detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6; white-space:pre-wrap;">${log.details}</div>`;
         }
     } catch (e) {
-        detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6;">${log.details}</div>`;
+        detailsDiv.innerHTML = `<div style="padding:15px; background:#f8fafc; border-radius:10px; color:#334155; line-height:1.6; white-space:pre-wrap;">${log.details}</div>`;
     }
     
     const modal = document.getElementById("auditDetailModal");
@@ -1062,10 +1064,10 @@ function showAuditDetail(log) {
                                 $update_sql = "UPDATE user_master SET " . implode(", ", $updates) . " WHERE id=$id";
 
                                 if (mysqli_query($conn, $update_sql)) {
+                                    $diff = auditDiff($current, $_POST, ['password'], ['full_name' => 'Name', 'email' => 'Email', 'mobile' => 'Mobile', 'role' => 'Role']);
+                                    if (!empty($diff)) $changes = array_merge($changes, explode("\n", $diff));
                                     $log_details = "Updated User: Username: '$username'";
-                                    if (!empty($changes)) {
-                                        $log_details .= ", " . implode(", ", $changes);
-                                    }
+                                    if (!empty($changes)) $log_details .= "\n" . implode("\n", $changes);
                                     logActivity($conn, 'USER_UPDATE', 'Users', $log_details);
                                     $_SESSION['success_msg'] = "✅ User updated successfully!";
                                     session_write_close();
@@ -1092,7 +1094,7 @@ function showAuditDetail(log) {
                                 VALUES ('$username', '$hashed_password', '$full_name', '$email', '$mobile', '$role', " . ($photo_path ? "'$photo_path'" : "NULL") . ")";
 
                         if (mysqli_query($conn, $sql)) {
-                            logActivity($conn, 'USER_CREATE', 'Users', "Created User: Username: [$username], Full Name: [$full_name], Role: [$role], Mobile: [$mobile]");
+                            logActivity($conn, 'USER_CREATE', 'Users', "Created User: " . auditFromPost($_POST, ['password']));
                             $success_msg = "✅ User created successfully!";
                             $_SESSION['success_msg'] = $success_msg;
                             session_write_close();
@@ -1194,7 +1196,7 @@ function showAuditDetail(log) {
                                             </div>
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Mobile</label>
-                                                <input type="text" name="mobile" id="p_mobile" value="<?php echo isset($_POST['mobile']) ? htmlspecialchars($_POST['mobile']) : ''; ?>" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <input type="tel" name="mobile" id="p_mobile" inputmode="numeric" pattern="[0-9]*" value="<?php echo isset($_POST['mobile']) ? htmlspecialchars($_POST['mobile']) : ''; ?>" style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Profile Photo</label>
@@ -1435,7 +1437,7 @@ function showAuditDetail(log) {
                         if (mysqli_query($conn, $sql)) {
                             $details = "Updated Transporter: Name: '$name' (ID: $id)";
                             if (!empty($changes)) {
-                                $details .= ", " . implode(", ", $changes);
+                                $details .= "\n" . implode("\n", $changes);
                             }
                             logActivity($conn, 'TRANSPORTER_UPDATE', 'Transporters', $details);
                             $success_msg = "✅ Transporter updated successfully!";
@@ -1457,7 +1459,7 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$person', '$mobile', '$email', '$address', '$gst')";
 
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created Transporter: Name: [$name], Person: [$person], Mobile: [$mobile], GST: [$gst], Email: [$email]");
+                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created Transporter:\n" . auditFromPost($_POST));
                         $success_msg = "✅ Transporter added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
                         session_write_close();
@@ -1554,7 +1556,8 @@ function showAuditDetail(log) {
                                     <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Mobile *</label>
-                                            <input type="tel" name="mobile" id="trans_mobile" maxlength="10" required
+                                            <input type="tel" name="mobile" id="trans_mobile" maxlength="10" 
+                                                inputmode="numeric" pattern="[0-9]*" required
                                                 style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
                                                 onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
                                                 onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
@@ -1920,7 +1923,7 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$mobile', '$license', '$expiry', $trans_id, " . ($photo_path ? "'$photo_path'" : "NULL") . ", " . ($license_photo_path ? "'$license_photo_path'" : "NULL") . ", $is_active)";
 
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'DRIVER_CREATE', 'Drivers', "Created Driver: Name: [$name], Mobile: [$mobile], License: [$license], Expiry: [$expiry]");
+                        logActivity($conn, 'DRIVER_CREATE', 'Drivers', "Created Driver:\n" . auditFromPost($_POST));
                         $success_msg = "✅ Driver added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
                         session_write_close();
@@ -1995,7 +1998,8 @@ function showAuditDetail(log) {
                                     </div>
                                     <div class="form-group">
                                         <label style="font-weight: 600; color: #374151;">Mobile *</label>
-                                        <input type="tel" name="mobile" id="driver_mobile" maxlength="10" required
+                                        <input type="tel" name="mobile" id="driver_mobile" maxlength="10" 
+                                            inputmode="numeric" pattern="[0-9]*" required
                                             style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
                                             onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
                                             onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
@@ -2556,9 +2560,16 @@ function showAuditDetail(log) {
                         $sql .= " WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
+                            $diff = auditDiff($current, $_POST);
                             $details = "Updated Vehicle: Number: '$veh_no' (ID: $id)";
-                            if (!empty($changes)) {
-                                $details .= ", " . implode(", ", $changes);
+                            if (!empty($diff)) {
+                                $details .= "\nChanges:\n" . $diff;
+                            }
+                            // Also log photo updates if any
+                            foreach ($doc_photos as $col => $path) {
+                                if (!str_contains($details, ucfirst(str_replace('_', ' ', $col)))) {
+                                    $details .= ", " . ucfirst(str_replace('_', ' ', $col)) . ": [Updated]";
+                                }
                             }
                             logActivity($conn, 'VEHICLE_UPDATE', 'Vehicles', $details);
 
@@ -2607,7 +2618,7 @@ function showAuditDetail(log) {
 
                         if (mysqli_query($conn, $sql)) {
                             $new_vehicle_id = mysqli_insert_id($conn);
-                            logActivity($conn, 'VEHICLE_CREATE', 'Vehicles', "Created Vehicle: Number: [$veh_no], Maker: [$maker], Model: [$model], Owner: [$owner]");
+                            logActivity($conn, 'VEHICLE_CREATE', 'Vehicles', "Created Vehicle: " . auditFromPost($_POST));
 
                             // Insert driver assignments into vehicle_drivers table
                             foreach ($driver_ids as $did) {
@@ -3434,7 +3445,8 @@ function showAuditDetail(log) {
                                             </div>
                                             <div class="form-group">
                                                 <label style="font-weight: 600;">Mobile *</label>
-                                                <input type="tel" name="mobile" id="master_emp_mobile" required
+                                                <input type="tel" name="mobile" id="master_emp_mobile" 
+                                                    inputmode="numeric" pattern="[0-9]*" required
                                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group">
@@ -3866,9 +3878,10 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE patrol_locations SET location_id='$loc_id', location_name='$name', area_site_building='$area', qr_code_data='$qr_data' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
+                        $diff = auditDiff($current, $_POST, ['p_id'], ['location_id' => 'LocID', 'location_name' => 'Name', 'area_site_building' => 'Area', 'qr_code_data' => 'QR Data']);
                         $details = "Updated Patrol Location: Name: '$name' (ID: $loc_id)";
-                        if (!empty($changes)) {
-                            $details .= ", " . implode(", ", $changes);
+                        if (!empty($diff)) {
+                            $details .= "\nChanges:\n" . $diff;
                         }
                         logActivity($conn, 'PATROL_UPDATE', 'Patrol', $details);
                         $_SESSION['success_msg'] = "✅ Patrol location updated successfully!";
@@ -3880,7 +3893,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO patrol_locations (location_id, location_name, area_site_building, qr_code_data) VALUES ('$loc_id', '$name', '$area', '$qr_data')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created patrol location: '$name' (ID: $loc_id)");
+                        logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created patrol location: " . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Patrol location added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=patrol-locations&t=" . time());
@@ -4168,9 +4181,10 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE purpose_master SET purpose_name='$name', purpose_type='$type' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
+                        $diff = auditDiff($current, $_POST, ['purpose_id'], ['purpose_name' => 'Name', 'purpose_type' => 'Type']);
                         $details = "Updated Purpose: Name: '$name' (ID: $id)";
-                        if (!empty($changes)) {
-                            $details .= ", " . implode(", ", $changes);
+                        if (!empty($diff)) {
+                            $details .= "\nChanges:\n" . $diff;
                         }
                         logActivity($conn, 'PURPOSE_UPDATE', 'Purposes', $details);
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
@@ -4182,7 +4196,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: Name: [$name], Type: [$type]");
+                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: " . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
                         session_write_close();
                         header("Location: index.php?page=admin&master=purposes");
@@ -4413,17 +4427,15 @@ function showAuditDetail(log) {
                 }
 
                 if (mysqli_query($conn, $sql)) {
-                    $details = "Saved department: '$name'";
+                    $audit_details = "";
                     if ($_POST['department_id']) {
-                        if ($current && $current['department_name'] != $name) {
-                            $details = "Updated department: '{$current['department_name']}' -> '$name'";
-                        }
+                        $diff = auditDiff($current, $_POST, ['department_id'], ['department_name' => 'Name']);
+                        $audit_details = "Updated Department: Name: '$name' (ID: $id)";
+                        if (!empty($diff)) $audit_details .= "\nChanges:\n" . $diff;
+                    } else {
+                        $audit_details = "Created Department:\n" . auditFromPost($_POST);
                     }
-                    else {
-                        $details = "Created new department: '$name'";
-                    }
-
-                    logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', ($_POST['department_id'] ? $details : "Created Department: Name: [$name]"));
+                    logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', $audit_details);
                     $_SESSION['success_msg'] = "✅ Department saved successfully!";
                     session_write_close();
                     header("Location: ?page=admin&master=departments&t=" . time());
@@ -4717,9 +4729,10 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE material_master SET material_description='$desc', material_category='$cat' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
+                        $diff = auditDiff($current, $_POST, ['material_id'], ['material_description' => 'Desc', 'material_category' => 'Cat']);
                         $details = "Updated Material: Desc: '$desc' (Code: $code)";
-                        if (!empty($changes)) {
-                            $details .= ", " . implode(", ", $changes);
+                        if (!empty($diff)) {
+                            $details .= "\nChanges:\n" . $diff;
                         }
                         logActivity($conn, 'MATERIAL_UPDATE', 'Materials', $details);
                         $_SESSION['success_msg'] = "✅ Material updated successfully!";
@@ -4732,7 +4745,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO material_master (material_code, material_description, material_category) 
                                 VALUES ('$code', '$desc', '$cat')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created Material: Desc: [$desc], Code: [$code], Category: [$cat]");
+                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created Material: " . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Material added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=materials&t=" . time());
@@ -5075,9 +5088,10 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE supplier_master SET supplier='$supp', supp_code='$supp_code' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
+                        $diff = auditDiff($current, $_POST, ['supplier_id'], ['supplier' => 'Name', 'supp_code' => 'Code']);
                         $details = "Updated Supplier: Name: '$supp' (Code: $supp_code)";
-                        if (!empty($changes)) {
-                            $details .= ", " . implode(", ", $changes);
+                        if (!empty($diff)) {
+                            $details .= "\nChanges:\n" . $diff;
                         }
                         logActivity($conn, 'SUPPLIER_UPDATE', 'Suppliers', $details);
                         $_SESSION['success_msg'] = "✅ Supplier updated successfully!";
@@ -5090,7 +5104,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO supplier_master (supplier, supp_code) 
                                 VALUES ('$supp', '$supp_code')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier: Name: [$supp], Code: [$supp_code]");
+                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier: " . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Supplier added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=suppliers&t=" . time());

@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 $sql = "INSERT INTO register_types (slug, title, icon, color, fields_json, is_active) VALUES ('$slug', '$title', '$icon', '$color', '$fields_json_stored', 1)";
                 if (mysqli_query($conn, $sql)) {
-                    logActivity($conn, 'REGISTER_CONFIG_CREATE', 'Config', "Created new register type: '$title' (Slug: $slug)");
+                    logActivity($conn, 'REGISTER_CONFIG_CREATE', 'Config', "Created register type:\n" . auditFromPost($_POST));
                     $message = "✅ Success: New register type '$title' created.";
                     $msg_type = 'success';
                 }
@@ -83,52 +83,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $test = json_decode($fields_json_raw);
         if (json_last_error() === JSON_ERROR_NONE) {
-            // Fetch current state for detailed logging
+            // Fetch current state for simplified dynamic diffing
             $curr_res = mysqli_query($conn, "SELECT * FROM register_types WHERE id = $id");
             $current = mysqli_fetch_assoc($curr_res);
-            $changes = [];            if ($current) {
-                // Header fields
-                $field_map = ['title' => 'Title', 'icon' => 'Icon', 'color' => 'Theme', 'is_active' => 'Status'];
-                foreach ($field_map as $db_key => $lbl) {
-                    $old_v = $current[$db_key];
-                    $new_v = ($db_key == 'is_active') ? $is_active : $_POST[$db_key];
-                    if ($db_key == 'is_active') { $old_v = $old_v ? 'Active' : 'Inactive'; $new_v = $new_v ? 'Active' : 'Inactive'; }
-                    if (trim($old_v) != trim($new_v)) { $changes[] = "$lbl: [$old_v ➔ $new_v]"; }
-                }
-
-                $old_f = json_decode($current['fields_json'], true) ?: [];
-                $new_f = json_decode($fields_json_raw, true) ?: [];
-
-                if (json_encode($old_f) !== json_encode($new_f)) {
-                    $old_f_map = []; foreach ($old_f as $f) if (isset($f['name'])) $old_f_map[$f['name']] = $f;
-                    $new_f_map = []; foreach ($new_f as $f) if (isset($f['name'])) $new_f_map[$f['name']] = $f;
-                    $old_l_map = []; foreach ($old_f as $f) if (isset($f['label'])) $old_l_map[$f['label']] = $f;
-                    $new_l_map = []; foreach ($new_f as $f) if (isset($f['label'])) $new_l_map[$f['label']] = $f;
-
-                    foreach ($new_f as $f) {
-                        $n = $f['name'] ?? ''; $l = $f['label'] ?? '';
-                        if (!isset($old_f_map[$n]) && !isset($old_l_map[$l])) { $changes[] = "Added: [$l]"; }
-                    }
-                    foreach ($old_f as $f) {
-                        $n = $f['name'] ?? ''; $l = $f['label'] ?? '';
-                        if (!isset($new_f_map[$n]) && !isset($new_l_map[$l])) { $changes[] = "Removed: [$l]"; }
-                    }
-                    foreach ($new_f as $f) {
-                        $n = $f['name'] ?? ''; $l = $f['label'] ?? '';
-                        $old = isset($old_f_map[$n]) ? $old_f_map[$n] : (isset($old_l_map[$l]) ? $old_l_map[$l] : null);
-                        if ($old) {
-                            $fn = $old['label'] ?? $l;
-                            if (trim($old['label'] ?? '') != trim($f['label'] ?? '')) 
-                                $changes[] = "Label: [$fn ➔ " . $f['label'] . "]";
-                            if (trim($old['type'] ?? '') != trim($f['type'] ?? '')) 
-                                $changes[] = "Type: [$fn " . $old['type'] . " ➔ " . $f['type'] . "]";
-                            $ov = ($old['required'] ?? false) ? 'Required' : 'Optional';
-                            $nv = ($f['required'] ?? false) ? 'Required' : 'Optional';
-                            if ($ov != $nv) $changes[] = "Status: [$fn $ov ➔ $nv]";
-                        }
-                    }
-                }
-            }
+            
+            // Generate diff using the universal helper
+            $changes = auditDiff($current, $_POST, ['type_id'], [
+                'fields_json' => 'Fields Structure',
+                'is_active' => 'Status'
+            ]);
 
             $sql = "UPDATE register_types SET 
                     title = '$title',
@@ -138,10 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fields_json = '$fields_json_esc' 
                     WHERE id = $id";
             if (mysqli_query($conn, $sql)) {
-                $details = "Updated Register Config: Name: '$title' (ID: $id)";
-                if (!empty($changes)) {
-                    $details .= ", " . implode(", ", $changes);
-                }
+                $details = "Updated Register Config:\n" . ($changes ?: "No field changes detected");
                 logActivity($conn, 'REGISTER_CONFIG_UPDATE', 'Config', $details);
                 $message = "✅ Success: Register type '$title' updated.";
                 $msg_type = 'success';
