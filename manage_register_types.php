@@ -119,7 +119,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fields_json = '$fields_json_esc' 
                     WHERE id = $id";
             if (mysqli_query($conn, $sql)) {
-                $details = "Updated Register Config:\n" . ($changes ?: "No field changes detected");
                 logActivity($conn, 'REGISTER_CONFIG_UPDATE', 'Config', $details);
                 $message = "✅ Success: Register type '$title' updated.";
                 $msg_type = 'success';
