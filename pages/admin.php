@@ -1174,10 +1174,10 @@ function showAuditDetail(log) {
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Role *</label>
                                                 <select name="role" id="role" required style="width: 100%; padding: 11px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
-                                                    <option value="admin" <?php echo(isset($_POST['role']) && $_POST['role'] == 'admin') ? 'selected' : ''; ?>>Admin</option>
-                                                    <option value="manager" <?php echo(isset($_POST['role']) && $_POST['role'] == 'manager') ? 'selected' : ''; ?>>Manager</option>
-                                                    <option value="guard" <?php echo(isset($_POST['role']) && $_POST['role'] == 'guard') ? 'selected' : ''; ?>>Guard</option>
-                                                    <option value="clerk" <?php echo(isset($_POST['role']) && $_POST['role'] == 'clerk') ? 'selected' : ''; ?>>Clerk</option>
+                                                    <option value="admin">Admin</option>
+                                                    <option value="manager">Manager</option>
+                                                    <option value="security">Security</option>
+                                                    <option value="clerk">Clerk</option>
                                                 </select>
                                             </div>
                                             <div class="form-group">
@@ -1271,7 +1271,8 @@ function showAuditDetail(log) {
                                                     <?php
                 // Only allow editing if user is NOT super admin, OR if super admin is editing themselves
                 $is_super = (isset($user['super_admin']) && $user['super_admin'] == 1);
-                if (hasPermission('actions.edit_record') && (!$is_super || $user['id'] == $_SESSION['user_id'])):
+                // Allow editing if user is NOT super admin, OR if super admin is editing themselves, OR if logged in user is a super admin
+                if (hasPermission('actions.edit_record') && (!$is_super || $user['id'] == $_SESSION['user_id'] || (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1))):
 ?>
                                                         <button
                                                             onclick='editUser(<?php echo $user["id"]; ?>, <?php echo json_encode($user["username"]); ?>, <?php echo json_encode($user["full_name"]); ?>, <?php echo json_encode($user["role"]); ?>, <?php echo json_encode($user["email"]); ?>, <?php echo json_encode($user["mobile"]); ?>)'
@@ -1288,8 +1289,8 @@ function showAuditDetail(log) {
                                                     <?php
                 endif; ?>
                                                     <?php
-                // Cannot delete yourself OR any super admin
-                if (hasPermission('actions.delete_record') && $user['id'] != $_SESSION['user_id'] && !$is_super):
+                // Only hide delete for EXACT username 'admin' or yourself
+                if (hasPermission('actions.delete_record') && $user['id'] != $_SESSION['user_id'] && $user['username'] != 'admin'):
 ?>
                                                         <button onclick="deleteUser(<?php echo $user['id']; ?>)" class="btn btn-sm"
                                                             style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
@@ -1325,7 +1326,9 @@ function showAuditDetail(log) {
                                 document.getElementById('username').value = username;
                                 document.getElementById('username').readOnly = true; // Can't change username
                                 document.getElementById('full_name').value = fullName;
-                                document.getElementById('role').value = role;
+                                if (role) {
+                                    document.getElementById('role').value = role.toLowerCase().trim();
+                                }
                                 document.getElementById('email').value = email || '';
                                 document.getElementById('p_mobile').value = mobile || '';
                                 document.getElementById('user_password').required = false;
@@ -4423,8 +4426,10 @@ function showAuditDetail(log) {
                     if ($_POST['department_id']) {
                         $diff = auditDiff($current, $_POST, ['department_id'], ['department_name' => 'Name']);
                         $audit_details = "Updated Department: Name: '$name' (ID: $id)";
-                        if (!empty($diff)) $audit_details .= "\nChanges:\n" . $diff;
-                    } else {
+                        if (!empty($diff))
+                            $audit_details .= "\nChanges:\n" . $diff;
+                    }
+                    else {
                         $audit_details = "Created Department:\n" . auditFromPost($_POST);
                     }
                     logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', $audit_details);
