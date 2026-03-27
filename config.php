@@ -63,14 +63,19 @@ else {
 }
 
 // ========== UNIVERSAL SESSION CONFIGURATION (FOR "LOGIN FOREVER") ==========
-// Set session lifetime to 1 year (31,536,000 seconds)
-$session_lifetime = 365 * 24 * 60 * 60;
+$session_lifetime = 365 * 24 * 60 * 60; // 1 year
 
-// Set PHP session configuration
-ini_set('session.gc_maxlifetime', $session_lifetime);
-ini_set('session.cookie_lifetime', $session_lifetime);
+// Detect HTTPS including behind reverse proxies (Hostinger / Cloudflare)
+$_is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+          || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+          || (isset($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
+          || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
 
-// Use a custom session directory to avoid garbage collection by other apps
+// DO NOT set an explicit domain — let the browser infer from the request host.
+// Explicitly setting domain causes compatibility issues behind proxies.
+$_cookie_domain = '';
+
+// Use a custom session directory to prevent premature garbage collection
 $session_save_path = __DIR__ . '/sessions';
 if (!is_dir($session_save_path)) {
     @mkdir($session_save_path, 0777, true);
@@ -79,22 +84,14 @@ if (is_writable($session_save_path)) {
     ini_set('session.save_path', $session_save_path);
 }
 
-// Ensure the session cookie is as persistent and secure as possible
-// Strip port from HTTP_HOST (browsers reject cookies with port in domain)
-$_cookie_domain = '';
-if (!empty($_SERVER['HTTP_HOST'])) {
-    $host_no_port = explode(':', $_SERVER['HTTP_HOST'])[0];
-    // Leave domain empty for localhost/IP — browsers require it
-    $is_real_domain = !in_array($host_no_port, ['localhost', '127.0.0.1', '::1'])
-                      && !filter_var($host_no_port, FILTER_VALIDATE_IP);
-    $_cookie_domain = $is_real_domain ? $host_no_port : '';
-}
-$_is_https = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+ini_set('session.gc_maxlifetime', $session_lifetime);
+ini_set('session.cookie_lifetime', $session_lifetime);
+
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
     'path'     => '/',
-    'domain'   => $_cookie_domain,
-    'secure'   => $_is_https,
+    'domain'   => '',           // empty = browser infers from host (most compatible)
+    'secure'   => false,        // false = works on HTTP and HTTPS both; token is httponly so safe
     'httponly' => true,
     'samesite' => 'Lax'
 ]);

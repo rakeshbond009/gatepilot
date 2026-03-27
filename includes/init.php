@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0056');
+    define('APP_VERSION', '26.03.28.0102');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -300,9 +300,6 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token_result = mysqli_query($conn, $query);
 
     if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
-        // Regenerate session ID for security on auto-login
-        session_regenerate_id(true);
-
         $_SESSION['user_id']     = $row['id'];
         $_SESSION['username']    = $row['username'];
         $_SESSION['full_name']   = $row['full_name'];
@@ -405,15 +402,13 @@ if ($page == 'login' && isset($_POST['login'])) {
 
             $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
             if (mysqli_query($conn, $token_sql)) {
-                // Set persistent cookie for 1 year - use options array for cross-browser SameSite support
+                // Persistent cookie - 1 year, no explicit domain (browser infers), works on HTTP+HTTPS
                 $cookie_lifetime = 365 * 24 * 60 * 60;
-                $cookie_domain   = $_cookie_domain ?? '';
-                $cookie_secure   = $_is_https ?? (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on');
                 setcookie('GATEPILOT_REMEMBER', $token, [
                     'expires'  => time() + $cookie_lifetime,
                     'path'     => '/',
-                    'domain'   => $cookie_domain,
-                    'secure'   => $cookie_secure,
+                    'domain'   => '',
+                    'secure'   => false,
                     'httponly' => true,
                     'samesite' => 'Lax'
                 ]);
