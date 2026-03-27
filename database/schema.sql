@@ -583,6 +583,7 @@ CREATE TABLE `vehicle_master` (
   `permit_validity` date DEFAULT NULL,
   `permit_number` varchar(50) DEFAULT NULL,
   `rc_owner_name` varchar(200) DEFAULT NULL,
+  `transporter_id` int(11) DEFAULT NULL,
   `driver_id` int(11) DEFAULT NULL,
   `vehicle_class` varchar(50) DEFAULT NULL,
   `seating_capacity` int(11) DEFAULT NULL,
@@ -596,11 +597,12 @@ CREATE TABLE `vehicle_master` (
   `pollution_photo` varchar(255) DEFAULT NULL,
   `fitness_photo` varchar(255) DEFAULT NULL,
   `permit_photo` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`),
   UNIQUE KEY `vehicle_number` (`vehicle_number`),
   KEY `idx_vehicle_number` (`vehicle_number`),
   KEY `driver_id` (`driver_id`),
-  CONSTRAINT `vehicle_master_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `driver_master` (`id`) ON DELETE SET NULL
+  KEY `transporter_id` (`transporter_id`),
+  CONSTRAINT `vehicle_master_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `driver_master` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `vehicle_master_ibfk_2` FOREIGN KEY (`transporter_id`) REFERENCES `transporter_master` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 

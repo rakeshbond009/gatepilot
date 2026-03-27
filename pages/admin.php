@@ -2522,6 +2522,7 @@ function showAuditDetail(log) {
 
             // For backward compatibility, set driver_id to primary driver
             $driver_id = $primary_driver_id ? $primary_driver_id : 'NULL';
+            $trans_id = !empty($_POST['transporter_id']) ? intval($_POST['transporter_id']) : 0;
 
             // Handle document photo uploads
             // Use absolute path for file system, relative path for database
@@ -2581,11 +2582,25 @@ function showAuditDetail(log) {
                             $changes[] = "Owner: [{$current['rc_owner_name']} -> {$_POST['rc_owner_name']}]";
                         if ($current['driver_id'] != $driver_id)
                             $changes[] = "Primary Driver: [Updated ID]";
+                        
+                        if ($current['transporter_id'] != ($trans_id > 0 ? $trans_id : null)) {
+                            $old_tname = 'None';
+                            if ($current['transporter_id']) {
+                                $otq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=" . $current['transporter_id']);
+                                if ($otr = mysqli_fetch_assoc($otq)) $old_tname = $otr['transporter_name'];
+                            }
+                            $new_tname = 'None';
+                            if ($trans_id > 0) {
+                                $ntq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$trans_id");
+                                if ($ntr = mysqli_fetch_assoc($ntq)) $new_tname = $ntr['transporter_name'];
+                            }
+                            $changes[] = "Transporter: [$old_tname -> $new_tname]";
+                        }
 
                         $sql = "UPDATE vehicle_master SET maker='$maker', model='$model', fuel_type='$fuel', 
                                 registration_validity='$reg_validity', fitness_validity='$fitness', pollution_validity='$pollution',
                                 insurance_validity='$insurance', permit_validity=" . ($permit_validity ? "'$permit_validity'" : 'NULL') . ",
-                                rc_owner_name='$owner', driver_id=$driver_id";
+                                rc_owner_name='$owner', transporter_id=" . ($trans_id > 0 ? $trans_id : 'NULL') . ", driver_id=$driver_id";
 
                         // Add photo updates if uploaded
                         foreach ($doc_photos as $col => $path) {
@@ -2633,9 +2648,9 @@ function showAuditDetail(log) {
                     }
                     else {
                         // Insert new vehicle
-                        $cols = "vehicle_number, maker, model, fuel_type, registration_validity, fitness_validity, pollution_validity, insurance_validity, permit_validity, rc_owner_name, driver_id, fetch_source";
+                        $cols = "vehicle_number, maker, model, fuel_type, registration_validity, fitness_validity, pollution_validity, insurance_validity, permit_validity, rc_owner_name, transporter_id, driver_id, fetch_source";
                         $vals = "'$veh_no', '$maker', '$model', '$fuel', '$reg_validity', '$fitness', '$pollution', '$insurance', " .
-                            ($permit_validity ? "'$permit_validity'" : 'NULL') . ", '$owner', $driver_id, 'manual'";
+                            ($permit_validity ? "'$permit_validity'" : 'NULL') . ", '$owner', " . ($trans_id > 0 ? $trans_id : 'NULL') . ", $driver_id, 'manual'";
 
                         // Add photo columns if photos were uploaded
                         foreach ($doc_photos as $col => $path) {
@@ -2658,7 +2673,6 @@ function showAuditDetail(log) {
 
                              // Get Transporter Name for better logging
                             $tname = 'None';
-                            $trans_id = !empty($_POST['transporter_id']) ? intval($_POST['transporter_id']) : 0;
                             if ($trans_id > 0) {
                                 $tq = mysqli_query($conn, "SELECT transporter_name FROM transporter_master WHERE id=$trans_id");
                                 if ($t_row = mysqli_fetch_assoc($tq)) {
@@ -2712,10 +2726,12 @@ function showAuditDetail(log) {
             }
         }
 
-        $vehicles = mysqli_query($conn, "SELECT v.*, d.driver_name, d.mobile as driver_mobile FROM vehicle_master v 
+        $vehicles = mysqli_query($conn, "SELECT v.*, d.driver_name, d.mobile as driver_mobile, t.transporter_name FROM vehicle_master v 
                                              LEFT JOIN driver_master d ON v.driver_id = d.id 
+                                             LEFT JOIN transporter_master t ON v.transporter_id = t.id 
                                              ORDER BY v.created_at DESC");
         $drivers_list = mysqli_query($conn, "SELECT id, driver_name, mobile FROM driver_master WHERE is_active=1 ORDER BY driver_name");
+        $trans_list = mysqli_query($conn, "SELECT id, transporter_name FROM transporter_master WHERE is_active=1 ORDER BY transporter_name");
 ?>
                     <!-- Form Header with Gradient -->
                     <div
@@ -2764,6 +2780,23 @@ function showAuditDetail(log) {
                                                 onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
                                                 onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
                                                 required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Transporter *</label>
+                                            <select name="transporter_id" id="veh_transporter_id" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                <option value="">-- Tag Transporter --</option>
+                                                <?php
+        mysqli_data_seek($trans_list, 0);
+        while ($t = mysqli_fetch_assoc($trans_list)): ?>
+                                                    <option value="<?php echo $t['id']; ?>">
+                                                        <?php echo $t['transporter_name']; ?>
+                                                    </option>
+                                                <?php
+        endwhile; ?>
+                                            </select>
                                         </div>
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Maker *</label>
@@ -3138,12 +3171,14 @@ function showAuditDetail(log) {
                                 <thead>
                                     <tr>
                                         <th>Vehicle Number</th>
+                                        <th>Transporter</th>
                                         <th>Primary Driver</th>
                                         <th>Maker/Model</th>
                                         <th>Fuel Type</th>
                                         <th>Fitness</th>
                                         <th>Pollution</th>
                                         <th>Insurance</th>
+                                        <th>Permit</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -3155,6 +3190,11 @@ function showAuditDetail(log) {
                                             <td><strong>
                                                     <?php echo $veh['vehicle_number']; ?>
                                                 </strong></td>
+                                            <td>
+                                                <span style="font-weight: 600; color: #4f46e5;">
+                                                    <?php echo $veh['transporter_name'] ?: '<span style="color:#94a3b8">Untagged</span>'; ?>
+                                                </span>
+                                            </td>
                                             <td>
                                                 <?php echo $veh['driver_name'] ? $veh['driver_name'] . '<br><small>' . $veh['driver_mobile'] . '</small>' : '-'; ?>
                                             </td>
@@ -3220,7 +3260,7 @@ function showAuditDetail(log) {
                                                 <?php if (hasPermission('actions.view_buttons')): ?>
                                                     <?php if (hasPermission('actions.edit_record')): ?>
                                                         <button
-                                                            onclick='editVehicle(<?php echo $veh["id"]; ?>, <?php echo json_encode($veh["vehicle_number"]); ?>, <?php echo json_encode($veh["maker"]); ?>, <?php echo json_encode($veh["model"]); ?>, <?php echo json_encode($veh["fuel_type"]); ?>, <?php echo json_encode($veh["registration_validity"]); ?>, <?php echo json_encode($veh["fitness_validity"]); ?>, <?php echo json_encode($veh["pollution_validity"]); ?>, <?php echo json_encode($veh["insurance_validity"]); ?>, <?php echo json_encode(isset($veh["permit_validity"]) ? $veh["permit_validity"] : ""); ?>, <?php echo json_encode($veh["rc_owner_name"]); ?>, <?php echo json_encode($veh["rc_photo"]); ?>, <?php echo json_encode($veh["insurance_photo"]); ?>, <?php echo json_encode($veh["pollution_photo"]); ?>, <?php echo json_encode($veh["fitness_photo"]); ?>, <?php echo json_encode($veh["permit_photo"]); ?>)'
+                                                            onclick='editVehicle(<?php echo $veh["id"]; ?>, <?php echo json_encode($veh["vehicle_number"]); ?>, <?php echo json_encode($veh["maker"]); ?>, <?php echo json_encode($veh["model"]); ?>, <?php echo json_encode($veh["fuel_type"]); ?>, <?php echo json_encode($veh["registration_validity"]); ?>, <?php echo json_encode($veh["fitness_validity"]); ?>, <?php echo json_encode($veh["pollution_validity"]); ?>, <?php echo json_encode($veh["insurance_validity"]); ?>, <?php echo json_encode(isset($veh["permit_validity"]) ? $veh["permit_validity"] : ""); ?>, <?php echo json_encode($veh["rc_owner_name"]); ?>, <?php echo json_encode($veh["rc_photo"]); ?>, <?php echo json_encode($veh["insurance_photo"]); ?>, <?php echo json_encode($veh["pollution_photo"]); ?>, <?php echo json_encode($veh["fitness_photo"]); ?>, <?php echo json_encode($veh["permit_photo"]); ?>, <?php echo $veh["transporter_id"] ?: 0; ?>)'
                                                             class="btn btn-sm"
                                                             style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
                                                             Edit</button>
@@ -3243,10 +3283,11 @@ function showAuditDetail(log) {
                         </div>
 
                         <script>
-                            function editVehicle(id, vehNo, maker, model, fuel, regDate, fitness, pollution, insurance, permitValidity, owner, rcPhoto, insurancePhoto, pollutionPhoto, fitnessPhoto, permitPhoto) {
+                            function editVehicle(id, vehNo, maker, model, fuel, regDate, fitness, pollution, insurance, permitValidity, owner, rcPhoto, insurancePhoto, pollutionPhoto, fitnessPhoto, permitPhoto, transId) {
                                 document.getElementById('vehicle_id').value = id;
                                 document.getElementById('vehicle_number').value = vehNo;
-                                document.getElementById('vehicle_number').readOnly = true; // Can't change vehicle number
+                                document.getElementById('vehicle_number').readOnly = true; 
+                                document.getElementById('veh_transporter_id').value = transId || '';
                                 document.getElementById('veh_maker').value = maker || '';
                                 document.getElementById('veh_model').value = model || '';
                                 document.getElementById('fuel_type').value = fuel || '';

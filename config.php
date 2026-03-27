@@ -9,6 +9,10 @@
 // Function to detect if running on local environment
 function isLocalEnvironment()
 {
+    // Check if running from CLI
+    if (php_sapi_name() === 'cli') {
+        return true;
+    }
     // Check if running on localhost or local IP
     $local_hosts = ['localhost', '127.0.0.1', '::1', 'localhost:8000'];
     $server_name = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? '';
@@ -27,8 +31,8 @@ function isLocalEnvironment()
 
     // Check if XAMPP/WAMP directory structure exists
     if (
-    stripos($_SERVER['DOCUMENT_ROOT'] ?? '', 'xampp') !== false ||
-    stripos($_SERVER['DOCUMENT_ROOT'] ?? '', 'wamp') !== false
+        stripos($_SERVER['DOCUMENT_ROOT'] ?? '', 'xampp') !== false ||
+        stripos($_SERVER['DOCUMENT_ROOT'] ?? '', 'wamp') !== false
     ) {
         return true;
     }
