@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.1911');
+    define('APP_VERSION', '26.03.27.2001');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -1112,12 +1112,12 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
         $sql = "INSERT INTO patrol_issues (location_id, reported_by, issue_description, photo_url) 
                 VALUES ($location_id, $guard_id, '$description', '$photo_url')";
 
-            if (mysqli_query($conn, $sql)) {
-                $details = "Issue Ticket Created:\n" . auditFromPost($_POST);
-                if ($photo_url) {
-                    $details .= "\nPhoto: [Uploaded]";
-                }
-                logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
+        if (mysqli_query($conn, $sql)) {
+            $details = "Issue Ticket Created:\n" . auditFromPost($_POST);
+            if ($photo_url) {
+                $details .= "\nPhoto: [Uploaded]";
+            }
+            logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
             $success_msg = "✅ Issue reported successfully. Ticket created.";
         }
         else {

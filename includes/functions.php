@@ -36,7 +36,7 @@ function auditFromPost(array $post, array $skip = [], array $labels = []): strin
         'save_material', 'save_supplier', 'save_purpose', 'save_webhook',
         'submit_inward', 'submit_outward', 'update_inward', 'update_outward',
         'update_register', 'update_ticket', 'import_employees', 'import_suppliers',
-        'git_sync', 'upload_logo',
+        'git_sync', 'upload_logo', 'add_type', 'update_fields',
         'user_id', 'trans_id', 'driver_id', 'vehicle_id', 'e_id', 'department_id',
         'location_id', 'material_id', 'supplier_id', 'purpose_id', 'inward_id', 'id',
         'register_type', 'reg_type',
@@ -76,15 +76,16 @@ function auditDiff(array $old_row, array $post, array $skip = [], array $labels 
     $system_skip = [
         'save_user', 'save_transporter', 'save_driver', 'save_vehicle',
         'save_employee', 'save_register', 'save_department', 'save_patrol',
-        'save_material', 'save_supplier', 'save_purpose',
+        'save_material', 'save_supplier', 'save_purpose', 'save_webhook',
         'submit_inward', 'submit_outward', 'update_inward', 'update_outward',
-        'update_register', 'update_ticket',
+        'update_register', 'update_ticket', 'import_employees', 'import_suppliers',
+        'git_sync', 'upload_logo', 'add_type', 'update_fields',
         'user_id', 'trans_id', 'driver_id', 'vehicle_id', 'e_id', 'department_id',
         'location_id', 'material_id', 'supplier_id', 'purpose_id', 'inward_id', 'id',
         'register_type', 'reg_type',
         'password', 'password_confirm', 'new_password', 'old_password',
         'ajax', '_token', 'items', 'qr_code_data', 'qr_raw_data',
-        'dynamic_data', 'commit_remarks',
+        'dynamic_data', 'commit_remarks', 'webhook_url',
     ];
     $skip_all = array_merge($system_skip, $skip);
     $changes = [];

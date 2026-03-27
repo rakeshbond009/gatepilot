@@ -35,7 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             else {
                 $sql = "INSERT INTO register_types (slug, title, icon, color, fields_json, is_active) VALUES ('$slug', '$title', '$icon', '$color', '$fields_json_stored', 1)";
                 if (mysqli_query($conn, $sql)) {
-                    logActivity($conn, 'REGISTER_CONFIG_CREATE', 'Config', "Created register type:\n" . auditFromPost($_POST));
+                    $fields_list = 'None';
+                    $fields_decoded = json_decode(stripslashes($_POST['fields_json'] ?? '[]'), true);
+                    if (is_array($fields_decoded)) {
+                        $fields_list = implode(", ", array_column($fields_decoded, 'label'));
+                    }
+                    $details = "Create Success: Register '$title'\nUnique ID: $slug\nConfigured Fields: $fields_list\nTheme Color: $color";
+                    logActivity($conn, 'REGISTER_CONFIG_CREATE', 'Config', $details);
                     $message = "✅ Success: New register type '$title' created.";
                     $msg_type = 'success';
                 }
@@ -87,11 +93,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $curr_res = mysqli_query($conn, "SELECT * FROM register_types WHERE id = $id");
             $current = mysqli_fetch_assoc($curr_res);
             
-            // Generate diff using the universal helper
-            $changes = auditDiff($current, $_POST, ['type_id'], [
-                'fields_json' => 'Fields Structure',
-                'is_active' => 'Status'
-            ]);
+            // Build a much simpler, human-readable diff
+            $diff_parts = [];
+            if ($current['title'] != $title) $diff_parts[] = "Title: " . $current['title'] . " -> " . $title;
+            if ($current['icon'] != $icon) $diff_parts[] = "Icon: " . $current['icon'] . " -> " . $icon;
+            if ($current['color'] != $color) $diff_parts[] = "Color: " . $current['color'] . " -> " . $color;
+            if ($current['is_active'] != $is_active) $diff_parts[] = "Status: " . ($current['is_active'] ? 'Active':'Inactive') . " -> " . ($is_active ? 'Active':'Inactive');
+            
+            $old_fields = json_decode($current['fields_json'] ?? '[]', true);
+            $new_fields = json_decode(stripslashes($fields_json_raw), true);
+            $old_field_names = is_array($old_fields) ? implode(", ", array_column($old_fields, 'label')) : 'None';
+            $new_field_names = is_array($new_fields) ? implode(", ", array_column($new_fields, 'label')) : 'None';
+            
+            if ($old_field_names !== $new_field_names) {
+                $diff_parts[] = "Fields Updated: [$old_field_names] to [$new_field_names]";
+            }
+
+            $details = "Update Success: Register '$title'\n" . (empty($diff_parts) ? "No changes were made." : implode("\n", $diff_parts));
 
             $sql = "UPDATE register_types SET 
                     title = '$title',
