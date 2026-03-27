@@ -179,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
         )";
         if (mysqli_query($conn, $sql)) {
             $success = "Loading checklist saved successfully!";
-            logActivity($conn, 'LOADING_CREATE', 'Checklists', "Created Loading Checklist:\n" . auditFromPost($_POST));
+            logActivity($conn, 'LOADING_CREATE', 'Checklists', "Created Loading Checklist: Vehicle: [$vehicle_registration_number] (InwardID: $inward_id)\n" . auditFromPost($_POST));
             // Reset form or redirect
             $_POST = array();
         }

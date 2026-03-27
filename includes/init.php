@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.27.1251');
+    define('APP_VERSION', '26.03.27.1348');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -778,7 +778,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
         $e_name = $e_row['employee_name'] ?? 'Unknown';
 
         if (mysqli_query($conn, "DELETE FROM employee_master WHERE id=$id")) {
-            logActivity($conn, 'EMPLOYEE_DELETE', 'Masters', "Deleted employee: '$e_name' (ID: $id)");
+            logActivity($conn, 'EMPLOYEE_DELETE', 'Masters', "Deleted Employee: Name: [$e_name] (ID: $id)");
             $_SESSION['success_msg'] = "✅ Employee deleted successfully!";
             session_write_close();
             header("Location: ?page=admin&master=employees&t=" . time());
@@ -998,9 +998,9 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                 $sql .= " WHERE id=$id";
 
                 if (mysqli_query($conn, $sql)) {
-                    $details = "Updated employee: '$name' (ID: $emp_id)";
+                    $details = "Updated Employee: Name: [$name] (EmpID: $emp_id)";
                     if (!empty($changes)) {
-                        $details .= "\nChanges: " . implode("\n", $changes);
+                        $details .= "\nChanges:\n" . implode("\n", $changes);
                     }
                     logActivity($conn, 'EMPLOYEE_UPDATE', 'Masters', $details);
                     $_SESSION['success_msg'] = "✅ Employee updated successfully!";
@@ -1021,7 +1021,11 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                         )";
 
                 if (mysqli_query($conn, $sql)) {
-                    logActivity($conn, 'EMPLOYEE_CREATE', 'Masters', "Created Employee:\n" . auditFromPost($_POST));
+                    $details = "Created Employee: Name: [$name]\nEmpID: [$emp_id]\n" . auditFromPost($_POST);
+                    if ($photo_path) {
+                        $details .= "\nPhoto: [Uploaded]";
+                    }
+                    logActivity($conn, 'EMPLOYEE_CREATE', 'Masters', $details);
                     $_SESSION['success_msg'] = "✅ Employee added successfully!";
                     session_write_close();
                     header("Location: ?page=admin&master=employees&t=" . time());
@@ -1109,7 +1113,11 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
                 VALUES ($location_id, $guard_id, '$description', '$photo_url')";
 
         if (mysqli_query($conn, $sql)) {
-            logActivity($conn, 'PATROL_ISSUE', 'Patrol', "Ticket Created: " . auditFromPost($_POST));
+            $details = "Ticket Created: [$description]\n" . auditFromPost($_POST);
+            if ($photo_url) {
+                $details .= "\nPhoto Evidence: [Uploaded]";
+            }
+            logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
             $success_msg = "✅ Issue reported successfully. Ticket created.";
         }
         else {
@@ -1448,7 +1456,8 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
 
         if (mysqli_query($conn, $sql)) {
             $inward_id = mysqli_insert_id($conn);
-            logActivity($conn, 'INWARD_ENTRY', 'Logistics', "Inward Gate Entry: " . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']));
+            $details = "Inward Gate Entry: Vehicle: [$vehicle]\n" . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']);
+            logActivity($conn, 'INWARD_ENTRY', 'Logistics', $details);
             $success_msg = "✅ Inward entry created successfully! Entry #: $entry_num";
 
             // Simple QR Logging - Simplified to prevent any 500 errors
@@ -1632,6 +1641,9 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
 
         // Update inward status
         mysqli_query($conn, "UPDATE truck_inward SET status = 'exited', is_exited = 1 WHERE id = $inward_id");
+
+        $outward_log = "Outward Gate Entry: Vehicle: [" . ($vehicle_number ?? 'Unknown') . "] (ID: $inward_id)\n" . auditFromPost($_POST);
+        logActivity($conn, 'OUTWARD_EXIT', 'Logistics', $outward_log);
 
         $success_msg = "✅ Outward entry completed! Duration: " . formatDuration($duration);
     }

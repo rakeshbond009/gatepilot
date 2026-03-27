@@ -127,7 +127,7 @@
                                 <span>Driver Mobile *</span>
                             </label>
                             <input type="tel" name="driver_mobile" id="driver_mobile" placeholder="9876543210"
-                                maxlength="10" inputmode="numeric" pattern="[0-9]*" required
+                                maxlength="10" inputmode="numeric" pattern="[0-9]{10}" required
                                 style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
                                 onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
                                 onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">

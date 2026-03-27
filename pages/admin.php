@@ -1067,9 +1067,9 @@ function showAuditDetail(log) {
                                 $update_sql = "UPDATE user_master SET " . implode(", ", $updates) . " WHERE id=$id";
 
                                 if (mysqli_query($conn, $update_sql)) {
-                                    $log_details = "Updated User: Username: '$username'";
+                                    $log_details = "Updated User: Username: [$username] (ID: $id)";
                                     if (!empty($changes))
-                                        $log_details .= "\n" . implode("\n", $changes);
+                                        $log_details .= "\nChanges:\n" . implode("\n", $changes);
                                     logActivity($conn, 'USER_UPDATE', 'Users', $log_details);
                                     $_SESSION['success_msg'] = "✅ User updated successfully!";
                                     session_write_close();
@@ -1096,8 +1096,8 @@ function showAuditDetail(log) {
                                 VALUES ('$username', '$hashed_password', '$full_name', '$email', '$mobile', '$role', " . ($photo_path ? "'$photo_path'" : "NULL") . ")";
 
                         if (mysqli_query($conn, $sql)) {
-                            $details = "Created User: Title: [$full_name], Username: [$username]";
-                            $post_details = auditFromPost($_POST, ['password', 'username', 'full_name', 'user_id']);
+                            $details = "Created User: Name: [$full_name]\nUsername: [$username]";
+                            $post_details = auditFromPost($_POST, ['password', 'username', 'full_name', 'user_id', 'role']);
                             if (!empty($post_details)) {
                                 $details .= "\n" . $post_details;
                             }
@@ -1186,7 +1186,7 @@ function showAuditDetail(log) {
                                             <div class="form-group" style="margin-bottom: 15px;">
                                                 <label style="font-weight: 600; display: block; margin-bottom: 5px;">Role *</label>
                                                 <select name="role" id="role" required style="width: 100%; padding: 11px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
-                                                    <option value="admin">Admin</option>
+                                                        <option value="admin">Admin</option>
                                                     <option value="manager">Manager</option>
                                                     <option value="security">Security</option>
                                                 </select>
@@ -1407,7 +1407,7 @@ function showAuditDetail(log) {
 
             // Delete the transporter
             if (mysqli_query($conn, "DELETE FROM transporter_master WHERE id=$id")) {
-                logActivity($conn, 'TRANSPORTER_DELETE', 'Transporters', "Deleted transporter: '$t_name' (ID: $id)");
+                logActivity($conn, 'TRANSPORTER_DELETE', 'Transporters', "Deleted transporter: ['$t_name'] (ID: [$id])");
                 $_SESSION['success_msg'] = "✅ Transporter deleted successfully!";
                 session_write_close();
                 header("Location: ?page=admin&master=transporters&t=" . time());
@@ -1452,9 +1452,9 @@ function showAuditDetail(log) {
                                 mobile='$mobile', email='$email', address='$address', gst_number='$gst' WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
-                            $details = "Updated Transporter: Name: '$name' (ID: $id)";
+                            $details = "Updated Transporter: Name: [$name] (ID: [$id])";
                             if (!empty($changes)) {
-                                $details .= "\n" . implode("\n", $changes);
+                                $details .= "\nChanges:\n" . implode("\n", $changes);
                             }
                             logActivity($conn, 'TRANSPORTER_UPDATE', 'Transporters', $details);
                             $success_msg = "✅ Transporter updated successfully!";
@@ -1476,7 +1476,7 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$person', '$mobile', '$email', '$address', '$gst')";
 
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created Transporter:\n" . auditFromPost($_POST));
+                        logActivity($conn, 'TRANSPORTER_CREATE', 'Transporters', "Created Transporter: [$name]\n" . auditFromPost($_POST));
                         $success_msg = "✅ Transporter added successfully!";
                         $_SESSION['success_msg'] = $success_msg;
                         session_write_close();
@@ -1573,8 +1573,9 @@ function showAuditDetail(log) {
                                     <div class="master-form-grid">
                                         <div class="form-group">
                                             <label style="font-weight: 600; color: #374151;">Mobile *</label>
-                                            <input type="tel" name="mobile" id="trans_mobile" maxlength="10" 
-                                                inputmode="numeric" pattern="[0-9]*" required
+                                            <input type="tel" name="mobile" id="trans_mobile" 
+                                                pattern="[0-9]{10}" minlength="10" maxlength="10" 
+                                                title="Please enter exactly 10 digits" required
                                                 style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
                                                 onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
                                                 onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
@@ -1804,7 +1805,7 @@ function showAuditDetail(log) {
 
             // Then delete the driver record
             if (mysqli_query($conn, "DELETE FROM driver_master WHERE id=$id")) {
-                logActivity($conn, 'DRIVER_DELETE', 'Drivers', "Deleted driver: '$d_name' (ID: $id)");
+                logActivity($conn, 'DRIVER_DELETE', 'Drivers', "Deleted Driver: Name: [$d_name] (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Driver deleted successfully!";
                 session_write_close();
                 header("Location: ?page=admin&master=drivers&t=" . time());
@@ -1916,9 +1917,9 @@ function showAuditDetail(log) {
                         $sql .= " WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
-                            $details = "Updated Driver: Name: '$name' (ID: $id)";
+                            $details = "Updated Driver: Name: [$name] (ID: [$id])";
                             if (!empty($changes)) {
-                                $details .= ", " . implode(", ", $changes);
+                                $details .= "\nChanges:\n" . implode("\n", $changes);
                             }
                             logActivity($conn, 'DRIVER_UPDATE', 'Drivers', $details);
                             $success_msg = "✅ Driver updated successfully!";
@@ -1940,9 +1941,9 @@ function showAuditDetail(log) {
                             VALUES ('$name', '$mobile', '$license', '$expiry', $trans_id, " . ($photo_path ? "'$photo_path'" : "NULL") . ", " . ($license_photo_path ? "'$license_photo_path'" : "NULL") . ", $is_active)";
 
                     if (mysqli_query($conn, $sql)) {
-                        $details = "Created Driver: $name\n" . auditFromPost($_POST);
+                        $details = "Created Driver: [$name]\n" . auditFromPost($_POST);
                         if ($photo_path) {
-                            $details .= "\nPhoto: [Uploaded]";
+                            $details .= "\nDriver Photo: [Uploaded]";
                         }
                         if ($license_photo_path) {
                             $details .= "\nLicense Document: [Uploaded]";
@@ -2023,7 +2024,8 @@ function showAuditDetail(log) {
                                     <div class="form-group">
                                         <label style="font-weight: 600; color: #374151;">Mobile *</label>
                                         <input type="tel" name="mobile" id="driver_mobile" maxlength="10" 
-                                            inputmode="numeric" pattern="[0-9]*" required
+                                            inputmode="numeric" pattern="[0-9]{10}" minlength="10" required
+                                            title="Please enter exactly 10 digits"
                                             style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
                                             onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
                                             onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
@@ -2363,7 +2365,7 @@ function showAuditDetail(log) {
                                             const cameraInput = document.getElementById('driver_photo_camera');
                                             if (cameraInput) cameraInput.name = "";
 
-                                            showAppPreview(input.files[0], 'd                                                                river_photo_preview', '150px');
+                                            showAppPreview(input.files[0], 'driver_photo_preview', '150px');
                                         }
                                     }
                                     function updateLicensePhotoWebcam(input) {
@@ -2481,7 +2483,7 @@ function showAuditDetail(log) {
 
             // Then delete the vehicle
             if (mysqli_query($conn, "DELETE FROM vehicle_master WHERE id=$id")) {
-                logActivity($conn, 'VEHICLE_DELETE', 'Vehicles', "Deleted vehicle: '$v_num' (ID: $id)");
+                logActivity($conn, 'VEHICLE_DELETE', 'Vehicles', "Deleted Vehicle: Number: [$v_num] (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Vehicle deleted successfully!";
                 session_write_close();
                 header("Location: ?page=admin&master=vehicles&t=" . time());
@@ -2584,9 +2586,9 @@ function showAuditDetail(log) {
                         $sql .= " WHERE id=$id";
 
                         if (mysqli_query($conn, $sql)) {
-                            $details = "Updated Vehicle: Number: '$veh_no' (ID: $id)";
+                            $details = "Updated Vehicle: Number: [$veh_no] (ID: [$id])";
                             if (!empty($changes)) {
-                                $details .= "\n" . implode("\n", $changes);
+                                $details .= "\nChanges:\n" . implode("\n", $changes);
                             }
                             logActivity($conn, 'VEHICLE_UPDATE', 'Vehicles', $details);
 
@@ -2644,14 +2646,14 @@ function showAuditDetail(log) {
                                 $dname = $dr['driver_name'] ?? "ID: $driver_id";
                             }
 
-                            $details = "Created Vehicle: $veh_no\n" . auditFromPost($_POST, ['driver_id', 'driver_ids', 'primary_driver_id']);
-                            $details .= "\nPrimary Driver: $dname";
+                            $details = "Created Vehicle: [$veh_no]\n" . auditFromPost($_POST, ['driver_id', 'driver_ids', 'primary_driver_id']);
+                            $details .= "\nPrimary Driver: [$dname]";
 
                             // Log uploaded documents
                             $docs_uploaded = array_keys($doc_photos);
                             if (!empty($docs_uploaded)) {
                                 $details .= "\nDocuments: [" . implode(", ", array_map(function ($d) {
-                                    return str_replace('_path', '', strtoupper($d));
+                                    return str_replace('_photo', '', strtoupper($d));
                                 }, $docs_uploaded)) . "] Uploaded";
                             }
 
@@ -2723,7 +2725,7 @@ function showAuditDetail(log) {
 
                                 <!-- Section 1: Vehicle Basic Information -->
                                 <div class="card"
-                                    style="margin-bottom: 20px; border-left: 4px solid #8b5cf6; background: linear-gradient(to right, #f3e8ff 0%, white 10%);">
+                                    style="margin-bottom: 20px; border-left: 4:px solid #8b5cf6; background: linear-gradient(to right, #f3e8ff 0%, white 10%);">
                                     <div
                                         style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
                                         <div
@@ -3484,7 +3486,8 @@ function showAuditDetail(log) {
                                             <div class="form-group">
                                                 <label style="font-weight: 600;">Mobile *</label>
                                                 <input type="tel" name="mobile" id="master_emp_mobile" 
-                                                    inputmode="numeric" pattern="[0-9]*" required
+                                                    pattern="[0-9]{10}" minlength="10" maxlength="10" 
+                                                    title="Please enter exactly 10 digits" required
                                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                                             </div>
                                             <div class="form-group">
@@ -3881,7 +3884,7 @@ function showAuditDetail(log) {
             $loc_name = $loc_row['location_name'] ?? 'Unknown';
 
             if (mysqli_query($conn, "DELETE FROM patrol_locations WHERE id=$id")) {
-                logActivity($conn, 'PATROL_DELETE', 'Patrol', "Deleted patrol location: '$loc_name' (ID: $id)");
+                logActivity($conn, 'PATROL_DELETE', 'Patrol', "Deleted patrol location: ['$loc_name'] (ID: [$id])");
                 $_SESSION['success_msg'] = "✅ Patrol location deleted successfully!";
                 session_write_close();
                 header("Location: ?page=admin&master=patrol-locations&t=" . time());
@@ -3917,7 +3920,7 @@ function showAuditDetail(log) {
                     $sql = "UPDATE patrol_locations SET location_id='$loc_id', location_name='$name', area_site_building='$area', qr_code_data='$qr_data' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
                         $diff = auditDiff($current, $_POST, ['p_id'], ['location_id' => 'LocID', 'location_name' => 'Name', 'area_site_building' => 'Area', 'qr_code_data' => 'QR Data']);
-                        $details = "Updated Patrol Location: Name: '$name' (ID: $loc_id)";
+                        $details = "Updated Patrol Location: Name: [$name] (ID: [$loc_id])";
                         if (!empty($diff)) {
                             $details .= "\nChanges:\n" . $diff;
                         }
@@ -3931,7 +3934,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO patrol_locations (location_id, location_name, area_site_building, qr_code_data) VALUES ('$loc_id', '$name', '$area', '$qr_data')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created patrol location: " . auditFromPost($_POST));
+                        logActivity($conn, 'PATROL_CREATE', 'Patrol', "Created Patrol Location: [$name]\n" . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Patrol location added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=patrol-locations&t=" . time());
@@ -4182,11 +4185,11 @@ function showAuditDetail(log) {
             $p_type = $p_row['purpose_type'] ?? 'Unknown';
 
             // Delete the purpose
-                if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
-                    logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted Purpose: Name: $p_name, Type: $p_type, ID: $id");
-                    $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
-                    session_write_close();
-                    header("Location: ?page=admin&master=purposes&t=" . time());
+            if (mysqli_query($conn, "DELETE FROM purpose_master WHERE id=$id")) {
+                logActivity($conn, 'PURPOSE_DELETE', 'Purposes', "Deleted Purpose: Name: ['$p_name'], Type: ['$p_type'], ID: [$id]");
+                $_SESSION['success_msg'] = "✅ Purpose deleted successfully!";
+                session_write_close();
+                header("Location: ?page=admin&master=purposes&t=" . time());
                 exit;
             }
             else {
@@ -4220,7 +4223,7 @@ function showAuditDetail(log) {
                     $sql = "UPDATE purpose_master SET purpose_name='$name', purpose_type='$type' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
                         $diff = auditDiff($current, $_POST, ['purpose_id'], ['purpose_name' => 'Name', 'purpose_type' => 'Type']);
-                        $details = "Updated Purpose: Name: '$name' (ID: $id)";
+                        $details = "Updated Purpose: Name: ['$name'] (ID: [$id])";
                         if (!empty($diff)) {
                             $details .= "\nChanges:\n" . $diff;
                         }
@@ -4234,7 +4237,7 @@ function showAuditDetail(log) {
                 else {
                     $sql = "INSERT INTO purpose_master (purpose_name, purpose_type) VALUES ('$name', '$type')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: " . auditFromPost($_POST));
+                        logActivity($conn, 'PURPOSE_CREATE', 'Purposes', "Created Purpose: Name: ['$name'], Type: ['$type']\n" . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Purpose saved successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=purposes&t=" . time());
@@ -4468,12 +4471,12 @@ function showAuditDetail(log) {
                     $audit_details = "";
                     if ($_POST['department_id']) {
                         $diff = auditDiff($current, $_POST, ['department_id'], ['department_name' => 'Name']);
-                        $audit_details = "Updated Department: Name: '$name' (ID: $id)";
+                        $audit_details = "Updated Department: Name: [$name] (ID: $id)";
                         if (!empty($diff))
                             $audit_details .= "\nChanges:\n" . $diff;
                     }
                     else {
-                        $audit_details = "Created Department:\n" . auditFromPost($_POST);
+                        $audit_details = "Created Department: Name: [$name]\n" . auditFromPost($_POST);
                     }
                     logActivity($conn, ($_POST['department_id'] ? 'DEPT_UPDATE' : 'DEPT_CREATE'), 'Departments', $audit_details);
                     $_SESSION['success_msg'] = "✅ Department saved successfully!";
@@ -4770,7 +4773,7 @@ function showAuditDetail(log) {
                     $sql = "UPDATE material_master SET material_description='$desc', material_category='$cat' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
                         $diff = auditDiff($current, $_POST, ['material_id'], ['material_description' => 'Desc', 'material_category' => 'Cat']);
-                        $details = "Updated Material: Desc: '$desc' (Code: $code)";
+                        $details = "Updated Material: Desc: [$desc] (Code: $code)";
                         if (!empty($diff)) {
                             $details .= "\nChanges:\n" . $diff;
                         }
@@ -4785,7 +4788,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO material_master (material_code, material_description, material_category) 
                                 VALUES ('$code', '$desc', '$cat')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created Material: " . auditFromPost($_POST));
+                        logActivity($conn, 'MATERIAL_CREATE', 'Materials', "Created Material: Code: [$code]\n" . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Material added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=materials&t=" . time());
@@ -5077,7 +5080,7 @@ function showAuditDetail(log) {
                     }
                 }
                 fclose($handle);
-                logActivity($conn, 'SUPPLIER_IMPORT', 'Suppliers', "Imported $success_count suppliers from CSV.");
+                logActivity($conn, 'SUPPLIER_IMPORT', 'Suppliers', "Imported [$success_count] suppliers from CSV.");
                 $success_msg = "✅ Imported $success_count suppliers. Skipped $error_count duplicates/errors.";
                 $sweet_alert_success = $success_msg;
             }
@@ -5097,7 +5100,7 @@ function showAuditDetail(log) {
             $s_name = $s_row['supplier'] ?? 'Unknown';
 
             if (mysqli_query($conn, "DELETE FROM supplier_master WHERE id=$id")) {
-                logActivity($conn, 'SUPPLIER_DELETE', 'Suppliers', "Deleted supplier: '$s_name' (ID: $id)");
+                logActivity($conn, 'SUPPLIER_DELETE', 'Suppliers', "Deleted Supplier: Name: [$s_name] (ID: $id)");
                 $_SESSION['success_msg'] = "✅ Supplier deleted successfully!";
                 session_write_close();
                 header("Location: ?page=admin&master=suppliers&t=" . time());
@@ -5128,9 +5131,9 @@ function showAuditDetail(log) {
 
                     $sql = "UPDATE supplier_master SET supplier='$supp', supp_code='$supp_code' WHERE id=$id";
                     if (mysqli_query($conn, $sql)) {
-                        $details = "Updated Supplier: Name: '$supp' (Code: $supp_code)";
+                        $details = "Updated Supplier: Name: [$supp] (Code: $supp_code)";
                         if (!empty($changes)) {
-                            $details .= "\n" . implode("\n", $changes);
+                            $details .= "\nChanges:\n" . implode("\n", $changes);
                         }
                         logActivity($conn, 'SUPPLIER_UPDATE', 'Suppliers', $details);
                         $_SESSION['success_msg'] = "✅ Supplier updated successfully!";
@@ -5143,7 +5146,7 @@ function showAuditDetail(log) {
                     $sql = "INSERT INTO supplier_master (supplier, supp_code) 
                                 VALUES ('$supp', '$supp_code')";
                     if (mysqli_query($conn, $sql)) {
-                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier: " . auditFromPost($_POST));
+                        logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier: [$supp]\n" . auditFromPost($_POST));
                         $_SESSION['success_msg'] = "✅ Supplier added successfully!";
                         session_write_close();
                         header("Location: ?page=admin&master=suppliers&t=" . time());
