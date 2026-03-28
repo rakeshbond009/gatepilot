@@ -119,25 +119,20 @@ if ($is_local) {
 }
 
 // ========== MASTER DATABASE (Global Control) ==========
-define('MASTER_DB_NAME', DB_NAME); // Using existing "gatepilot_admin" DB as the control center
-define('MASTER_DB_USER', 'root');
-define('MASTER_DB_PASS', '');
+define('MASTER_DB_NAME', DB_NAME); 
+define('MASTER_DB_USER', DB_USER);
+define('MASTER_DB_PASS', DB_PASS);
 
 // Get Master DB connection
 function getMasterDatabaseConnection()
 {
-    mysqli_report(MYSQLI_REPORT_OFF);
-    $conn = mysqli_connect(DB_HOST, MASTER_DB_USER, MASTER_DB_PASS, DB_NAME);
-    if (!$conn) {
-        die("FATAL ERROR: Could not connect to Master Database '" . DB_NAME . "'. Please check Hostinger MySQL Databases panel.");
-    }
-    return $conn;
+    // Since we're using the main DB as the control center, just return the standard connection
+    return mysqli_connect(DB_HOST, MASTER_DB_USER, MASTER_DB_PASS, DB_NAME);
 }
 
 // Database connection function
 function getDatabaseConnection()
 {
-    mysqli_report(MYSQLI_REPORT_OFF);
     // If we're logged in/specifying a tenant, we use that database
     $db_name = $_SESSION['tenant_db'] ?? DB_NAME;
 
@@ -147,14 +142,14 @@ function getDatabaseConnection()
         // Try to connect without database and create it
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
         if ($conn) {
-            $db_created = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `" . $db_name . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $db_created = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS " . $db_name . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             if ($db_created) {
                 mysqli_select_db($conn, $db_name);
             } else {
-                die("FATAL ERROR: Could not create database '$db_name'. Hostinger blocks CREATE DATABASE commands. You must manually create '$db_name' in the Hostinger cPanel -> MySQL Databases.");
+                die("Error creating database: " . mysqli_error($conn));
             }
         } else {
-            die("FATAL ERROR: Database Server connection failed. Check your DB_USER and DB_PASS in config.php. Error: " . mysqli_connect_error());
+            die("Database connection failed: " . mysqli_connect_error());
         }
     }
 

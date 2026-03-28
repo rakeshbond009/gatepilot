@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.2232');
+    define('APP_VERSION', '26.03.28.2241');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -15,21 +15,6 @@ require_once __DIR__ . '/functions.php';
 
 session_start();
 
-// ========== LEGACY SESSION PURGE (MIGRATION FAIL-SAFE) ==========
-// If a user has a session from before the Multi-Tenant update, they will not have a tenant_slug.
-// This causes them to get stuck in a broken dashboard state where they can't even logout.
-if (isset($_SESSION['user_id']) && !isset($_SESSION['tenant_slug'])) {
-    session_unset();
-    session_destroy();
-    
-    // Nuke the persistent cookie just in case
-    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
-        setcookie('GATEPILOT_REMEMBER', '', time() - 3600, '/');
-    }
-    
-    header('Location: ?page=login&msg=session_expired');
-    exit;
-}
 // ========== MULTI-TENANT GLOBAL HANDLERS (AJAX & STATE) ==========
 // 1. Real-time password uniqueness check (Clean AJAX Response)
 if (isset($_GET['check_pass_uniqueness'])) {
