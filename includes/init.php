@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.2346');
+    define('APP_VERSION', '26.03.28.2348');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -14,23 +14,6 @@ require_once __DIR__ . '/DynamicRegisters.php';
 require_once __DIR__ . '/functions.php';
 
 session_start();
-
-// ========== EMERGENCY LOGOUT HANDLER ==========
-if (isset($_GET['page']) && $_GET['page'] === 'logout') {
-    $_SESSION = array();
-    if (ini_get("session.use_cookies")) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
-    }
-    // Wipe persistent cookie
-    setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-    unset($_COOKIE['GATEPILOT_REMEMBER']);
-    @session_destroy();
-    
-    // Redirect to login to verify it works
-    header('Location: ?page=login&msg=logout_complete');
-    exit;
-}
 
 // ========== MULTI-TENANT GLOBAL HANDLERS (AJAX & STATE) ==========
 // 1. Real-time password uniqueness check (Clean AJAX Response)
@@ -357,36 +340,61 @@ function hasPermission($key)
 // Persistent Login — runs on EVERY request when a remember-cookie exists.
 // This makes auth DB-driven: even if PHP session GC kills the session file,
 // the next request immediately restores the session from the cookie token.
-if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
-    $token = mysqli_real_escape_string($conn, $_COOKIE['GATEPILOT_REMEMBER']);
-    $query = "SELECT u.* FROM user_sessions s 
-              JOIN user_master u ON s.user_id = u.id 
-              WHERE s.token = '$token' AND u.is_active = 1 
-              LIMIT 1";
-    $token_result = mysqli_query($conn, $query);
-
-    if ($token_result && $row = mysqli_fetch_assoc($token_result)) {
-        // Always stamp session from DB — session may have been GC'd on shared host
-        $_SESSION['user_id'] = $row['id'];
-        $_SESSION['username'] = $row['username'];
-        $_SESSION['full_name'] = $row['full_name'];
-        $_SESSION['role'] = $row['role'];
-        $_SESSION['super_admin'] = (int) $row['super_admin'];
-        $_SESSION['permissions'] = $row['permissions'];
-
-        // Throttle: only update DB timestamp once per 5 min to reduce queries
-        if (!isset($_SESSION['_token_refreshed']) || time() - $_SESSION['_token_refreshed'] > 300) {
-            mysqli_query($conn, "UPDATE user_sessions SET last_used_at = CURRENT_TIMESTAMP WHERE token = '$token'");
-            $_SESSION['_token_refreshed'] = time();
-            if (!isLoggedIn()) { // Only log if this was actually a restore (not already logged in)
-                logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
+// ========== PERSISTENT LOGIN (REMEMBER ME) ==========
+if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+    $token = mysqli_real_escape_string($master_conn, $_COOKIE['GATEPILOT_REMEMBER']);
+    
+    // 1. Search GLOBAL sessions in Master DB
+    $g_query = "SELECT * FROM global_sessions WHERE token = '$token' LIMIT 1";
+    $g_res = mysqli_query($master_conn, $g_query);
+    
+    if ($g_res && $g_row = mysqli_fetch_assoc($g_res)) {
+        $r_slug = $g_row['tenant_slug'];
+        $r_uid = $g_row['user_id'];
+        
+        // 2. Fetch Tenant Config
+        $t_res = mysqli_query($master_conn, "SELECT db_name FROM tenants WHERE slug = '$r_slug' LIMIT 1");
+        if ($t_row = mysqli_fetch_assoc($t_res)) {
+            $r_db = $t_row['db_name'];
+            $r_conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, $r_db);
+            
+            if ($r_conn) {
+                // 3. Restore User Session
+                $u_res = mysqli_query($r_conn, "SELECT * FROM user_master WHERE id = $r_uid LIMIT 1");
+                if ($user = mysqli_fetch_assoc($u_res)) {
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['full_name'] = $user['full_name'];
+                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['tenant_slug'] = $r_slug;
+                    $_SESSION['tenant_db'] = $r_db;
+                    $_SESSION['super_admin'] = (int)($user['super_admin'] ?? 0);
+                    $_SESSION['permissions'] = $user['permissions'] ?? '';
+                    
+                    // Refresh connection to its new tenant state
+                    $conn = $r_conn;
+                }
             }
         }
     } else {
-        // Invalid token — clear the bad cookie
+        // Token was not found in Master store — clean it up
         setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         unset($_COOKIE['GATEPILOT_REMEMBER']);
     }
+}
+
+// ========== LEGACY SESSION CLEANUP (PREVENT 500 ERRORS) ==========
+// If PHPSESSID is active but missing our new tenant context, it's a "bad" session.
+// Wipe it silently so the user can see the login page.
+if (isLoggedIn() && !isset($_SESSION['tenant_slug'])) {
+    $_SESSION = array();
+    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+        setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        unset($_COOKIE['GATEPILOT_REMEMBER']);
+    }
+    @session_destroy();
+    header("Location: ?page=login&session_reset=legacy");
+    exit;
 }
 
 // Page routing

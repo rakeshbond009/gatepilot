@@ -1,6 +1,81 @@
 <?php if ($page == 'login'):
+    $error = null;
     $system_reactivated = false;
+
+    // Handle Login Processing
+    if (isset($_POST['login'])) {
+        $slug = mysqli_real_escape_string(getMasterDatabaseConnection(), $_POST['tenant_slug']);
+        $user_input = mysqli_real_escape_string(getMasterDatabaseConnection(), $_POST['username']);
+        $pass = $_POST['password'];
+
+        // 1. Verify Tenant and Get Tenant DB
+        $m_conn = getMasterDatabaseConnection();
+        $t_query = "SELECT * FROM tenants WHERE slug = '$slug' AND is_active = 1";
+        $t_res = mysqli_query($m_conn, $t_query);
+
+        if ($tenant = mysqli_fetch_assoc($t_res)) {
+            $db_name = $tenant['db_name'];
+            
+            // 2. Connect to Tenant DB
+            $t_conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, $db_name);
+            if ($t_conn) {
+                // 3. Verify User in Tenant DB
+                $u_query = "SELECT * FROM user_master WHERE username = '$user_input' AND is_active = 1";
+                $u_res = mysqli_query($t_conn, $u_query);
+
+                if ($user = mysqli_fetch_assoc($u_res)) {
+                    if (password_verify($pass, $user['password'])) {
+                        // Success! Set Session
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['username'] = $user['username'];
+                        $_SESSION['full_name'] = $user['full_name'];
+                        $_SESSION['role'] = $user['role'];
+                        $_SESSION['tenant_slug'] = $slug;
+                        $_SESSION['tenant_db'] = $db_name;
+                        $_SESSION['super_admin'] = (int)($user['super_admin'] ?? 0);
+                        $_SESSION['permissions'] = $user['permissions'] ?? '';
+
+                        // 4. Handle Persistent Login (Remember Me)
+                        if (isset($_POST['remember'])) {
+                            $token = bin2hex(random_bytes(32));
+                            // Store in Master DB so we can find the tenant on next visit
+                            mysqli_query($m_conn, "CREATE TABLE IF NOT EXISTS global_sessions (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                user_id INT NOT NULL,
+                                tenant_slug VARCHAR(50) NOT NULL,
+                                token VARCHAR(255) NOT NULL UNIQUE,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )");
+
+                            if (mysqli_query($m_conn, "INSERT INTO global_sessions (user_id, tenant_slug, token) VALUES ({$user['id']}, '$slug', '$token')")) {
+                                setcookie('GATEPILOT_REMEMBER', $token, [
+                                    'expires' => time() + (365 * 24 * 60 * 60),
+                                    'path' => '/',
+                                    'httponly' => true,
+                                    'samesite' => 'Lax'
+                                ]);
+                            }
+                        }
+
+                        logActivity($t_conn, 'LOGIN', 'Auth', "User '{$user['username']}' logged in successfully.");
+                        header("Location: ?page=dashboard");
+                        exit;
+                    } else {
+                        $error = "Invalid password.";
+                    }
+                } else {
+                    $error = "User not found or inactive in company '$slug'.";
+                }
+            } else {
+                $error = "Company database connection failed.";
+            }
+        } else {
+            $error = "Invalid company code or account deactivated.";
+        }
+    }
+
     if (isset($_GET['msg']) && $_GET['msg'] == 'system_inactive' && isset($_GET['tslug'])) {
+// ... existing system_reactivated logic ...
         $m_conn = getMasterDatabaseConnection();
         if ($m_conn) {
             $slug_safe = mysqli_real_escape_string($m_conn, $_GET['tslug']);

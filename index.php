@@ -25,8 +25,6 @@ include 'includes/navbar.php';
 // 5. Page Routing Controller
 if ($page == 'login'):
     include 'pages/login.php';
-elseif ($page == 'logout'):
-    include 'pages/logout.php';
 elseif ($page == 'dashboard'):
     include 'pages/dashboard.php';
 elseif (in_array($page, ['guard-patrol', 'tickets', 'edit-register-entry', 'register-entry', 'edit-material-inward'])):
