@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.0222');
+    define('APP_VERSION', '26.03.28.2217');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -15,9 +15,59 @@ require_once __DIR__ . '/functions.php';
 
 session_start();
 
+// ========== MULTI-TENANT GLOBAL HANDLERS (AJAX & STATE) ==========
+// 1. Real-time password uniqueness check (Clean AJAX Response)
+if (isset($_GET['check_pass_uniqueness'])) {
+    while (ob_get_level())
+        ob_end_clean(); // Kill any buffers
+    header('Content-Type: application/json');
+    $pass = trim($_GET['pass'] ?? '');
+    if (strlen($pass) < 2) {
+        echo json_encode(["unique" => true, "owner" => false]);
+        exit;
+    }
+    $master_conn = getMasterDatabaseConnection();
+    $all_pw_q = mysqli_query($master_conn, "SELECT slug, admin_password_hash FROM tenants WHERE admin_password_hash IS NOT NULL AND admin_password_hash != ''");
+    $found = false;
+    while ($row = mysqli_fetch_assoc($all_pw_q)) {
+        if (password_verify($pass, $row['admin_password_hash'])) {
+            $found = strtoupper($row['slug']);
+            break;
+        }
+    }
+    echo json_encode(["unique" => ($found === false), "owner" => $found]);
+    exit;
+}
+
+// 2. Clear Tenant Form Data (State Managed - Clean Session Only, Allow page to continue with trigger)
+if (isset($_GET['clear_form'])) {
+    unset($_SESSION['tenant_form_data']);
+    unset($_SESSION['tenant_error']);
+}
+
 // Database connection using auto-detected environment settings
 $conn = getDatabaseConnection();
 $registers_manager = new DynamicRegisters($conn);
+
+// 3. Enforce Tenant Status (Active/Inactive)
+if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
+    $current_slug = $_SESSION['tenant_slug'];
+    $master_conn = getMasterDatabaseConnection();
+    if ($master_conn) {
+        $status_q = mysqli_query($master_conn, "SELECT is_active FROM tenants WHERE slug = '" . mysqli_real_escape_string($master_conn, $current_slug) . "'");
+        if ($status_row = mysqli_fetch_assoc($status_q)) {
+            if (($status_row['is_active'] ?? 1) == 0) {
+                // Tenant is deactivated! Burn session and redirect
+                $user_id = $_SESSION['user_id'] ?? 0;
+                logActivity($conn, 'SYSTEM_LOCKOUT', 'Init', "User locked out due to Tenant Inactivation.");
+                session_destroy();
+                header("Location: index.php?page=login&msg=system_inactive&tslug=$current_slug");
+                exit;
+            }
+        }
+    }
+}
+// ================================================================
 
 // Set MySQL timezone to IST
 if ($conn) {
@@ -39,8 +89,7 @@ if ($conn) {
             fputcsv($output, array('Material Code', 'Material Description', 'Category'));
             fputcsv($output, array('MAT001', 'Cement', 'Raw Material'));
             fputcsv($output, array('MAT002', 'Steel Bars', 'Construction'));
-        }
-        elseif ($template == 'suppliers') {
+        } elseif ($template == 'suppliers') {
             fputcsv($output, array('Supplier Name', 'Supplier Code'));
             fputcsv($output, array('Acme Corp', 'SUP001'));
             fputcsv($output, array('Global Logistics', 'SUP002'));
@@ -57,12 +106,10 @@ if ($conn) {
     if (mysqli_num_rows($check_vehicle_col) == 0 && mysqli_num_rows($check_old_col) > 0) {
         // Rename old column to new one
         mysqli_query($conn, "ALTER TABLE truck_inward CHANGE driver_photo_url vehicle_photo_url VARCHAR(255)");
-    }
-    elseif (mysqli_num_rows($check_vehicle_col) == 0 && mysqli_num_rows($check_old_col) == 0) {
+    } elseif (mysqli_num_rows($check_vehicle_col) == 0 && mysqli_num_rows($check_old_col) == 0) {
         // Create new column if neither exists
         mysqli_query($conn, "ALTER TABLE truck_inward ADD COLUMN vehicle_photo_url VARCHAR(255) AFTER photo_url");
-    }
-    elseif (mysqli_num_rows($check_vehicle_col) > 0 && mysqli_num_rows($check_old_col) > 0) {
+    } elseif (mysqli_num_rows($check_vehicle_col) > 0 && mysqli_num_rows($check_old_col) > 0) {
         // Both exist - drop the old driver_photo_url column
         mysqli_query($conn, "ALTER TABLE truck_inward DROP COLUMN driver_photo_url");
     }
@@ -193,8 +240,7 @@ function formatDuration($hours)
 
     if ($display_hours > 0) {
         return $display_hours . ' hr' . ($display_hours > 1 ? 's' : '') . ' ' . $display_minutes . ' min (' . number_format($hours, 1) . ' hrs)';
-    }
-    else {
+    } else {
         return $display_minutes . ' min (' . number_format($hours, 1) . ' hrs)';
     }
 }
@@ -245,6 +291,8 @@ function hasPermission($key)
         return false;
     if (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1)
         return true;
+    if (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'admin')
+        return true;
 
     // Always fetch fresh permissions to ensure updates apply immediately
     // if (!isset($_SESSION['permissions'])) {
@@ -253,8 +301,7 @@ function hasPermission($key)
         $res = mysqli_query($conn, "SELECT permissions FROM user_master WHERE id = $uid");
         if ($res && $r = mysqli_fetch_assoc($res)) {
             $_SESSION['permissions'] = $r['permissions'];
-        }
-        else {
+        } else {
             $_SESSION['permissions'] = '{}';
         }
     }
@@ -307,7 +354,7 @@ if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
         $_SESSION['username'] = $row['username'];
         $_SESSION['full_name'] = $row['full_name'];
         $_SESSION['role'] = $row['role'];
-        $_SESSION['super_admin'] = (int)$row['super_admin'];
+        $_SESSION['super_admin'] = (int) $row['super_admin'];
         $_SESSION['permissions'] = $row['permissions'];
 
         // Throttle: only update DB timestamp once per 5 min to reduce queries
@@ -318,8 +365,7 @@ if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
                 logActivity($conn, 'AUTO_LOGIN', 'Auth', "User '{$row['username']}' restored session via persistent token.");
             }
         }
-    }
-    else {
+    } else {
         // Invalid token — clear the bad cookie
         setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
         unset($_COOKIE['GATEPILOT_REMEMBER']);
@@ -349,12 +395,10 @@ if ($page == 'change_password_action' && $_SERVER['REQUEST_METHOD'] == 'POST') {
         if (mysqli_query($conn, "UPDATE user_master SET password='$hashed' WHERE id=$uid")) {
             logActivity($conn, 'PASSWORD_CHANGE', 'Profile', "User changed their password");
             echo json_encode(['success' => true, 'message' => 'Password updated successfully!']);
-        }
-        else {
+        } else {
             echo json_encode(['success' => false, 'message' => 'Error updating database: ' . mysqli_error($conn)]);
         }
-    }
-    else {
+    } else {
         echo json_encode(['success' => false, 'message' => 'Incorrect current password']);
     }
     exit;
@@ -362,64 +406,81 @@ if ($page == 'change_password_action' && $_SERVER['REQUEST_METHOD'] == 'POST') {
 
 // Handle login
 if ($page == 'login' && isset($_POST['login'])) {
+    $tenant_slug = mysqli_real_escape_string($conn, $_POST['tenant_slug'] ?? '');
     $username = mysqli_real_escape_string($conn, $_POST['username']);
     $password = $_POST['password'];
 
-    $query = "SELECT * FROM user_master WHERE username = '$username' AND is_active = 1";
-    $result = mysqli_query($conn, $query);
+    // 1. Identify Tenant Database
+    $master_conn = getMasterDatabaseConnection();
+    // Check if slug exists at all
+    $tenant_check = mysqli_query($master_conn, "SELECT db_name, customer_name, is_active FROM tenants WHERE slug = '$tenant_slug'");
 
-    if ($row = mysqli_fetch_assoc($result)) {
-        // Secure password check using password_verify
-        // Supports both hashed passwords and legacy plain text (temporarily)
-        if (password_verify($password, $row['password']) || $password === $row['password']) {
-            $_SESSION['user_id'] = $row['id'];
-            $_SESSION['username'] = $row['username'];
-            $_SESSION['full_name'] = $row['full_name'];
-            $_SESSION['role'] = $row['role'];
-            $_SESSION['super_admin'] = (int)$row['super_admin'];
-            $_SESSION['permissions'] = $row['permissions']; // Store permissions in session
+    if ($tenant = mysqli_fetch_assoc($tenant_check)) {
+        if (!$tenant['is_active']) {
+            $error = "🚫 This system is temporarily DISABLED. Please contact your administrator.";
+        } else {
+            $_SESSION['tenant_db'] = $tenant['db_name'];
+            $_SESSION['tenant_slug'] = $tenant_slug;
+            $_SESSION['customer_name'] = $tenant['customer_name'];
 
-            // If the password was plain text, update it to hashed version now
-            if ($password === $row['password'] && !empty($password)) {
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                mysqli_query($conn, "UPDATE user_master SET password = '$hashed_password' WHERE id = " . $row['id']);
+            // Re-initialize connection to the tenant database
+            $conn = getDatabaseConnection();
+
+            $query = "SELECT * FROM user_master WHERE username = '$username' AND is_active = 1";
+            $result = mysqli_query($conn, $query);
+
+            if ($row = mysqli_fetch_assoc($result)) {
+                // Secure password check using password_verify
+                if (password_verify($password, $row['password']) || $password === $row['password']) {
+                    $_SESSION['user_id'] = $row['id'];
+                    $_SESSION['username'] = $row['username'];
+                    $_SESSION['full_name'] = $row['full_name'];
+                    $_SESSION['role'] = $row['role'];
+                    $_SESSION['super_admin'] = (int) $row['super_admin'];
+                    $_SESSION['permissions'] = $row['permissions'];
+
+                    // If the password was plain text, update it to hashed version now
+                    if ($password === $row['password'] && !empty($password)) {
+                        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                        mysqli_query($conn, "UPDATE user_master SET password = '$hashed_password' WHERE id = " . $row['id']);
+                    }
+
+                    // Audit Log
+                    logActivity($conn, 'LOGIN_SUCCESS', 'Auth', "User '{$row['username']}' logged in to tenant '$tenant_slug'");
+
+                    // Persistent Login Logic ("Login Forever")
+                    try {
+                        $token = bin2hex(random_bytes(32));
+                    } catch (Exception $e) {
+                        $token = bin2hex(openssl_random_pseudo_bytes(32));
+                    }
+
+                    $user_agent = mysqli_real_escape_string($conn, $_SERVER['HTTP_USER_AGENT'] ?? '');
+                    $user_id = $row['id'];
+
+                    $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
+                    if (mysqli_query($conn, $token_sql)) {
+                        setcookie('GATEPILOT_REMEMBER', $token, [
+                            'expires' => time() + (365 * 24 * 60 * 60),
+                            'path' => '/',
+                            'domain' => '',
+                            'secure' => false,
+                            'httponly' => true,
+                            'samesite' => 'Lax'
+                        ]);
+                    }
+
+                    header('Location: ?page=dashboard');
+                    exit;
+                }
             }
-
-            // Audit Log: Success Login
-            logActivity($conn, 'LOGIN_SUCCESS', 'Auth', "User '{$row['username']}' logged in successfully.");
-
-            // Persistent Login Logic ("Login Forever")
-            try {
-                $token = bin2hex(random_bytes(32));
-            }
-            catch (Exception $e) {
-                // Fallback for older PHP
-                $token = bin2hex(openssl_random_pseudo_bytes(32));
-            }
-
-            $user_agent = mysqli_real_escape_string($conn, $_SERVER['HTTP_USER_AGENT'] ?? '');
-            $user_id = $row['id'];
-
-            $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
-            if (mysqli_query($conn, $token_sql)) {
-                // Persistent cookie - 1 year, no explicit domain (browser infers), works on HTTP+HTTPS
-                $cookie_lifetime = 365 * 24 * 60 * 60;
-                setcookie('GATEPILOT_REMEMBER', $token, [
-                    'expires' => time() + $cookie_lifetime,
-                    'path' => '/',
-                    'domain' => '',
-                    'secure' => false,
-                    'httponly' => true,
-                    'samesite' => 'Lax'
-                ]);
-            }
-
-            header('Location: ?page=dashboard');
-            exit;
         }
     }
-    logActivity($conn, 'LOGIN_FAILED', 'Auth', "Failed login attempt for username: '$username'");
-    $error = "Invalid credentials!";
+
+    if (!isset($error)) {
+        logActivity($conn, 'LOGIN_FAILED', 'Auth', "Failed login for '$username' on tenant '$tenant_slug'");
+        $error = "Invalid Company Code or Credentials!";
+    }
 }
 
 // Handle logout
@@ -511,8 +572,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
     $target = mysqli_fetch_assoc($check_q);
     if ($target && $target['super_admin'] == 1 && $user_id != $_SESSION['user_id']) {
         $_SESSION['error_msg'] = "❌ Only a super admin can edit their own permissions!";
-    }
-    else {
+    } else {
         // Construct Permissions Array
         $permissions = [
             'pages' => [
@@ -602,7 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
         foreach ($permissions as $cat => $subs) {
             foreach ($subs as $k => $val) {
                 $old_val = (isset($old_perms[$cat][$k]) && $old_perms[$cat][$k]) ? true : false;
-                $new_val = (bool)$val;
+                $new_val = (bool) $val;
                 if ($old_val !== $new_val) {
                     $mapKey = "$cat.$k";
                     $label = $label_map[$mapKey] ?? ucwords(str_replace('_', ' ', $k));
@@ -625,8 +685,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
             if ($user_id == $_SESSION['user_id']) {
                 $_SESSION['permissions'] = json_encode($permissions);
             }
-        }
-        else {
+        } else {
             $_SESSION['error_msg'] = "❌ Error updating permissions: " . mysqli_error($conn);
         }
     }
@@ -682,7 +741,7 @@ if (in_array($page, $protected_pages)) {
         'management' => 'pages.management',
         'guard-patrol' => 'pages.guard_patrol',
         'tickets' => 'pages.tickets',
-        'user-permissions' => 'pages.user_permissions',
+        'user-permissions' => 'pages.permissions',
         'inside' => 'pages.inside',
         'vehicle-history' => 'pages.history',
         'register-entry' => 'pages.register',
@@ -701,13 +760,11 @@ if (in_array($page, $protected_pages)) {
                 if ($page == 'dashboard') {
                     echo '<div style="padding: 50px; text-align: center;"><h1>⛔ Access Denied</h1><p>You do not have permission to view the dashboard.</p><a href="?page=logout">Logout</a></div>';
                     exit;
-                }
-                else {
+                } else {
                     echo "<script>alert('⛔ You do not have permission to access this page.'); window.location.href='?page=dashboard';</script>";
                     exit;
                 }
-            }
-            else {
+            } else {
                 echo '<div style="padding: 50px; text-align: center;"><h1>⛔ Access Denied</h1><p>You do not have permission to view the dashboard.</p><a href="?page=logout">Logout</a></div>';
                 exit;
             }
@@ -721,7 +778,8 @@ if (in_array($page, $protected_pages)) {
 // Handle logo removal (must be before HTML output)
 if ($page == 'admin' && isset($_GET['remove_logo']) && isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1) {
     requireLogin();
-    $current_logo = getSetting($conn, 'company_logo');
+    $m_conn = getMasterDatabaseConnection();
+    $current_logo = getSetting($m_conn, 'company_logo');
     if ($current_logo) {
         $logo_file = basename($current_logo);
         $logo_path = LOGO_UPLOAD_DIR . $logo_file;
@@ -729,7 +787,7 @@ if ($page == 'admin' && isset($_GET['remove_logo']) && isset($_SESSION['super_ad
             @unlink($logo_path);
         }
     }
-    setSetting($conn, 'company_logo', '');
+    setSetting($m_conn, 'company_logo', '');
     logActivity($conn, 'LOGO_REMOVE', 'Settings', "Removed company logo from the system.");
     header('Location: ?page=admin&master=settings');
     exit;
@@ -749,7 +807,8 @@ if ($page == 'admin' && isset($_POST['upload_logo']) && isset($_SESSION['super_a
                 $upload_path = LOGO_UPLOAD_DIR . $filename;
 
                 // Delete old logo if exists
-                $old_logo = getSetting($conn, 'company_logo');
+                $m_conn = getMasterDatabaseConnection();
+                $old_logo = getSetting($m_conn, 'company_logo');
                 if ($old_logo) {
                     $old_logo_file = basename($old_logo);
                     $old_logo_path = LOGO_UPLOAD_DIR . $old_logo_file;
@@ -766,7 +825,7 @@ if ($page == 'admin' && isset($_POST['upload_logo']) && isset($_SESSION['super_a
                 if (move_uploaded_file($_FILES['company_logo']['tmp_name'], $upload_path)) {
                     // Store relative path; we'll prepend BASE_URL when rendering
                     $logo_url = 'uploads/logo/' . $filename;
-                    setSetting($conn, 'company_logo', $logo_url);
+                    setSetting($m_conn, 'company_logo', $logo_url);
                     logActivity($conn, 'LOGO_UPLOAD', 'Settings', "Uploaded new company logo: '$filename'");
                     header('Location: ?page=admin&master=settings&uploaded=1');
                     exit;
@@ -793,7 +852,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
     requireLogin();
     // Handle Delete
     if (isset($_GET['delete_employee'])) {
-        $id = (int)$_GET['delete_employee'];
+        $id = (int) $_GET['delete_employee'];
         // Get employee name for log
         $e_res = mysqli_query($conn, "SELECT employee_name FROM employee_master WHERE id=$id");
         $e_row = mysqli_fetch_assoc($e_res);
@@ -805,8 +864,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
             session_write_close();
             header("Location: ?page=admin&master=employees&t=" . time());
             exit;
-        }
-        else {
+        } else {
             $_SESSION['error_msg'] = "❌ Error deleting employee: " . mysqli_error($conn);
         }
     }
@@ -882,12 +940,10 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                         if (mysqli_query($conn, $sql)) {
                             $success_count++;
                             $imported_names[] = "$name ($emp_id)";
-                        }
-                        else {
+                        } else {
                             $error_count++;
                         }
-                    }
-                    catch (Exception $e) {
+                    } catch (Exception $e) {
                         $error_count++;
                     }
                 }
@@ -902,8 +958,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
             session_write_close();
             header("Location: ?page=admin&master=employees&t=" . time());
             exit;
-        }
-        else {
+        } else {
             $_SESSION['error_msg'] = "❌ Error uploading file.";
         }
     }
@@ -1015,8 +1070,7 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                     header("Location: ?page=admin&master=employees&t=" . time());
                     exit;
                 }
-            }
-            else {
+            } else {
                 $sql = "INSERT INTO employee_master (
                             employee_id, employee_name, mobile, email, department, vehicle_number, 
                             vehicle_type, rc_expiry, license_expiry, pollution_expiry, fitness_expiry, 
@@ -1039,12 +1093,10 @@ if ($page == 'admin' && isset($_GET['master']) && $_GET['master'] == 'employees'
                     exit;
                 }
             }
-        }
-        catch (mysqli_sql_exception $e) {
+        } catch (mysqli_sql_exception $e) {
             if ($e->getCode() == 1062) { // Duplicate entry error code
                 $error_msg = "❌ Error: Employee ID '$emp_id' or Vehicle Number '$vehicle' already exists!";
-            }
-            else {
+            } else {
                 $error_msg = "❌ Database Error: " . $e->getMessage();
             }
         }
@@ -1072,8 +1124,7 @@ if ($page == 'guard-patrol' && isset($_POST['patrol_scan'])) {
 
         if (mysqli_num_rows($check_dup) > 0) {
             $error_msg = "⚠️ Duplicate scan! This location was already scanned in the last 5 minutes.";
-        }
-        else {
+        } else {
             $session_id = date('Ymd') . '-' . $guard_id; // Simple daily session ID
             $sql = "INSERT INTO patrol_logs (location_id, guard_id, guard_name, scan_datetime, session_id) 
                     VALUES ($location_id, $guard_id, '$guard_name', '$scan_datetime', '$session_id')";
@@ -1081,13 +1132,11 @@ if ($page == 'guard-patrol' && isset($_POST['patrol_scan'])) {
             if (mysqli_query($conn, $sql)) {
                 logActivity($conn, 'PATROL_SCAN', 'Patrol', "Patrol Log: Location: [$location_name], Guard: [{$_SESSION['full_name']}], Result: [OK]");
                 $success_msg = "✅ Patrol logged successfully: <strong>$location_name</strong> at " . date('h:i A');
-            }
-            else {
+            } else {
                 $error_msg = "❌ Error logging patrol: " . mysqli_error($conn);
             }
         }
-    }
-    else {
+    } else {
         $error_msg = "❌ Invalid QR code! Location not found in system.";
     }
 }
@@ -1134,12 +1183,10 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
             }
             logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
             $success_msg = "✅ Issue reported successfully. Ticket created.";
-        }
-        else {
+        } else {
             $error_msg = "❌ Error reporting issue: " . mysqli_error($conn);
         }
-    }
-    else {
+    } else {
         $error_msg = "❌ Please select a location.";
     }
 }
@@ -1181,8 +1228,7 @@ if ($page == 'register-entry' && isset($_POST['save_register'])) {
         $_SESSION['success_msg'] = "✅ Register entry logged successfully!";
         header("Location: ?page=register-entry");
         exit;
-    }
-    else {
+    } else {
         $error_msg = "❌ Error logging entry: " . $result['message'];
     }
 }
@@ -1244,8 +1290,7 @@ if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && i
                 if (isset($standard_db_map[$f_name])) {
                     $db_col = $standard_db_map[$f_name];
                     $old_val = $current[$db_col] ?? '';
-                }
-                else {
+                } else {
                     $db_col = 'dynamic_data';
                     $old_val = $dynamic_data[$f_name] ?? '';
                 }
@@ -1282,8 +1327,7 @@ if ($page == 'edit-register-entry' && $_SERVER['REQUEST_METHOD'] === 'POST' && i
             $_SESSION['success_msg'] = "✅ Register Entry Updated Successfully!";
             header("Location: ?page=view-registers");
             exit;
-        }
-        else {
+        } else {
             $_SESSION['error_msg'] = "❌ Error: " . mysqli_error($conn);
         }
     }
@@ -1346,8 +1390,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
     if (mysqli_num_rows($check_inside) > 0) {
         $existing_entry = mysqli_fetch_assoc($check_inside);
         $error_msg = "⚠️ Vehicle <strong>$vehicle</strong> is already inside! Entry #: <strong>{$existing_entry['entry_number']}</strong> (In: " . date('d/m/Y h:i A', strtotime($existing_entry['inward_datetime'])) . ", Driver: {$existing_entry['driver_name']}). Please complete the outward entry first.";
-    }
-    else {
+    } else {
         // Capture IDs if available
         $transporter_id = !empty($_POST['transporter_id']) ? intval($_POST['transporter_id']) : 'NULL';
         $purpose_id = !empty($_POST['purpose_id']) ? intval($_POST['purpose_id']) : 'NULL';
@@ -1395,13 +1438,11 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
                 if (json_last_error() === JSON_ERROR_NONE) {
                     // It's already valid JSON
                     $items_json = $items_post;
-                }
-                else {
+                } else {
                     // Not JSON, wrap it
                     $items_json = json_encode($items_post);
                 }
-            }
-            else {
+            } else {
                 $items_json = json_encode($items_post);
             }
         }
@@ -1410,30 +1451,27 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
             $qr_json = json_decode($qr_code_data, true);
             if ($qr_json && isset($qr_json['items']) && is_array($qr_json['items'])) {
                 $items_json = json_encode($qr_json['items']);
-            }
-            elseif ($qr_json && isset($qr_json['decoded_items']) && is_array($qr_json['decoded_items'])) {
+            } elseif ($qr_json && isset($qr_json['decoded_items']) && is_array($qr_json['decoded_items'])) {
                 $items_json = json_encode($qr_json['decoded_items']);
-            }
-            elseif ($qr_json && isset($qr_json['products']) && is_array($qr_json['products'])) {
+            } elseif ($qr_json && isset($qr_json['products']) && is_array($qr_json['products'])) {
                 // Convert products to items format
                 $items = array_map(function ($product) {
                     return [
-                    'item_code' => $product['product_code'] ?? $product['sku'] ?? '',
-                    'item_name' => $product['product_name'] ?? $product['name'] ?? '',
-                    'quantity' => floatval($product['quantity'] ?? $product['qty'] ?? 0),
-                    'unit' => $product['unit'] ?? 'PCS'
+                        'item_code' => $product['product_code'] ?? $product['sku'] ?? '',
+                        'item_name' => $product['product_name'] ?? $product['name'] ?? '',
+                        'quantity' => floatval($product['quantity'] ?? $product['qty'] ?? 0),
+                        'unit' => $product['unit'] ?? 'PCS'
                     ];
                 }, $qr_json['products']);
                 $items_json = json_encode($items);
-            }
-            elseif ($qr_json && isset($qr_json['line_items']) && is_array($qr_json['line_items'])) {
+            } elseif ($qr_json && isset($qr_json['line_items']) && is_array($qr_json['line_items'])) {
                 // Convert line_items to items format
                 $items = array_map(function ($line) {
                     return [
-                    'item_code' => $line['item_code'] ?? '',
-                    'item_name' => $line['description'] ?? $line['item_name'] ?? '',
-                    'quantity' => floatval($line['quantity'] ?? 0),
-                    'unit' => $line['unit'] ?? 'PCS'
+                        'item_code' => $line['item_code'] ?? '',
+                        'item_name' => $line['description'] ?? $line['item_name'] ?? '',
+                        'quantity' => floatval($line['quantity'] ?? 0),
+                        'unit' => $line['unit'] ?? 'PCS'
                     ];
                 }, $qr_json['line_items']);
                 $items_json = json_encode($items);
@@ -1502,8 +1540,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
                 if (json_last_error() !== JSON_ERROR_NONE) {
                     // Not valid JSON (likely plain text), wrap it in a JSON object
                     $q_parsed_final = json_encode(['raw_text' => $qr_code_data]);
-                }
-                else {
+                } else {
                     // Already valid JSON
                     $q_parsed_final = $qr_code_data;
                 }
@@ -1519,8 +1556,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
                 // Use @ to suppress errors and prevent 500 status if insertion fails
                 @mysqli_query($conn, $log_sql);
             }
-        }
-        else {
+        } else {
             $error_msg = "❌ Error creating entry: " . mysqli_error($conn);
         }
     }
@@ -1558,17 +1594,17 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
         $d_name = $v_row['driver_name'] ?? 'Unknown';
         $t_name = $v_row['transporter_name'] ?? 'Unknown';
 
-        $log_details = "Outward Gate Exit:\n" . 
-                      "Vehicle: [$v_num]\n" .
-                      "Driver: [$d_name]\n" .
-                      "Transporter: [$t_name]\n" .
-                      auditFromPost($_POST, [], [
-                          'outward_remarks' => 'Remarks', 
-                          'outgoing_customer_name' => 'Customer', 
-                          'outgoing_destination' => 'Destination',
-                          'number_of_seals' => 'Seals',
-                          'sealing_method' => 'Seal Method'
-                      ]);
+        $log_details = "Outward Gate Exit:\n" .
+            "Vehicle: [$v_num]\n" .
+            "Driver: [$d_name]\n" .
+            "Transporter: [$t_name]\n" .
+            auditFromPost($_POST, [], [
+                'outward_remarks' => 'Remarks',
+                'outgoing_customer_name' => 'Customer',
+                'outgoing_destination' => 'Destination',
+                'number_of_seals' => 'Seals',
+                'sealing_method' => 'Seal Method'
+            ]);
 
         logActivity($conn, 'OUTWARD_EXIT', 'Logistics', $log_details);
 
@@ -1668,8 +1704,7 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
 
 
         $success_msg = "✅ Outward entry completed! Duration: " . formatDuration($duration);
-    }
-    else {
+    } else {
         $error_msg = "❌ Error recording outward entry: " . mysqli_error($conn);
     }
 }
@@ -1733,8 +1768,7 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
     $items_json = '[]';
     if (!empty($_POST['items'])) {
         $items_json = json_encode($_POST['items']);
-    }
-    elseif (!empty($qr_code_data)) {
+    } elseif (!empty($qr_code_data)) {
         $qr_json = json_decode($qr_code_data, true);
         if ($qr_json && isset($qr_json['items']) && is_array($qr_json['items'])) {
             $items_json = json_encode($qr_json['items']);
@@ -1782,8 +1816,7 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
         $success_msg = "✅ Inward entry updated successfully!";
         header("Location: ?page=inward-details&id=$id&success=1");
         exit;
-    }
-    else {
+    } else {
         $error_msg = "❌ Error updating entry: " . mysqli_error($conn);
     }
 }
@@ -1836,8 +1869,7 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
         $success_msg = "✅ Outward entry updated successfully!";
         header("Location: ?page=outward-details&id=$inward_id&success=1");
         exit;
-    }
-    else {
+    } else {
         $error_msg = "❌ Error updating entry: " . mysqli_error($conn);
     }
 }
@@ -1863,8 +1895,7 @@ if ($page == 'employee-entry-action') {
             if (mysqli_num_rows($check_inside) > 0) {
                 $response['message'] = "⚠️ Employee or Vehicle is already inside!";
                 $_SESSION['error_msg'] = $response['message'];
-            }
-            else {
+            } else {
                 $now = date('Y-m-d H:i:s');
                 $sql = "INSERT INTO employee_entries (employee_id, employee_name, vehicle_number, inward_datetime, inward_by, status, remarks) 
                         VALUES ('$employee_id', '$employee_name', '$vehicle', '$now', $user_id, 'inside', '$remarks')";
@@ -1877,14 +1908,12 @@ if ($page == 'employee-entry-action') {
                     if (!empty($remarks))
                         $details .= "\nRemarks: [$remarks]";
                     logActivity($conn, 'EMP_INWARD', 'Employee', $details);
-                }
-                else {
+                } else {
                     $response['message'] = "❌ Error logging employee entry: " . mysqli_error($conn);
                     $_SESSION['error_msg'] = $response['message'];
                 }
             }
-        }
-        elseif ($action == 'exit') {
+        } elseif ($action == 'exit') {
             $id = intval($_POST['entry_id']);
             $now = date('Y-m-d H:i:s');
             $sql = "UPDATE employee_entries SET outward_datetime = '$now', outward_by = $user_id, status = 'exited' WHERE id = $id";
@@ -1902,8 +1931,7 @@ if ($page == 'employee-entry-action') {
 
                 $details = "Employee Outward Action:\nAction: [OUTWARD]\nName: [$e_name]\nID: [$e_id]\nVehicle: [$v_num]";
                 logActivity($conn, 'EMP_OUTWARD', 'Employee', $details);
-            }
-            else {
+            } else {
                 $response['message'] = "❌ Error logging employee exit: " . mysqli_error($conn);
                 $_SESSION['error_msg'] = $response['message'];
             }
@@ -1936,12 +1964,10 @@ if ($page == 'change_password_action') {
         if (mysqli_query($conn, "UPDATE user_master SET password = '$new_hash' WHERE id = $user_id")) {
             logActivity($conn, 'PASSWORD_CHANGE', 'User', "User changed their own password.");
             echo json_encode(['success' => true, 'message' => 'Password changed successfully!']);
-        }
-        else {
+        } else {
             echo json_encode(['success' => false, 'message' => 'Database error. Please try again.']);
         }
-    }
-    else {
+    } else {
         echo json_encode(['success' => false, 'message' => 'Incorrect current password.']);
     }
     exit;
@@ -1963,14 +1989,13 @@ if ($page == 'get-employee-details') {
         $status_q = mysqli_query($conn, "SELECT id FROM employee_entries WHERE (employee_id = '$emp_id' OR vehicle_number = '$vehicle') AND status = 'inside' ORDER BY inward_datetime DESC LIMIT 1");
         $status_row = mysqli_fetch_assoc($status_q);
 
-        $data['is_inside'] = (bool)$status_row;
+        $data['is_inside'] = (bool) $status_row;
         $data['current_entry_id'] = $status_row['id'] ?? null;
 
         while (ob_get_level())
             ob_end_clean();
         echo json_encode(['success' => true, 'data' => $data]);
-    }
-    else {
+    } else {
         while (ob_get_level())
             ob_end_clean();
         echo json_encode(['success' => false, 'message' => 'No employee found in master for this ID/Vehicle.']);
@@ -1993,8 +2018,7 @@ if ($page == 'get-employee-entry') {
         while (ob_get_level())
             ob_end_clean();
         echo json_encode(['success' => true, 'data' => $row]);
-    }
-    else {
+    } else {
         while (ob_get_level())
             ob_end_clean();
         echo json_encode(['success' => false, 'message' => 'Employee entry not found.']);
@@ -2029,8 +2053,7 @@ if ($page == 'get-emp-inside-list') {
                     </td>
                   </tr>";
         }
-    }
-    else {
+    } else {
         echo "<tr><td colspan='4' style='padding: 20px; text-align: center; color: #64748b;'>No employees inside</td></tr>";
     }
     exit;
@@ -2052,8 +2075,7 @@ if ($page == 'qr-scanner' && isset($_POST['process_qr'])) {
         if (isset($json['items'])) {
             $items = $json['items'];
         }
-    }
-    else {
+    } else {
         // Try delimited (pipe, comma)
         if (strpos($qr_data, '|') !== false) {
             $parts = explode('|', $qr_data);
@@ -2083,12 +2105,10 @@ if ($page == 'check-duplicate-vehicle') {
         if (mysqli_num_rows($res) > 0) {
             $row = mysqli_fetch_assoc($res);
             echo json_encode(['exists' => true, 'name' => $row['employee_name']]);
-        }
-        else {
+        } else {
             echo json_encode(['exists' => false]);
         }
-    }
-    else {
+    } else {
         echo json_encode(['exists' => false]);
     }
     exit;
@@ -2103,12 +2123,10 @@ if ($page == 'check-duplicate-employee-id') {
         if (mysqli_num_rows($res) > 0) {
             $row = mysqli_fetch_assoc($res);
             echo json_encode(['exists' => true, 'name' => $row['employee_name']]);
-        }
-        else {
+        } else {
             echo json_encode(['exists' => false]);
         }
-    }
-    else {
+    } else {
         echo json_encode(['exists' => false]);
     }
     exit;

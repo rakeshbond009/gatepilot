@@ -1,8 +1,22 @@
 <?php if ($page == 'login'):
+    $system_reactivated = false;
+    if (isset($_GET['msg']) && $_GET['msg'] == 'system_inactive' && isset($_GET['tslug'])) {
+        $m_conn = getMasterDatabaseConnection();
+        if ($m_conn) {
+            $slug_safe = mysqli_real_escape_string($m_conn, $_GET['tslug']);
+            $res = mysqli_query($m_conn, "SELECT is_active FROM tenants WHERE slug = '$slug_safe'");
+            if ($row = mysqli_fetch_assoc($res)) {
+                if (($row['is_active'] ?? 1) == 1) {
+                    $system_reactivated = true;
+                }
+            }
+        }
+    }
 ?>
         <div class="landing-page">
 <?php
-    $company_logo = getSetting($conn, 'company_logo');
+    $m_conn = getMasterDatabaseConnection();
+    $company_logo = getSetting($m_conn, 'company_logo');
     $logo_src = 'uploads/logo/gatepilot_logo.png'; // Fallback
     if ($company_logo) {
         $logo_src = preg_match('#^https?://#', $company_logo)
@@ -333,6 +347,12 @@
                     <form method="POST">
                         <div class="form-group" style="text-align: left; margin-bottom: 25px;">
                             <label
+                                style="font-weight: 800; color: #1e293b; font-size: 0.9rem; margin-bottom: 10px; display: block;">Company Code</label>
+                            <input type="text" name="tenant_slug" required class="form-input" style="width:100%;"
+                                placeholder="tata">
+                        </div>
+                        <div class="form-group" style="text-align: left; margin-bottom: 25px;">
+                            <label
                                 style="font-weight: 800; color: #1e293b; font-size: 0.9rem; margin-bottom: 10px; display: block;">Username</label>
                             <input type="text" name="username" required class="form-input" style="width:100%;"
                                 placeholder="administrator">
@@ -351,7 +371,6 @@
                             style="width: 100%; padding: 20px; border-radius: 18px; font-weight: 900; font-size: 1.1rem; box-shadow: 0 15px 30px rgba(79, 70, 229, 0.3); border: none; cursor: pointer;">
                             SECURE SIGN IN
                         </button>
-
                     </form>
                 </div>
             </div>
@@ -449,6 +468,33 @@
                     loginCard.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale(1)';
                 });
             }
+
+            // Handle System Inactive Message
+            document.addEventListener('DOMContentLoaded', () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const isReactivated = <?php echo $system_reactivated ? 'true' : 'false'; ?>;
+                
+                if (urlParams.get('msg') === 'system_inactive') {
+                    if (isReactivated) {
+                        // System is back up! Clear the URL parameters silently
+                        const newUrl = window.location.href.split('?')[0] + '?page=login';
+                        window.history.replaceState({}, document.title, newUrl);
+                        
+                        // Optionally show a very subtle success notice instead of a big popup
+                        // or just do nothing as per user request to keep landing page clean.
+                    } else if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: '🚫 System Inactive',
+                            text: 'Your company account has been deactivated. Please contact your system administrator or platform owner for assistance.',
+                            icon: 'error',
+                            confirmButtonColor: '#4f46e5',
+                            confirmButtonText: 'Understood'
+                        });
+                    } else {
+                        alert('System Inactive: Your company account has been deactivated.');
+                    }
+                }
+            });
         </script>
 
         <?php

@@ -3,7 +3,7 @@
         <div class="navbar">
             <div class="logo">
                 <?php
-    $company_logo = getSetting($conn, 'company_logo');
+    $company_logo = getSetting(getMasterDatabaseConnection(), 'company_logo');
     if ($company_logo):
         // Build full URL for logo (works for both relative and absolute)
         $logo_src = preg_match('#^https?://#', $company_logo)

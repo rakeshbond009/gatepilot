@@ -790,13 +790,13 @@ elseif ($page == 'tickets'):
                                         <td><?php echo $t['id']; ?></td>
                                         <td>
                                             <?php echo date('d/m/Y h:i A', strtotime($t['reported_at'])); ?><br>
-                                            <small style="color:#6b7280">by <?php echo htmlspecialchars($t['reported_by_name']); ?></small>
+                                            <small style="color:#6b7280">by <?php echo htmlspecialchars($t['reported_by_name'] ?? ''); ?></small>
                                         </td>
-                                        <td><strong><?php echo htmlspecialchars($t['location_name']); ?></strong></td>
+                                        <td><strong><?php echo htmlspecialchars($t['location_name'] ?? ''); ?></strong></td>
                                         <td style="max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                            <?php echo htmlspecialchars($t['issue_description']); ?>
+                                            <?php echo htmlspecialchars($t['issue_description'] ?? ''); ?>
                                             <?php if ($t['photo_url']): ?>
-                                                <br><a href="<?php echo htmlspecialchars($t['photo_url']); ?>" target="_blank"
+                                                <br><a href="<?php echo htmlspecialchars($t['photo_url'] ?? ''); ?>" target="_blank"
                                                     onclick="event.stopPropagation()"
                                                     style="color:#3b82f6;font-size:12px;">📷 Photo</a>
                                             <?php
@@ -1161,65 +1161,65 @@ elseif ($page == 'edit-material-inward'):
                             <div class="form-group">
                                 <label>Date</label>
                                 <input type="date" name="entry_date" required
-                                    value="<?php echo htmlspecialchars($edit_row['entry_date']); ?>"
+                                    value="<?php echo htmlspecialchars($edit_row['entry_date'] ?? ''); ?>"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Vehicle Number</label>
                                 <input type="text" name="vehicle_number"
-                                    value="<?php echo htmlspecialchars($edit_row['vehicle_number']); ?>"
+                                    value="<?php echo htmlspecialchars($edit_row['vehicle_number'] ?? ''); ?>"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Pack Size</label>
                                 <input type="text" name="pack_size"
-                                    value="<?php echo htmlspecialchars($edit_row['pack_size']); ?>"
+                                    value="<?php echo htmlspecialchars($edit_row['pack_size'] ?? ''); ?>"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Quantity</label>
                                 <input type="text" name="quantity"
-                                    value="<?php echo htmlspecialchars($edit_row['quantity']); ?>"
+                                    value="<?php echo htmlspecialchars($edit_row['quantity'] ?? ''); ?>"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Material Code</label>
                                 <input type="text" name="material_code" id="e_material_code"
-                                    value="<?php echo htmlspecialchars($edit_row['material_code']); ?>" list="mat_codes"
+                                    value="<?php echo htmlspecialchars($edit_row['material_code'] ?? ''); ?>" list="mat_codes"
                                     onchange="fillMaterialDetails(this.value, 'code')"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Material Description</label>
                                 <input type="text" name="material_description" id="e_material_description"
-                                    value="<?php echo htmlspecialchars($edit_row['material_description']); ?>" list="mat_descs"
+                                    value="<?php echo htmlspecialchars($edit_row['material_description'] ?? ''); ?>" list="mat_descs"
                                     onchange="fillMaterialDetails(this.value, 'desc')"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Category</label>
                                 <input type="text" name="category" id="e_category"
-                                    value="<?php echo htmlspecialchars($edit_row['category']); ?>" list="mat_cats"
+                                    value="<?php echo htmlspecialchars($edit_row['category'] ?? ''); ?>" list="mat_cats"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Supplier Code</label>
                                 <input type="text" name="supp_code" id="e_supp_code"
-                                    value="<?php echo htmlspecialchars($edit_row['supp_code']); ?>" list="sup_codes"
+                                    value="<?php echo htmlspecialchars($edit_row['supp_code'] ?? ''); ?>" list="sup_codes"
                                     onchange="fillSupplierDetails(this.value, 'code')"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group">
                                 <label>Supplier Name</label>
                                 <input type="text" name="supplier" id="e_supplier"
-                                    value="<?php echo htmlspecialchars($edit_row['supplier']); ?>" list="sup_names"
+                                    value="<?php echo htmlspecialchars($edit_row['supplier'] ?? ''); ?>" list="sup_names"
                                     onchange="fillSupplierDetails(this.value, 'name')"
                                     style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
                             </div>
                             <div class="form-group" style="grid-column: 1 / -1;">
                                 <label>Remarks</label>
                                 <textarea name="remarks" rows="2"
-                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;"><?php echo htmlspecialchars($edit_row['remarks']); ?></textarea>
+                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;"><?php echo htmlspecialchars($edit_row['remarks'] ?? ''); ?></textarea>
                             </div>
                         </div>
                         <button type="submit" name="update_material_inward" class="btn btn-primary"

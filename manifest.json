@@ -5,7 +5,7 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
-  "description": "Premium Industrial Gate Management Dashboard",
+  "description": "Premium Gate Management Dashboard",
   "icons": [
     {
       "src": "assets/app_icon.png",

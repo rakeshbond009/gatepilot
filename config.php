@@ -49,16 +49,15 @@ if ($is_local) {
     define('DB_HOST', 'localhost');
     define('DB_USER', 'root');
     define('DB_PASS', '');
-    define('DB_NAME', 'truck');
+    define('DB_NAME', 'gp_admin');
     define('ENVIRONMENT', 'LOCAL');
-}
-else {
+} else {
     // ========== HOSTED ENVIRONMENT (HOSTINGER) ==========
     // Update these credentials with your Hostinger database details
     define('DB_HOST', 'localhost'); // Usually 'localhost' on Hostinger
-    define('DB_USER', 'u875321134_gate'); // Your Hostinger MySQL username
-    define('DB_PASS', 'Truckmanagement@123'); // Your Hostinger MySQL password
-    define('DB_NAME', 'u875321134_truck'); // Your Hostinger database name
+    define('DB_USER', 'u875321134_gatepilot'); // Your Hostinger MySQL username
+    define('DB_PASS', 'Gatepilot@123'); // Your Hostinger MySQL password
+    define('DB_NAME', 'u875321134_gp_admin'); // Shortened for grouping AND length compliance
     define('ENVIRONMENT', 'PRODUCTION');
 }
 
@@ -74,9 +73,9 @@ $session_lifetime = 365 * 24 * 60 * 60; // 1 year
 
 // Detect HTTPS including behind reverse proxies (Hostinger / Cloudflare)
 $_is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-          || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
-          || (isset($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
-          || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+    || (isset($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
+    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
 
 $_cookie_domain = '';
 
@@ -96,9 +95,9 @@ ini_set('session.cookie_lifetime', $session_lifetime);
 
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
-    'path'     => '/',
-    'domain'   => '',      // empty: browser infers host — most compatible
-    'secure'   => false,   // works on both HTTP and HTTPS
+    'path' => '/',
+    'domain' => '',      // empty: browser infers host — most compatible
+    'secure' => false,   // works on both HTTP and HTTPS
     'httponly' => true,
     'samesite' => 'Lax'
 ]);
@@ -112,32 +111,44 @@ date_default_timezone_set('Asia/Kolkata');
 if ($is_local) {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
-}
-else {
+} else {
     error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
     ini_set('display_errors', 0);
     ini_set('log_errors', 1);
     ini_set('error_log', __DIR__ . '/error.log');
 }
 
+// ========== MASTER DATABASE (Global Control) ==========
+define('MASTER_DB_NAME', DB_NAME); // Using existing "gatepilot_admin" DB as the control center
+define('MASTER_DB_USER', 'root');
+define('MASTER_DB_PASS', '');
+
+// Get Master DB connection
+function getMasterDatabaseConnection()
+{
+    // Since we're using the main DB as the control center, just return the standard connection
+    return mysqli_connect(DB_HOST, MASTER_DB_USER, MASTER_DB_PASS, DB_NAME);
+}
+
 // Database connection function
 function getDatabaseConnection()
 {
-    $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    // If we're logged in/specifying a tenant, we use that database
+    $db_name = $_SESSION['tenant_db'] ?? DB_NAME;
+
+    $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, $db_name);
 
     if (!$conn) {
         // Try to connect without database and create it
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
         if ($conn) {
-            $db_created = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS " . DB_NAME . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $db_created = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS " . $db_name . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             if ($db_created) {
-                mysqli_select_db($conn, DB_NAME);
-            }
-            else {
+                mysqli_select_db($conn, $db_name);
+            } else {
                 die("Error creating database: " . mysqli_error($conn));
             }
-        }
-        else {
+        } else {
             die("Database connection failed: " . mysqli_connect_error());
         }
     }

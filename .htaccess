@@ -16,7 +16,7 @@ ErrorDocument 403 /index.php?page=403
 # Protect database folder
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule ^database/ - [F,L]
+    # RewriteRule ^database/ - [F,L]
     
     # Rewrite export.xls and export.csv to export.php for browser compatibility
     # This makes the URL appear as .xls/.csv so browsers download it correctly

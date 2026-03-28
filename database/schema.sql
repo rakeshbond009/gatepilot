@@ -1,20 +1,37 @@
--- AUTOMATIC DATABASE SCHEMA DUMP
--- Generated on: 2026-03-22 17:24:47
--- 
+-- GatePilot Tenant Schema Template
+-- Generated: 2026-03-28 14:58:06
 
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
-SET time_zone = "+05:30";
+SET FOREIGN_KEY_CHECKS = 0;
 
--- 
--- Table structure for table `app_settings` 
--- 
+CREATE TABLE IF NOT EXISTS `app_issues` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `app_name` varchar(100) NOT NULL,
+  `client_name` varchar(100) DEFAULT NULL,
+  `client_contact` varchar(100) DEFAULT NULL,
+  `reported_by` varchar(50) DEFAULT NULL,
+  `issue_type` enum('Bug','Feature Request','UI Issue','Access Issue','Other') DEFAULT 'Bug',
+  `priority` enum('Low','Medium','High','Critical') DEFAULT 'Medium',
+  `description` text NOT NULL,
+  `photo_url` varchar(255) DEFAULT NULL,
+  `status` enum('Pending','In Progress','Resolved','Closed','Invalid') DEFAULT 'Pending',
+  `admin_remarks` text DEFAULT NULL,
+  `reported_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_app` (`app_name`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `audit_logs` 
--- 
-DROP TABLE IF EXISTS `audit_logs`;
-CREATE TABLE `audit_logs` (
+CREATE TABLE IF NOT EXISTS `app_settings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `setting_key` varchar(100) NOT NULL,
+  `setting_value` text DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `setting_key` (`setting_key`)
+) ENGINE=InnoDB AUTO_INCREMENT=48 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) DEFAULT NULL,
   `username` varchar(100) DEFAULT NULL,
@@ -25,27 +42,9 @@ CREATE TABLE `audit_logs` (
   `user_agent` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=354 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `app_settings` 
--- 
-DROP TABLE IF EXISTS `app_settings`;
-CREATE TABLE `app_settings` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `setting_key` varchar(100) NOT NULL,
-  `setting_value` text DEFAULT NULL,
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `setting_key` (`setting_key`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 
--- Table structure for table `customer_master` 
--- 
-
-DROP TABLE IF EXISTS `customer_master`;
-CREATE TABLE `customer_master` (
+CREATE TABLE IF NOT EXISTS `customer_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `customer_name` varchar(200) NOT NULL,
   `contact_person` varchar(100) DEFAULT NULL,
@@ -53,31 +52,21 @@ CREATE TABLE `customer_master` (
   `email` varchar(100) DEFAULT NULL,
   `address` text DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_customer_name` (`customer_name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `department_master` 
--- 
-
-DROP TABLE IF EXISTS `department_master`;
-CREATE TABLE `department_master` (
+CREATE TABLE IF NOT EXISTS `department_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `department_name` varchar(100) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `department_name` (`department_name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 
--- Table structure for table `driver_master` 
--- 
-
-DROP TABLE IF EXISTS `driver_master`;
-CREATE TABLE `driver_master` (
+CREATE TABLE IF NOT EXISTS `driver_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `driver_name` varchar(100) NOT NULL,
   `mobile` varchar(15) NOT NULL,
@@ -97,12 +86,7 @@ CREATE TABLE `driver_master` (
   CONSTRAINT `driver_master_ibfk_1` FOREIGN KEY (`transporter_id`) REFERENCES `transporter_master` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `employee_entries` 
--- 
-
-DROP TABLE IF EXISTS `employee_entries`;
-CREATE TABLE `employee_entries` (
+CREATE TABLE IF NOT EXISTS `employee_entries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `employee_id` varchar(50) DEFAULT NULL,
   `employee_name` varchar(100) DEFAULT NULL,
@@ -113,20 +97,15 @@ CREATE TABLE `employee_entries` (
   `inward_by` int(11) DEFAULT NULL,
   `outward_by` int(11) DEFAULT NULL,
   `remarks` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_status` (`status`),
   KEY `idx_employee_id` (`employee_id`),
   KEY `idx_vehicle` (`vehicle_number`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 
--- Table structure for table `employee_master` 
--- 
-
-DROP TABLE IF EXISTS `employee_master`;
-CREATE TABLE `employee_master` (
+CREATE TABLE IF NOT EXISTS `employee_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `employee_id` varchar(50) DEFAULT NULL,
   `employee_name` varchar(100) NOT NULL,
@@ -134,27 +113,22 @@ CREATE TABLE `employee_master` (
   `department` varchar(100) DEFAULT NULL,
   `vehicle_number` varchar(20) DEFAULT NULL,
   `qr_code_data` text DEFAULT NULL,
+  `photo` varchar(255) DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `rc_expiry` date DEFAULT NULL,
   `license_expiry` date DEFAULT NULL,
   `pollution_expiry` date DEFAULT NULL,
   `fitness_expiry` date DEFAULT NULL,
   `vehicle_type` varchar(50) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
-  `photo` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `employee_id` (`employee_id`),
-  UNIQUE KEY `idx_vehicle` (`vehicle_number`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  KEY `idx_vehicle` (`vehicle_number`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 
--- Table structure for table `manual_registers` 
--- 
-
-DROP TABLE IF EXISTS `manual_registers`;
-CREATE TABLE `manual_registers` (
+CREATE TABLE IF NOT EXISTS `manual_registers` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `register_type` varchar(50) NOT NULL,
   `entry_date` date NOT NULL,
@@ -173,6 +147,7 @@ CREATE TABLE `manual_registers` (
   `transporter_name` varchar(255) DEFAULT NULL,
   `security_sign` varchar(100) DEFAULT NULL,
   `remarks` text DEFAULT NULL,
+  `dynamic_data` text DEFAULT NULL,
   `department` varchar(100) DEFAULT NULL,
   `recheck_status` varchar(255) DEFAULT NULL,
   `return_date_time` datetime DEFAULT NULL,
@@ -181,36 +156,26 @@ CREATE TABLE `manual_registers` (
   `reference_no` varchar(100) DEFAULT NULL,
   `received_quantity` varchar(100) DEFAULT NULL,
   `out_time_date` datetime DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_register_type` (`register_type`),
   KEY `idx_entry_date` (`entry_date`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `material_master` 
--- 
-
-DROP TABLE IF EXISTS `material_master`;
-CREATE TABLE `material_master` (
+CREATE TABLE IF NOT EXISTS `material_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `material_code` varchar(50) NOT NULL,
   `material_description` text DEFAULT NULL,
   `material_category` varchar(100) DEFAULT NULL,
   `supplier` varchar(100) DEFAULT NULL,
   `supp_code` varchar(50) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `is_active` tinyint(1) DEFAULT 1,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_material_code` (`material_code`)
 ) ENGINE=InnoDB AUTO_INCREMENT=525 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 
--- Table structure for table `patrol_issues` 
--- 
-
-DROP TABLE IF EXISTS `patrol_issues`;
-CREATE TABLE `patrol_issues` (
+CREATE TABLE IF NOT EXISTS `patrol_issues` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `issue_description` text NOT NULL,
   `photo_url` varchar(255) DEFAULT NULL,
@@ -221,9 +186,10 @@ CREATE TABLE `patrol_issues` (
   `assigned_to` int(11) DEFAULT NULL,
   `assigned_at` datetime DEFAULT NULL,
   `resolution_remarks` text DEFAULT NULL,
+  `closing_remarks` text DEFAULT NULL,
   `resolved_at` datetime DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `location_id` (`location_id`),
   KEY `reported_by` (`reported_by`),
@@ -231,41 +197,31 @@ CREATE TABLE `patrol_issues` (
   KEY `idx_reported_at` (`reported_at`),
   CONSTRAINT `patrol_issues_ibfk_1` FOREIGN KEY (`location_id`) REFERENCES `patrol_locations` (`id`) ON DELETE SET NULL,
   CONSTRAINT `patrol_issues_ibfk_2` FOREIGN KEY (`reported_by`) REFERENCES `user_master` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `patrol_locations` 
--- 
-
-DROP TABLE IF EXISTS `patrol_locations`;
-CREATE TABLE `patrol_locations` (
+CREATE TABLE IF NOT EXISTS `patrol_locations` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `location_id` varchar(50) NOT NULL,
   `location_name` varchar(200) NOT NULL,
   `area_site_building` varchar(200) DEFAULT NULL,
   `qr_code_data` text DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `location_id` (`location_id`),
   KEY `idx_location_id` (`location_id`),
   KEY `idx_active` (`is_active`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `patrol_logs` 
--- 
-
-DROP TABLE IF EXISTS `patrol_logs`;
-CREATE TABLE `patrol_logs` (
+CREATE TABLE IF NOT EXISTS `patrol_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `location_id` int(11) NOT NULL,
   `guard_id` int(11) NOT NULL,
   `guard_name` varchar(100) DEFAULT NULL,
   `scan_datetime` datetime NOT NULL,
   `session_id` varchar(50) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_scan_time` (`scan_datetime`),
   KEY `idx_location` (`location_id`),
@@ -274,26 +230,16 @@ CREATE TABLE `patrol_logs` (
   CONSTRAINT `patrol_logs_ibfk_2` FOREIGN KEY (`guard_id`) REFERENCES `user_master` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `purpose_master` 
--- 
-
-DROP TABLE IF EXISTS `purpose_master`;
-CREATE TABLE `purpose_master` (
+CREATE TABLE IF NOT EXISTS `purpose_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `purpose_name` varchar(100) NOT NULL,
   `purpose_type` enum('delivery','pickup','service','visit','return','other') NOT NULL,
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `qr_scan_logs` 
--- 
-
-DROP TABLE IF EXISTS `qr_scan_logs`;
-CREATE TABLE `qr_scan_logs` (
+CREATE TABLE IF NOT EXISTS `qr_scan_logs` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `inward_id` int(11) DEFAULT NULL,
   `qr_raw_data` text NOT NULL,
@@ -311,45 +257,30 @@ CREATE TABLE `qr_scan_logs` (
   CONSTRAINT `qr_scan_logs_ibfk_2` FOREIGN KEY (`scanned_by`) REFERENCES `user_master` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `register_types` 
--- 
-
-DROP TABLE IF EXISTS `register_types`;
-CREATE TABLE `register_types` (
+CREATE TABLE IF NOT EXISTS `register_types` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `slug` varchar(100) NOT NULL,
   `title` varchar(255) NOT NULL,
   `icon` varchar(50) DEFAULT '',
   `color` varchar(50) DEFAULT '#4f46e5',
   `fields_json` text NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `is_active` tinyint(4) DEFAULT 1,
   PRIMARY KEY (`id`),
   UNIQUE KEY `slug` (`slug`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `supplier_master` 
--- 
-
-DROP TABLE IF EXISTS `supplier_master`;
-CREATE TABLE `supplier_master` (
+CREATE TABLE IF NOT EXISTS `supplier_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `supplier` varchar(100) NOT NULL,
   `supp_code` varchar(50) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `is_active` tinyint(1) DEFAULT 1,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_supp_code` (`supp_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=52 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=53 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 
--- Table structure for table `transporter_master` 
--- 
-
-DROP TABLE IF EXISTS `transporter_master`;
-CREATE TABLE `transporter_master` (
+CREATE TABLE IF NOT EXISTS `transporter_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `transporter_name` varchar(200) NOT NULL,
   `contact_person` varchar(100) DEFAULT NULL,
@@ -362,14 +293,9 @@ CREATE TABLE `transporter_master` (
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_transporter_name` (`transporter_name`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `truck_inward` 
--- 
-
-DROP TABLE IF EXISTS `truck_inward`;
-CREATE TABLE `truck_inward` (
+CREATE TABLE IF NOT EXISTS `truck_inward` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `entry_number` varchar(50) NOT NULL,
   `vehicle_number` varchar(20) NOT NULL,
@@ -398,8 +324,8 @@ CREATE TABLE `truck_inward` (
   `inward_by_name` varchar(100) DEFAULT NULL,
   `is_exited` tinyint(1) DEFAULT 0,
   `status` enum('inside','exited','cancelled') DEFAULT 'inside',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `entry_number` (`entry_number`),
   KEY `inward_by` (`inward_by`),
@@ -414,14 +340,9 @@ CREATE TABLE `truck_inward` (
   CONSTRAINT `truck_inward_ibfk_1` FOREIGN KEY (`inward_by`) REFERENCES `user_master` (`id`),
   CONSTRAINT `truck_inward_ibfk_2` FOREIGN KEY (`transporter_id`) REFERENCES `transporter_master` (`id`) ON DELETE SET NULL,
   CONSTRAINT `truck_inward_ibfk_3` FOREIGN KEY (`purpose_id`) REFERENCES `purpose_master` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `truck_outward` 
--- 
-
-DROP TABLE IF EXISTS `truck_outward`;
-CREATE TABLE `truck_outward` (
+CREATE TABLE IF NOT EXISTS `truck_outward` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `inward_id` int(11) NOT NULL,
   `outward_date` date NOT NULL,
@@ -431,8 +352,8 @@ CREATE TABLE `truck_outward` (
   `outward_by_name` varchar(100) DEFAULT NULL,
   `outward_remarks` text DEFAULT NULL,
   `duration_hours` decimal(10,2) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `outward_by` (`outward_by`),
   KEY `idx_inward_id` (`inward_id`),
@@ -441,12 +362,7 @@ CREATE TABLE `truck_outward` (
   CONSTRAINT `truck_outward_ibfk_2` FOREIGN KEY (`outward_by`) REFERENCES `user_master` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `user_master` 
--- 
-
-DROP TABLE IF EXISTS `user_master`;
-CREATE TABLE `user_master` (
+CREATE TABLE IF NOT EXISTS `user_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
@@ -464,14 +380,9 @@ CREATE TABLE `user_master` (
   UNIQUE KEY `username` (`username`),
   KEY `idx_username` (`username`),
   KEY `idx_role` (`role`)
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `user_sessions` 
--- 
-
-DROP TABLE IF EXISTS `user_sessions`;
-CREATE TABLE `user_sessions` (
+CREATE TABLE IF NOT EXISTS `user_sessions` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `token` varchar(64) NOT NULL,
@@ -480,15 +391,13 @@ CREATE TABLE `user_sessions` (
   `last_used_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `token` (`token`),
+  KEY `idx_token` (`token`),
   KEY `idx_user` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `vehicle_drivers` 
--- 
+;
 
-DROP TABLE IF EXISTS `vehicle_drivers`;
-CREATE TABLE `vehicle_drivers` (
+CREATE TABLE IF NOT EXISTS `vehicle_drivers` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `vehicle_id` int(11) NOT NULL,
   `driver_id` int(11) NOT NULL,
@@ -500,14 +409,9 @@ CREATE TABLE `vehicle_drivers` (
   KEY `idx_driver_id` (`driver_id`),
   CONSTRAINT `vehicle_drivers_ibfk_1` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicle_master` (`id`) ON DELETE CASCADE,
   CONSTRAINT `vehicle_drivers_ibfk_2` FOREIGN KEY (`driver_id`) REFERENCES `driver_master` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 
--- Table structure for table `vehicle_loading_checklist` 
--- 
-
-DROP TABLE IF EXISTS `vehicle_loading_checklist`;
-CREATE TABLE `vehicle_loading_checklist` (
+CREATE TABLE IF NOT EXISTS `vehicle_loading_checklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `document_id` varchar(50) DEFAULT 'VCPL/LOG/FR/01',
   `document_date` date DEFAULT curdate(),
@@ -551,8 +455,8 @@ CREATE TABLE `vehicle_loading_checklist` (
   `checked_by` int(11) DEFAULT NULL,
   `checked_by_name` varchar(100) DEFAULT NULL,
   `status` enum('draft','completed','cancelled') DEFAULT 'draft',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `transport_company_id` (`transport_company_id`),
   KEY `checked_by` (`checked_by`),
@@ -565,12 +469,7 @@ CREATE TABLE `vehicle_loading_checklist` (
   CONSTRAINT `vehicle_loading_checklist_ibfk_2` FOREIGN KEY (`checked_by`) REFERENCES `user_master` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `vehicle_master` 
--- 
-
-DROP TABLE IF EXISTS `vehicle_master`;
-CREATE TABLE `vehicle_master` (
+CREATE TABLE IF NOT EXISTS `vehicle_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `vehicle_number` varchar(20) NOT NULL,
   `maker` varchar(100) DEFAULT NULL,
@@ -583,8 +482,8 @@ CREATE TABLE `vehicle_master` (
   `permit_validity` date DEFAULT NULL,
   `permit_number` varchar(50) DEFAULT NULL,
   `rc_owner_name` varchar(200) DEFAULT NULL,
-  `transporter_id` int(11) DEFAULT NULL,
   `driver_id` int(11) DEFAULT NULL,
+  `transporter_id` int(11) DEFAULT NULL,
   `vehicle_class` varchar(50) DEFAULT NULL,
   `seating_capacity` int(11) DEFAULT NULL,
   `gross_weight` int(11) DEFAULT NULL,
@@ -597,20 +496,15 @@ CREATE TABLE `vehicle_master` (
   `pollution_photo` varchar(255) DEFAULT NULL,
   `fitness_photo` varchar(255) DEFAULT NULL,
   `permit_photo` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
   UNIQUE KEY `vehicle_number` (`vehicle_number`),
   KEY `idx_vehicle_number` (`vehicle_number`),
   KEY `driver_id` (`driver_id`),
-  KEY `transporter_id` (`transporter_id`),
-  CONSTRAINT `vehicle_master_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `driver_master` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `vehicle_master_ibfk_2` FOREIGN KEY (`transporter_id`) REFERENCES `transporter_master` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_transporter_id` (`transporter_id`),
+  CONSTRAINT `vehicle_master_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `driver_master` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `vehicle_outgoing_checklist` 
--- 
-
-DROP TABLE IF EXISTS `vehicle_outgoing_checklist`;
-CREATE TABLE `vehicle_outgoing_checklist` (
+CREATE TABLE IF NOT EXISTS `vehicle_outgoing_checklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `loading_checklist_id` int(11) DEFAULT NULL,
   `inward_id` int(11) DEFAULT NULL,
@@ -645,8 +539,8 @@ CREATE TABLE `vehicle_outgoing_checklist` (
   `security_signature` varchar(100) DEFAULT NULL,
   `logistic_signature` varchar(100) DEFAULT NULL,
   `status` enum('draft','completed','cancelled') DEFAULT 'draft',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `customer_id` (`customer_id`),
   KEY `idx_loading_checklist_id` (`loading_checklist_id`),
@@ -657,12 +551,7 @@ CREATE TABLE `vehicle_outgoing_checklist` (
   CONSTRAINT `vehicle_outgoing_checklist_ibfk_2` FOREIGN KEY (`customer_id`) REFERENCES `customer_master` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `vehicle_unloading_checklist` 
--- 
-
-DROP TABLE IF EXISTS `vehicle_unloading_checklist`;
-CREATE TABLE `vehicle_unloading_checklist` (
+CREATE TABLE IF NOT EXISTS `vehicle_unloading_checklist` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `document_id` varchar(50) DEFAULT 'VCPL/STORE/FR/01',
   `document_date` date DEFAULT curdate(),
@@ -708,8 +597,8 @@ CREATE TABLE `vehicle_unloading_checklist` (
   `checked_by` int(11) DEFAULT NULL,
   `checked_by_name` varchar(100) DEFAULT NULL,
   `status` enum('draft','completed','cancelled') DEFAULT 'draft',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `transport_company_id` (`transport_company_id`),
   KEY `vendor_id` (`vendor_id`),
@@ -726,12 +615,7 @@ CREATE TABLE `vehicle_unloading_checklist` (
   CONSTRAINT `vehicle_unloading_checklist_ibfk_3` FOREIGN KEY (`checked_by`) REFERENCES `user_master` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 
--- Table structure for table `vendor_master` 
--- 
-
-DROP TABLE IF EXISTS `vendor_master`;
-CREATE TABLE `vendor_master` (
+CREATE TABLE IF NOT EXISTS `vendor_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `vendor_name` varchar(200) NOT NULL,
   `gst_number` varchar(15) DEFAULT NULL,
@@ -740,34 +624,11 @@ CREATE TABLE `vendor_master` (
   `email` varchar(100) DEFAULT NULL,
   `address` text DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_vendor_name` (`vendor_name`),
   KEY `idx_gst_number` (`gst_number`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
--- 
--- Table structure for table `app_issues` (Centralized Support DB)
--- 
-DROP TABLE IF EXISTS `app_issues`;
-CREATE TABLE `app_issues` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `app_name` VARCHAR(100) NOT NULL,
-  `client_name` VARCHAR(100),
-  `client_contact` VARCHAR(100),
-  `reported_by` VARCHAR(50),
-  `issue_type` ENUM('Bug', 'Feature Request', 'UI Issue', 'Access Issue', 'Other') DEFAULT 'Bug',
-  `priority` ENUM('Low', 'Medium', 'High', 'Critical') DEFAULT 'Medium',
-  `description` TEXT NOT NULL,
-  `photo_url` VARCHAR(255),
-  `status` ENUM('Pending', 'In Progress', 'Resolved', 'Closed', 'Invalid') DEFAULT 'Pending',
-  `admin_remarks` TEXT,
-  `reported_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `idx_app` (`app_name`),
-  INDEX `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-COMMIT;
+SET FOREIGN_KEY_CHECKS = 1;
