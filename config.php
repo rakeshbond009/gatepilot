@@ -119,7 +119,7 @@ if ($is_local) {
 }
 
 // ========== MASTER DATABASE (Global Control) ==========
-define('MASTER_DB_NAME', DB_NAME); 
+define('MASTER_DB_NAME', DB_NAME); // Using existing "gatepilot_admin" DB as the control center
 define('MASTER_DB_USER', DB_USER);
 define('MASTER_DB_PASS', DB_PASS);
 
@@ -162,7 +162,8 @@ function getDatabaseConnection()
 // Get base URL
 function getBaseUrl()
 {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+    global $_is_https;
+    $protocol = $_is_https ? "https" : "http";
     $host = $_SERVER['HTTP_HOST'];
     $script = str_replace('/index.php', '', $_SERVER['SCRIPT_NAME']);
     return $protocol . "://" . $host . $script;

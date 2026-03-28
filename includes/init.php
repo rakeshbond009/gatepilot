@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.2241');
+    define('APP_VERSION', '26.03.28.2304');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -375,6 +375,27 @@ if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
 // Page routing
 $page = isset($_GET['page']) ? $_GET['page'] : (isLoggedIn() ? 'dashboard' : 'login');
 
+// CRITICAL SESSION VALIDATION: If logged in but tenant context is missing (legacy session), force re-login.
+// This prevents "Dashboard direct access" issues with new multi-tenant changes.
+if (isLoggedIn() && !isset($_SESSION['tenant_slug']) && $page !== 'logout') {
+    // Only skip for logout to prevent loops
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+    }
+    
+    // Also clear the persistent login cookie to prevent infinite loop during restore
+    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+        setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        unset($_COOKIE['GATEPILOT_REMEMBER']);
+    }
+    
+    session_destroy();
+    header('Location: ?page=login&session_reset=1');
+    exit;
+}
+
 // Change Password Action
 if ($page == 'change_password_action' && $_SERVER['REQUEST_METHOD'] == 'POST') {
     $uid = $_SESSION['user_id'];
@@ -406,16 +427,30 @@ if ($page == 'change_password_action' && $_SERVER['REQUEST_METHOD'] == 'POST') {
 
 // Handle login
 if ($page == 'login' && isset($_POST['login'])) {
-    $tenant_slug = mysqli_real_escape_string($conn, $_POST['tenant_slug'] ?? '');
-    $username = mysqli_real_escape_string($conn, $_POST['username']);
-    $password = $_POST['password'];
+    $tenant_slug = strtolower(trim(mysqli_real_escape_string($conn, $_POST['tenant_slug'] ?? '')));
+    $username = trim(mysqli_real_escape_string($conn, $_POST['username'] ?? ''));
+    $password = $_POST['password'] ?? '';
 
     // 1. Identify Tenant Database
     $master_conn = getMasterDatabaseConnection();
-    // Check if slug exists at all
-    $tenant_check = mysqli_query($master_conn, "SELECT db_name, customer_name, is_active FROM tenants WHERE slug = '$tenant_slug'");
+    if (!$master_conn) {
+        die("❌ ERROR: Could not connect to the Master Management database. Check config.php credentials.");
+    }
 
-    if ($tenant = mysqli_fetch_assoc($tenant_check)) {
+    // Master Admin Override: If slug is 'admin', use the master database directly
+    if ($tenant_slug === 'admin') {
+        $tenant = [
+            'db_name' => DB_NAME,
+            'customer_name' => 'Master Admin',
+            'is_active' => 1
+        ];
+    } else {
+        // Check if slug exists in tenants table
+        $tenant_check = mysqli_query($master_conn, "SELECT db_name, customer_name, is_active FROM tenants WHERE slug = '$tenant_slug'");
+        $tenant = mysqli_fetch_assoc($tenant_check);
+    }
+
+    if ($tenant) {
         if (!$tenant['is_active']) {
             $error = "🚫 This system is temporarily DISABLED. Please contact your administrator.";
         } else {

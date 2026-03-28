@@ -229,7 +229,7 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
     }
 
     $slug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $slug));
-    
+
     // Prefix for grouping in phpMyAdmin and shortening for compliance
     if (defined('ENVIRONMENT') && ENVIRONMENT === 'LOCAL') {
         $db_name = "gp_" . $slug; // Local prefix
