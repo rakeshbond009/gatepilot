@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.2338');
+    define('APP_VERSION', '26.03.28.2340');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -14,6 +14,27 @@ require_once __DIR__ . '/DynamicRegisters.php';
 require_once __DIR__ . '/functions.php';
 
 session_start();
+
+// ========== 0. LEGACY SESSION PURGE (URGENT) ==========
+// If a user has a session without a tenant_slug, it's from the old single-database version.
+// We MUST wipe it before it touches ANY database logic to prevent crashes/loops.
+if (isset($_SESSION['user_id']) && !isset($_SESSION['tenant_slug'])) {
+    $_SESSION = array();
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+    }
+    // Also kill the persistent login cookie to prevent it from re-loading the bad session
+    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
+        setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+        unset($_COOKIE['GATEPILOT_REMEMBER']);
+    }
+    @session_destroy();
+    
+    // Redirect to login to start clean
+    header('Location: ?page=login&session_reset=legacy_cleanup');
+    exit;
+}
 
 // ========== MULTI-TENANT GLOBAL HANDLERS (AJAX & STATE) ==========
 // 1. Real-time password uniqueness check (Clean AJAX Response)
@@ -375,26 +396,6 @@ if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
 // Page routing
 $page = isset($_GET['page']) ? $_GET['page'] : (isLoggedIn() ? 'dashboard' : 'login');
 
-// CRITICAL SESSION VALIDATION: If logged in but tenant context is missing (legacy session), force re-login.
-// This prevents "Dashboard direct access" issues with new multi-tenant changes.
-if (isLoggedIn() && !isset($_SESSION['tenant_slug']) && $page !== 'logout') {
-    // Only skip for logout to prevent loops
-    $_SESSION = [];
-    if (ini_get("session.use_cookies")) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
-    }
-    
-    // Also clear the persistent login cookie to prevent infinite loop during restore
-    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
-        setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-        unset($_COOKIE['GATEPILOT_REMEMBER']);
-    }
-    
-    session_destroy();
-    header('Location: ?page=login&session_reset=1');
-    exit;
-}
 
 // Change Password Action
 if ($page == 'change_password_action' && $_SERVER['REQUEST_METHOD'] == 'POST') {

@@ -372,16 +372,6 @@
                             SECURE SIGN IN
                         </button>
                     </form>
-                    
-                    <div style="margin-top: 40px; padding-top: 25px; border-top: 1px solid #e1e4e8; text-align: center;">
-                        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">Having trouble with login or sessions?</p>
-                        <button type="button" onclick="clearAppDataAndFix()" 
-                            style="background: #f8fafc; color: #475569; border: 1.5px solid #e2e8f0; padding: 10px 20px; border-radius: 12px; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;"
-                            onmouseover="this.style.background='#f1f5f9'; this.style.borderColor='#cbd5e1';"
-                            onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0';">
-                            <span>🧹</span> Clear App Data & Fix Session
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -415,7 +405,7 @@
             // Register Service Worker
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('./service-worker.js?v=<?php echo APP_VERSION; ?>')
+                    navigator.serviceWorker.register('./service-worker.js')
                         .then(reg => console.log('Service Worker registered'))
                         .catch(err => console.log('Service Worker failed', err));
                 });
@@ -505,75 +495,6 @@
                     }
                 }
             });
-
-            async function clearAppDataAndFix() {
-                const result = await Swal.fire({
-                    title: 'Clear App Data?',
-                    text: 'This will clear all local settings, cookies, and cached files. You will need to log in again.',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#4f46e5',
-                    cancelButtonColor: '#64748b',
-                    confirmButtonText: 'Yes, clear and fix',
-                    cancelButtonText: 'Cancel'
-                });
-
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Clearing...',
-                        text: 'Please wait while we reset the application state.',
-                        allowOutsideClick: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
-
-                    try {
-                        // 1. Clear LocalStorage and SessionStorage
-                        localStorage.clear();
-                        sessionStorage.clear();
-
-                        // 2. Clear all Cookies
-                        const cookies = document.cookie.split(";");
-                        for (let i = 0; i < cookies.length; i++) {
-                            const cookie = cookies[i];
-                            const eqPos = cookie.indexOf("=");
-                            const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
-                            document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-                        }
-
-                        // 3. Unregister and clear all Service Workers
-                        if ('serviceWorker' in navigator) {
-                            const registrations = await navigator.serviceWorker.getRegistrations();
-                            for (let registration of registrations) {
-                                await registration.unregister();
-                            }
-                        }
-
-                        // 4. Clear all Caches
-                        if ('caches' in window) {
-                            const keys = await caches.keys();
-                            for (let key of keys) {
-                                await caches.delete(key);
-                            }
-                        }
-
-                        // Success notification and reload
-                        await Swal.fire({
-                            title: 'Cleaned!',
-                            text: 'Cache and sessions cleared. The page will now reload.',
-                            icon: 'success',
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                        
-                        window.location.reload(true);
-                    } catch (e) {
-                        console.error('Clear failed:', e);
-                        Swal.fire('Error', 'Some data could not be cleared automatically. Please reload the page.', 'error');
-                    }
-                }
-            }
         </script>
 
         <?php
