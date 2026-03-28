@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.2343');
+    define('APP_VERSION', '26.03.28.2346');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -14,6 +14,23 @@ require_once __DIR__ . '/DynamicRegisters.php';
 require_once __DIR__ . '/functions.php';
 
 session_start();
+
+// ========== EMERGENCY LOGOUT HANDLER ==========
+if (isset($_GET['page']) && $_GET['page'] === 'logout') {
+    $_SESSION = array();
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+    }
+    // Wipe persistent cookie
+    setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
+    unset($_COOKIE['GATEPILOT_REMEMBER']);
+    @session_destroy();
+    
+    // Redirect to login to verify it works
+    header('Location: ?page=login&msg=logout_complete');
+    exit;
+}
 
 // ========== MULTI-TENANT GLOBAL HANDLERS (AJAX & STATE) ==========
 // 1. Real-time password uniqueness check (Clean AJAX Response)
@@ -47,26 +64,6 @@ if (isset($_GET['clear_form'])) {
 
 // Database connection using auto-detected environment settings
 $conn = getDatabaseConnection();
-
-// ========== SESSION INTEGRITY AUTO-FIX (FOR 500 ERRORS) ==========
-// If a user has a session but the database connection fails, it's a "corrupted" or "legacy"
-// state. We must wipe it to let them reach the landing page and re-login correctly.
-if (!$conn && isset($_SESSION['user_id'])) {
-    $_SESSION = array();
-    if (ini_get("session.use_cookies")) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
-    }
-    if (isset($_COOKIE['GATEPILOT_REMEMBER'])) {
-        setcookie('GATEPILOT_REMEMBER', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-        unset($_COOKIE['GATEPILOT_REMEMBER']);
-    }
-    @session_destroy();
-    header("Location: index.php?page=login&session_error=db_mismatch");
-    exit;
-}
-// =================================================================
-
 $registers_manager = new DynamicRegisters($conn);
 
 // 3. Enforce Tenant Status (Active/Inactive)
