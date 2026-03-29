@@ -16,8 +16,8 @@ function initAppIssuesTable($conn) {
       `photo_url` VARCHAR(255),
       `status` ENUM('Pending', 'In Progress', 'Resolved', 'Closed', 'Invalid') DEFAULT 'Pending',
       `admin_remarks` TEXT,
-      `reported_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      `reported_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX `idx_app` (`app_name`),
       INDEX `idx_status` (`status`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";

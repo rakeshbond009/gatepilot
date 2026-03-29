@@ -1316,7 +1316,7 @@ elseif ($page == 'material-inward'):
             category VARCHAR(100),
             pack_size VARCHAR(50),
             remarks TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )");
 
     // Migrations: Add new columns if they don't exist

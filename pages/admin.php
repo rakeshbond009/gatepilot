@@ -3037,7 +3037,7 @@
                         vehicle_id INT NOT NULL,
                         driver_id INT NOT NULL,
                         is_primary TINYINT(1) DEFAULT 0,
-                        assigned_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        assigned_date DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (vehicle_id) REFERENCES vehicle_master(id) ON DELETE CASCADE,
                         FOREIGN KEY (driver_id) REFERENCES driver_master(id) ON DELETE CASCADE,
                         UNIQUE KEY unique_vehicle_driver (vehicle_id, driver_id),
@@ -5111,7 +5111,7 @@
                     CREATE TABLE department_master (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         department_name VARCHAR(100) NOT NULL UNIQUE,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 ");
             }
@@ -5337,7 +5337,7 @@
                         material_code VARCHAR(50) NOT NULL,
                         material_description TEXT,
                         material_category VARCHAR(100),
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         is_active TINYINT(1) DEFAULT 1,
                         UNIQUE KEY unique_material_code (material_code)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -5708,7 +5708,7 @@
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         supplier VARCHAR(100) NOT NULL,
                         supp_code VARCHAR(50) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         is_active TINYINT(1) DEFAULT 1,
                         UNIQUE KEY unique_supp_code (supp_code)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4

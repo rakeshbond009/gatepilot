@@ -12,8 +12,8 @@ function initPatrolTables($conn) {
       `area_site_building` VARCHAR(200),
       `qr_code_data` TEXT,
       `is_active` TINYINT(1) DEFAULT 1,
-      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX `idx_location_id` (`location_id`),
       INDEX `idx_active` (`is_active`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
@@ -27,7 +27,7 @@ function initPatrolTables($conn) {
       `guard_name` VARCHAR(100),
       `scan_datetime` DATETIME NOT NULL,
       `session_id` VARCHAR(50),
-      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (`location_id`) REFERENCES `patrol_locations`(`id`) ON DELETE CASCADE,
       FOREIGN KEY (`guard_id`) REFERENCES `user_master`(`id`) ON DELETE CASCADE,
       INDEX `idx_scan_time` (`scan_datetime`),

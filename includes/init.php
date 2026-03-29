@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.28.2348');
+    define('APP_VERSION', '26.03.29.1150');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -156,8 +156,8 @@ if ($conn) {
         user_id INT NOT NULL,
         token VARCHAR(64) UNIQUE NOT NULL,
         user_agent TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_token (token),
         INDEX idx_user (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
@@ -508,18 +508,31 @@ if ($page == 'login' && isset($_POST['login'])) {
                     // Audit Log
                     logActivity($conn, 'LOGIN_SUCCESS', 'Auth', "User '{$row['username']}' logged in to tenant '$tenant_slug'");
 
-                    // Persistent Login Logic ("Login Forever")
+                    // Persistent Login Logic ("Login Forever") - WRITE TO MASTER DB
                     try {
                         $token = bin2hex(random_bytes(32));
                     } catch (Exception $e) {
                         $token = bin2hex(openssl_random_pseudo_bytes(32));
                     }
 
-                    $user_agent = mysqli_real_escape_string($conn, $_SERVER['HTTP_USER_AGENT'] ?? '');
-                    $user_id = $row['id'];
+                    $user_agent = mysqli_real_escape_string($master_conn, $_SERVER['HTTP_USER_AGENT'] ?? '');
+                    $user_id = (int)$row['id'];
+                    $slug_safe = mysqli_real_escape_string($master_conn, $tenant_slug);
 
-                    $token_sql = "INSERT INTO user_sessions (user_id, token, user_agent) VALUES ($user_id, '$token', '$user_agent')";
-                    if (mysqli_query($conn, $token_sql)) {
+                    // Ensure global table exists in Master DB
+                    mysqli_query($master_conn, "CREATE TABLE IF NOT EXISTS global_sessions (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        token VARCHAR(64) UNIQUE NOT NULL,
+                        tenant_slug VARCHAR(100) NOT NULL,
+                        user_agent TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_token (token)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                    $token_sql = "INSERT INTO global_sessions (user_id, token, tenant_slug, user_agent) VALUES ($user_id, '$token', '$slug_safe', '$user_agent')";
+                    if (mysqli_query($master_conn, $token_sql)) {
                         setcookie('GATEPILOT_REMEMBER', $token, [
                             'expires' => time() + (365 * 24 * 60 * 60),
                             'path' => '/',
@@ -1588,7 +1601,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
                     parsed_data JSON,
                             scan_status VARCHAR(50) DEFAULT 'success',
                             scanned_by INT,
-                            scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             INDEX idx_inward_id (inward_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 

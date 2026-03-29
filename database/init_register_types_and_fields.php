@@ -13,7 +13,7 @@ function initRegisterTypesTable($conn)
         `icon` VARCHAR(50) DEFAULT '📝',
         `color` VARCHAR(50) DEFAULT '#4f46e5',
         `fields_json` TEXT NOT NULL,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
         `is_active` TINYINT DEFAULT 1
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 

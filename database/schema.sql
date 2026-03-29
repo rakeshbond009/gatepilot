@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS `app_issues` (
   `photo_url` varchar(255) DEFAULT NULL,
   `status` enum('Pending','In Progress','Resolved','Closed','Invalid') DEFAULT 'Pending',
   `admin_remarks` text DEFAULT NULL,
-  `reported_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `reported_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_app` (`app_name`),
   KEY `idx_status` (`status`)
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `details` text DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=354 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -248,7 +248,7 @@ CREATE TABLE IF NOT EXISTS `qr_scan_logs` (
   `scan_status` enum('success','failed','partial') DEFAULT 'success',
   `error_message` text DEFAULT NULL,
   `scanned_by` int(11) DEFAULT NULL,
-  `scanned_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `scanned_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `scanned_by` (`scanned_by`),
   KEY `idx_inward_id` (`inward_id`),
@@ -387,8 +387,8 @@ CREATE TABLE IF NOT EXISTS `user_sessions` (
   `user_id` int(11) NOT NULL,
   `token` varchar(64) NOT NULL,
   `user_agent` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `last_used_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `last_used_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `token` (`token`),
   KEY `idx_token` (`token`),
@@ -402,7 +402,7 @@ CREATE TABLE IF NOT EXISTS `vehicle_drivers` (
   `vehicle_id` int(11) NOT NULL,
   `driver_id` int(11) NOT NULL,
   `is_primary` tinyint(1) DEFAULT 0,
-  `assigned_date` timestamp NOT NULL DEFAULT current_timestamp(),
+  `assigned_date` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_vehicle_driver` (`vehicle_id`,`driver_id`),
   KEY `idx_vehicle_id` (`vehicle_id`),

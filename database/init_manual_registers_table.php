@@ -29,7 +29,7 @@ function initManualRegistersTable($conn)
         `received_quantity` VARCHAR(100),
         `out_time_date` DATETIME,
         `dynamic_data` TEXT,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
         INDEX `idx_register_type` (`register_type`),
         INDEX `idx_entry_date` (`entry_date`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";

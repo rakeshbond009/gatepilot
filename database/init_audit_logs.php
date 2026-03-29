@@ -9,7 +9,7 @@ function initAuditLogsTable($conn) {
         `details` TEXT,
         `ip_address` VARCHAR(45) DEFAULT NULL,
         `user_agent` TEXT,
-        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
     
     return mysqli_query($conn, $sql);

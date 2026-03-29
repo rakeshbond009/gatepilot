@@ -18,8 +18,8 @@ function ensureAppIssuesTable($support_conn)
       `photo_url` VARCHAR(255),
       `status` ENUM('Pending', 'In Progress', 'Resolved', 'Closed', 'Invalid') DEFAULT 'Pending',
       `admin_remarks` TEXT,
-      `reported_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX `idx_app` (`app_name`),
       INDEX `idx_status` (`status`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
@@ -32,11 +32,25 @@ if ($support_conn) {
     ensureAppIssuesTable($support_conn);
 }
 
-// Fetch Client Details from settings
-$client_name = getSetting($conn, 'company_name', 'Unnamed Client');
-$client_email = getSetting($conn, 'support_email', '');
-$client_mobile = getSetting($conn, 'support_mobile', '');
-$client_contact = trim("$client_email $client_mobile");
+// Fetch Client Details from Master Database (Official registration info)
+$client_name = $_SESSION['customer_name'] ?? 'Unnamed Client';
+$client_contact = 'No contact info';
+
+$master_conn = getMasterDatabaseConnection();
+if ($master_conn && isset($_SESSION['tenant_slug'])) {
+    $t_slug = mysqli_real_escape_string($master_conn, $_SESSION['tenant_slug']);
+    $t_res = mysqli_query($master_conn, "SELECT customer_name, email, mobile FROM tenants WHERE slug = '$t_slug' LIMIT 1");
+    if ($t_row = mysqli_fetch_assoc($t_res)) {
+        $client_name = $t_row['customer_name'];
+        $c_email = trim($t_row['email'] ?? '');
+        $c_mobile = trim($t_row['mobile'] ?? '');
+        $client_contact = trim("$c_email $c_mobile") ?: 'No contact info';
+    }
+}
+// Fallback to local settings if Master DB fetch failed
+if ($client_name === 'Unnamed Client') {
+    $client_name = getSetting($conn, 'company_name', 'Unnamed Client');
+}
 
 $success_msg = null;
 $error_msg = null;
@@ -49,8 +63,12 @@ if (isset($_POST['submit_issue'])) {
         $type = mysqli_real_escape_string($support_conn, $_POST['issue_type']);
         $priority = mysqli_real_escape_string($support_conn, $_POST['priority']);
         $desc = mysqli_real_escape_string($support_conn, $_POST['description']);
-        $reported_by = $_SESSION['username'] ?? 'Anonymous';
-        $app_name = CLIENT_APP_NAME;
+        $reported_by = mysqli_real_escape_string($support_conn, $_SESSION['username'] ?? 'Anonymous');
+        $app_name = mysqli_real_escape_string($support_conn, CLIENT_APP_NAME);
+
+        // Crucial: Escape client details for the support database connection
+        $client_name_save = mysqli_real_escape_string($support_conn, $client_name);
+        $client_contact_save = mysqli_real_escape_string($support_conn, $client_contact);
 
         // Handle Photo Upload (Local server first, then save path)
         $photo_path = '';
@@ -61,12 +79,12 @@ if (isset($_POST['submit_issue'])) {
             $ext = pathinfo($_FILES['issue_photo']['name'], PATHINFO_EXTENSION);
             $filename = 'issue_' . time() . '_' . uniqid() . '.' . $ext;
             if (move_uploaded_file($_FILES['issue_photo']['tmp_name'], $upload_dir . $filename)) {
-                $photo_path = $upload_dir . $filename;
+                $photo_path = mysqli_real_escape_string($support_conn, $upload_dir . $filename);
             }
         }
 
         $sql = "INSERT INTO app_issues (app_name, client_name, client_contact, reported_by, issue_type, priority, description, photo_url) 
-                VALUES ('$app_name', '$client_name', '$client_contact', '$reported_by', '$type', '$priority', '$desc', '$photo_path')";
+                VALUES ('$app_name', '$client_name_save', '$client_contact_save', '$reported_by', '$type', '$priority', '$desc', '$photo_path')";
 
         if (mysqli_query($support_conn, $sql)) {
             $success_msg = "✅ Issue reported successfully! Our technical team will review it.";
