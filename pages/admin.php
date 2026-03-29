@@ -309,7 +309,7 @@
 
         if (log.activity_type.includes("UPDATE")) {
             badge.style.background = "#fff7ed"; badge.style.color = "#9a3412"; badge.style.border = "1px solid #ffedd5";
-        } else if (log.activity_type.includes("SUCCESS") || log.activity_type.includes("CREATED") || log.activity_type.includes("LOGIN")) {
+        } else if (log.activity_type.includes("SUCCESS") || log.activity_type.includes("CREATED") || log.activity_type.includes("LOGIN") || log.activity_type.includes("REPORTED")) {
             badge.style.background = "#f0fdf4"; badge.style.color = "#166534"; badge.style.border = "1px solid #dcfce7";
         } else if (log.activity_type.includes("DELETE") || log.activity_type.includes("FAILED")) {
             badge.style.background = "#fef2f2"; badge.style.color = "#991b1b"; badge.style.border = "1px solid #fee2e2";
@@ -339,6 +339,9 @@
             else if (k.includes("photo") || k.includes("upload")) icon = "📸";
             else if (k.includes("status")) icon = "🚦";
             else if (k.includes("date") || k.includes("time")) icon = "📅";
+            else if (k.includes("ticket") || k.includes("issue")) icon = "🎫";
+            else if (k.includes("priority")) icon = "⚠️";
+            else if (k.includes("category")) icon = "📂";
 
             left.innerHTML = `<span>${icon}</span> ${key}`;
 

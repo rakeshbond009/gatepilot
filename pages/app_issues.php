@@ -104,8 +104,15 @@ if (isset($_POST['submit_issue'])) {
                 VALUES ('$app_name', '$client_name_save', '$client_contact_save', '$reported_by', '$type', '$priority', '$desc', '$photo_path')";
 
         if (mysqli_query($support_conn, $sql)) {
+            $ticket_id = mysqli_insert_id($support_conn);
             $_SESSION['issue_reported_success'] = "✅ Issue reported successfully! Our technical team will review it.";
-            logActivity($conn, 'ISSUE_REPORTED', 'Support', "Reported a $type: $desc");
+            
+            // Log with structured details for better visibility in Audit Logs
+            $log_details = "Issue Reported: Ticket #$ticket_id\nCategory: $type\nPriority: $priority\nDescription: $desc";
+            if (!empty($photo_path)) {
+                $log_details .= "\nPhoto Upload: $photo_path";
+            }
+            logActivity($conn, 'ISSUE_REPORTED', 'Support', $log_details);
 
             // Redirect to the same page to prevent duplicate submissions on refresh
             header("Location: " . $_SERVER['REQUEST_URI']);
@@ -124,11 +131,19 @@ if (isset($_POST['update_issue_status']) && $support_conn) {
         $new_remarks = mysqli_real_escape_string($support_conn, $_POST['admin_remarks']);
         $admin_name = $_SESSION['full_name'] ?? $_SESSION['username'] ?? 'Admin';
 
-        // Fetch current history to append
-        $curr_q = mysqli_query($support_conn, "SELECT status_history FROM app_issues WHERE id = $issue_id");
-        $curr_row = mysqli_fetch_assoc($curr_q);
-        $old_history = $curr_row['status_history'] ?? '';
+        // Fetch current context for the audit log and history append
+        $issue_q = mysqli_query($support_conn, "SELECT * FROM app_issues WHERE id = $issue_id");
+        $issue_details = mysqli_fetch_assoc($issue_q);
+        
+        $type = $issue_details['issue_type'] ?? 'Issue';
+        $desc = $issue_details['description'] ?? '';
+        $priority = $issue_details['priority'] ?? 'Medium';
+        $photo_url = $issue_details['photo_url'] ?? '';
+        $old_status = $issue_details['status'] ?? 'Open';
+        $old_remarks = !empty($issue_details['admin_remarks']) ? $issue_details['admin_remarks'] : 'None';
+        $old_history = $issue_details['status_history'] ?? '';
 
+        // Prepare the history log entry
         $timestamp = date('d M, h:i A');
         $log_entry = "[$timestamp] $new_status: $new_remarks (by $admin_name)";
         $updated_history = $log_entry . ($old_history ? "\n" . $old_history : "");
@@ -142,6 +157,28 @@ if (isset($_POST['update_issue_status']) && $support_conn) {
 
         if (mysqli_query($support_conn, $sql)) {
             $_SESSION['issue_reported_success'] = "✅ Issue updated successfully!";
+            
+            // Log the status update in System Audit Logs with the "Boxed UI" format
+            $log_details = "Support Update: Ticket #$issue_id Status Changed\n";
+            $log_details .= "Initial Record Details:\n";
+            $log_details .= "Issue: [$issue_id]\n";
+            $log_details .= "Category: [$type]\n";
+            $log_details .= "Priority: [$priority]\n";
+            $log_details .= "Description: [$desc]\n";
+            if ($photo_url) {
+                $log_details .= "Photo: [$photo_url]\n";
+            }
+
+            // Changes Section (Highlighting transitions)
+            $log_details .= "Changes:\n";
+            $log_details .= "Status: [$old_status ➔ $new_status]\n";
+            $log_details .= "Remarks: [$old_remarks ➔ $new_remarks]";
+
+            logActivity($conn, 'ISSUE_UPDATE', 'Support', $log_details);
+
+
+
+
             header("Location: " . $_SERVER['REQUEST_URI']);
             exit;
         } else {
@@ -198,13 +235,14 @@ if ($support_conn) {
 
     <div style="display: grid; grid-template-columns: 1fr; gap: 25px;">
         <!-- Report Form -->
-        <div class="card" style="padding: 30px; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); background: white;">
+        <div class="card"
+            style="padding: 30px; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); background: white;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
                 <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
                     <span style="background: #f1f5f9; padding: 8px; border-radius: 10px;">📝</span>
                     New Issue Details
                 </h3>
-                <button type="button" onclick="openReportsModal()" 
+                <button type="button" onclick="openReportsModal()"
                     style="background: #f1f5f9; color: #4f46e5; border: 1px solid #e2e8f0; padding: 10px 20px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
                     📂 View Previous Reports (<?php echo count($my_issues); ?>)
                 </button>
@@ -268,13 +306,15 @@ if ($support_conn) {
             </form>
         </div>
 
-        </div>
     </div>
+</div>
 </div>
 
 <!-- Previous Reports Modal -->
-<div id="reportsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(8px);">
-    <div style="background: #f8fafc; border-radius: 24px; width: 98%; max-width: 1400px; height: 95vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); animation: zoomIn 0.3s ease-out;">
+<div id="reportsModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(8px);">
+    <div
+        style="background: #f8fafc; border-radius: 24px; width: 98%; max-width: 1400px; height: 95vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); animation: zoomIn 0.3s ease-out;">
         <!-- Modal Header with Filters -->
         <div style="padding: 25px 40px; background: white; border-bottom: 1px solid #e2e8f0;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
@@ -283,31 +323,38 @@ if ($support_conn) {
                         <span style="background: #eef2ff; padding: 10px; border-radius: 14px;">📅</span>
                         Issue History & Reports
                     </h2>
-                    <p style="margin: 5px 0 0 0; font-size: 14px; color: #64748b;">Manage and track your reported app issues.</p>
+                    <p style="margin: 5px 0 0 0; font-size: 14px; color: #64748b;">Manage and track your reported app
+                        issues.</p>
                 </div>
-                <button onclick="closeReportsModal()" style="background: #f1f5f9; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+                <button onclick="closeReportsModal()"
+                    style="background: #f1f5f9; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
             </div>
 
             <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 15px; align-items: center;">
                 <div style="position: relative;">
-                    <span style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
-                    <input type="text" id="reportSearch" placeholder="Search by description or type..." 
+                    <span
+                        style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); opacity: 0.5;">🔍</span>
+                    <input type="text" id="reportSearch" placeholder="Search by description or type..."
                         style="width: 100%; padding: 12px 12px 12px 45px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 15px;">
                 </div>
                 <div>
-                    <input type="date" id="dateFrom" class="form-control" style="border-radius: 12px; border: 1.5px solid #e2e8f0; padding: 11px;">
+                    <input type="date" id="dateFrom" class="form-control"
+                        style="border-radius: 12px; border: 1.5px solid #e2e8f0; padding: 11px;">
                 </div>
                 <div>
-                    <input type="date" id="dateTo" class="form-control" style="border-radius: 12px; border: 1.5px solid #e2e8f0; padding: 11px;">
+                    <input type="date" id="dateTo" class="form-control"
+                        style="border-radius: 12px; border: 1.5px solid #e2e8f0; padding: 11px;">
                 </div>
-                <select id="statusFilter" style="width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; color: #475569;">
+                <select id="statusFilter"
+                    style="width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; color: #475569;">
                     <option value="all">All Statuses</option>
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Resolved">Resolved</option>
                     <option value="Closed">Closed</option>
                 </select>
-                <div style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 12px; font-weight: 700; font-size: 12px; white-space: nowrap;">
+                <div
+                    style="background: #4f46e5; color: white; padding: 10px 15px; border-radius: 12px; font-weight: 700; font-size: 12px; white-space: nowrap;">
                     Total: <span id="visibleCount"><?php echo count($my_issues); ?></span>
                 </div>
             </div>
@@ -322,50 +369,63 @@ if ($support_conn) {
                     </div>
                 <?php else: ?>
                     <?php foreach ($my_issues as $iss): ?>
-                        <div class="report-card" 
-                             data-status="<?php echo $iss['status']; ?>" 
-                             data-content="<?php echo strtolower($iss['description'] . ' ' . $iss['issue_type']); ?>"
-                             data-date="<?php echo date('Y-m-d', strtotime($iss['reported_at'])); ?>"
+                        <div class="report-card" data-status="<?php echo $iss['status']; ?>"
+                            data-content="<?php echo strtolower($iss['description'] . ' ' . $iss['issue_type']); ?>"
+                            data-date="<?php echo date('Y-m-d', strtotime($iss['reported_at'])); ?>"
                             style="background: white; border-radius: 24px; padding: 30px; border: none; box-shadow: 0 15px 35px rgba(0,0,0,0.07); display: flex; flex-direction: column; position: relative;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                                <span class="badge" style="background: <?php echo getStatusColor($iss['status']); ?>; color: white; padding: 6px 14px; border-radius: 10px; font-size: 11px; font-weight: 800; text-transform: uppercase;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                                <span class="badge"
+                                    style="background: <?php echo getStatusColor($iss['status']); ?>; color: white; padding: 6px 14px; border-radius: 10px; font-size: 11px; font-weight: 800; text-transform: uppercase;">
                                     <?php echo $iss['status']; ?>
                                 </span>
                                 <div style="text-align: right;">
-                                    <div style="color: #64748b; font-size: 11px; font-weight: 600;"><?php echo date('d M Y', strtotime($iss['reported_at'])); ?></div>
-                                    <div style="color: #94a3b8; font-size: 10px;"><?php echo date('h:i A', strtotime($iss['reported_at'])); ?></div>
+                                    <div style="color: #64748b; font-size: 11px; font-weight: 600;">
+                                        <?php echo date('d M Y', strtotime($iss['reported_at'])); ?></div>
+                                    <div style="color: #94a3b8; font-size: 10px;">
+                                        <?php echo date('h:i A', strtotime($iss['reported_at'])); ?></div>
                                 </div>
                             </div>
 
                             <div style="margin-bottom: 15px;">
-                                <div style="font-weight: 800; font-size: 16px; color: #1e293b; margin-bottom: 4px;"><?php echo $iss['issue_type']; ?></div>
+                                <div style="font-weight: 800; font-size: 16px; color: #1e293b; margin-bottom: 4px;">
+                                    <?php echo $iss['issue_type']; ?></div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase;">Priority: <?php echo $iss['priority']; ?></span>
+                                    <span
+                                        style="font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase;">Priority:
+                                        <?php echo $iss['priority']; ?></span>
                                     <span style="color: #cbd5e1;">&bull;</span>
                                     <span style="font-size: 11px; color: #64748b;">ID: #<?php echo $iss['id']; ?></span>
                                 </div>
                             </div>
 
-                            <p style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6; max-height: 80px; overflow-y: auto; padding: 12px; background: #f8fafc; border-radius: 12px; margin-bottom: 15px;">
+                            <p
+                                style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6; max-height: 80px; overflow-y: auto; padding: 12px; background: #f8fafc; border-radius: 12px; margin-bottom: 15px;">
                                 <?php echo htmlspecialchars($iss['description']); ?>
                             </p>
 
                             <!-- Timeline-style Audit History Section -->
                             <?php if (!empty($iss['status_history']) || !empty($iss['admin_remarks'])): ?>
                                 <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0;">
-                                    <div style="font-size: 11px; font-weight: 800; color: #4f46e5; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">Activity Timeline</div>
-                                    <div style="position: relative; padding-left: 20px; border-left: 2px solid #eef2ff; margin-left: 5px; max-height: 250px; overflow-y: auto;">
+                                    <div
+                                        style="font-size: 11px; font-weight: 800; color: #4f46e5; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">
+                                        Activity Timeline</div>
+                                    <div
+                                        style="position: relative; padding-left: 20px; border-left: 2px solid #eef2ff; margin-left: 5px; max-height: 250px; overflow-y: auto;">
                                         <?php if (!empty($iss['status_history'])): ?>
-                                            <?php 
+                                            <?php
                                             $logs = explode("\n", $iss['status_history']);
-                                            foreach($logs as $log): 
-                                                if(trim($log) == '') continue;
+                                            foreach ($logs as $log):
+                                                if (trim($log) == '')
+                                                    continue;
                                                 // Extract timestamp and content if possible
                                                 $display_log = htmlspecialchars($log);
                                                 $bullet_color = (strpos(strtolower($log), 'resolved') !== false || strpos(strtolower($log), 'closed') !== false) ? '#10b981' : '#3b82f6';
-                                            ?>
+                                                ?>
                                                 <div style="position: relative; margin-bottom: 15px;">
-                                                    <div style="position: absolute; left: -26px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: white; border: 2.5px solid <?php echo $bullet_color; ?>;"></div>
+                                                    <div
+                                                        style="position: absolute; left: -26px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: white; border: 2.5px solid <?php echo $bullet_color; ?>;">
+                                                    </div>
                                                     <div style="font-size: 13px; color: #334155; line-height: 1.5;">
                                                         <?php echo $display_log; ?>
                                                     </div>
@@ -373,9 +433,12 @@ if ($support_conn) {
                                             <?php endforeach; ?>
                                         <?php else: ?>
                                             <div style="position: relative; margin-bottom: 10px;">
-                                                <div style="position: absolute; left: -26px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: white; border: 2.5px solid #10b981;"></div>
+                                                <div
+                                                    style="position: absolute; left: -26px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: white; border: 2.5px solid #10b981;">
+                                                </div>
                                                 <div style="font-size: 13px; color: #334155;">
-                                                    <strong><?php echo $iss['status']; ?>:</strong> <?php echo htmlspecialchars($iss['admin_remarks']); ?>
+                                                    <strong><?php echo $iss['status']; ?>:</strong>
+                                                    <?php echo htmlspecialchars($iss['admin_remarks']); ?>
                                                 </div>
                                             </div>
                                         <?php endif; ?>
@@ -386,7 +449,8 @@ if ($support_conn) {
                             <!-- Admin Quick Action -->
                             <?php if ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'developer' || $_SESSION['role'] == 'manager'): ?>
                                 <div style="margin-top: 15px; display: flex; justify-content: flex-end;">
-                                    <button onclick='event.stopPropagation(); openUpdateModal(<?php echo $iss["id"]; ?>, "<?php echo $iss["status"]; ?>", <?php echo json_encode($iss["admin_remarks"] ?? ""); ?>)'
+                                    <button
+                                        onclick='event.stopPropagation(); openUpdateModal(<?php echo $iss["id"]; ?>, "<?php echo $iss["status"]; ?>", <?php echo json_encode($iss["admin_remarks"] ?? ""); ?>)'
                                         style="background: #4f46e5; border: none; padding: 8px 16px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; color: white;">
                                         ⚙️ Update Status
                                     </button>
@@ -399,7 +463,7 @@ if ($support_conn) {
         </div>
     </div>
 </div>
-    </div>
+</div>
 </div>
 
 <script>
@@ -441,7 +505,7 @@ if ($support_conn) {
         const statusFilter = document.getElementById('statusFilter').value;
         const fromDate = document.getElementById('dateFrom').value;
         const toDate = document.getElementById('dateTo').value;
-        
+
         const cards = document.querySelectorAll('.report-card');
         let visibleCount = 0;
 
@@ -449,10 +513,10 @@ if ($support_conn) {
             const content = card.getAttribute('data-content');
             const status = card.getAttribute('data-status');
             const dateStr = card.getAttribute('data-date');
-            
+
             const matchesSearch = content.includes(searchText);
             const matchesStatus = (statusFilter === 'all' || status === statusFilter);
-            
+
             let matchesDate = true;
             if (fromDate && dateStr < fromDate) matchesDate = false;
             if (toDate && dateStr > toDate) matchesDate = false;
@@ -474,7 +538,7 @@ if ($support_conn) {
     document.getElementById('dateTo').addEventListener('change', filterReports);
 
     // Close modal on outside click
-    window.onclick = function(event) {
+    window.onclick = function (event) {
         let updateModal = document.getElementById('updateIssueModal');
         let reportsModal = document.getElementById('reportsModal');
         if (event.target == updateModal) closeUpdateModal();
@@ -483,8 +547,10 @@ if ($support_conn) {
 </script>
 
 <!-- Admin Update Modal -->
-<div id="updateIssueModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
-    <div style="background: white; border-radius: 20px; width: 90%; max-width: 450px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+<div id="updateIssueModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+    <div
+        style="background: white; border-radius: 20px; width: 90%; max-width: 450px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
         <h2 style="margin-top: 0; margin-bottom: 25px; display: flex; align-items: center; gap: 15px; color: #1e293b;">
             <span style="background: #f1f5f9; padding: 10px; border-radius: 12px;">⚙️</span>
             Update Issue Status
@@ -492,10 +558,13 @@ if ($support_conn) {
 
         <form method="POST">
             <input type="hidden" name="issue_id" id="update_issue_id">
-            
+
             <div style="margin-bottom: 20px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #64748b;">Current Status</label>
-                <select name="new_status" id="update_status_select" required style="width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; font-size: 15px; color: #1e293b;">
+                <label
+                    style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #64748b;">Current
+                    Status</label>
+                <select name="new_status" id="update_status_select" required
+                    style="width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; font-size: 15px; color: #1e293b;">
                     <option value="Pending">Pending</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Resolved">Resolved</option>
@@ -505,14 +574,22 @@ if ($support_conn) {
             </div>
 
             <div style="margin-bottom: 25px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #64748b;">Administrator Remarks</label>
-                <textarea name="admin_remarks" id="update_remarks_text" required rows="4" placeholder="Add your feedback or update here..." style="width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; font-size: 15px; resize: none;"></textarea>
-                <p style="margin-top: 8px; font-size: 12px; color: #94a3b8;">* These remarks will be appended to the issue history.</p>
+                <label
+                    style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; color: #64748b;">Administrator
+                    Remarks</label>
+                <textarea name="admin_remarks" id="update_remarks_text" required rows="4"
+                    placeholder="Add your feedback or update here..."
+                    style="width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #fff; font-size: 15px; resize: none;"></textarea>
+                <p style="margin-top: 8px; font-size: 12px; color: #94a3b8;">* These remarks will be appended to the
+                    issue history.</p>
             </div>
 
             <div style="display: flex; gap: 12px;">
-                <button type="button" onclick="closeUpdateModal()" style="flex: 1; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; font-weight: 600; cursor: pointer;">Cancel</button>
-                <button type="submit" name="update_issue_status" style="flex: 2; padding: 12px; border-radius: 12px; border: none; background: #4f46e5; color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);">Save Changes</button>
+                <button type="button" onclick="closeUpdateModal()"
+                    style="flex: 1; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; font-weight: 600; cursor: pointer;">Cancel</button>
+                <button type="submit" name="update_issue_status"
+                    style="flex: 2; padding: 12px; border-radius: 12px; border: none; background: #4f46e5; color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);">Save
+                    Changes</button>
             </div>
         </form>
     </div>
@@ -520,15 +597,37 @@ if ($support_conn) {
 
 <style>
     @keyframes popIn {
-        from { transform: scale(0.95); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+        from {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
     }
+
     @keyframes zoomIn {
-        from { transform: scale(0.9); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+        from {
+            transform: scale(0.9);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
     }
-    .report-card:hover { transform: translateY(-3px); border-color: #4f46e5; }
-    .report-card { transition: all 0.2s ease; }
+
+    .report-card:hover {
+        transform: translateY(-3px);
+        border-color: #4f46e5;
+    }
+
+    .report-card {
+        transition: all 0.2s ease;
+    }
 </style>
 
 <?php
