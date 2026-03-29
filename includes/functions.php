@@ -1,212 +1,24 @@
 <?php
 /**
- * Global functions for Gatepilot
- * NOTE: Core auth and utility functions are in includes/init.php.
- * This file contains specialized dynamic audit helpers.
+ * GATEPILOT FUNCTIONS - STABLE VERSION
  */
 
 /**
- * Returns a connection to the centralized support database for issue reporting
- */
-function getSupportDatabaseConnection()
-{
-    // 1. Try connecting to the Centralized Support DB
-    try {
-        $conn = @mysqli_connect(SUPPORT_DB_HOST, SUPPORT_DB_USER, SUPPORT_DB_PASS, SUPPORT_DB_NAME);
-        if ($conn) {
-            mysqli_query($conn, "SET time_zone = '+05:30'");
-            mysqli_set_charset($conn, "utf8mb4");
-            return $conn;
-        }
-    } catch (Throwable $e) {
-        error_log("CENTRAL SUPPORT DB CONNECTION FAILED: " . $e->getMessage());
-    }
-
-    // 2. FALLBACK: If local environment, use the primary local database for testing
-    if (defined('ENVIRONMENT') && ENVIRONMENT === 'LOCAL') {
-        global $conn; // Uses the main connection from init.php
-        if ($conn) {
-            // Check if app_issues table exists in primary DB
-            $res = mysqli_query($conn, "SHOW TABLES LIKE 'app_issues'");
-            if (mysqli_num_rows($res) == 0) {
-                // Initialize it locally for testing
-                include_once __DIR__ . '/../database/init_app_issues.php';
-                initAppIssuesTable($conn);
-            }
-            return $conn;
-        }
-    }
-
-    return null;
-}
-
-/**
- * ============================================================
- * DYNAMIC AUDIT HELPERS
- * ============================================================
- * These functions make audit logging self-maintaining:
- *   auditFromPost()  → logs every submitted field on CREATE
- *   auditDiff()      → logs only changed fields on UPDATE
- *
- * Adding a new field to a form + DB column is automatically
- * captured in audit logs with zero extra code changes.
- * ============================================================
- */
-
-/**
- * Build a human-readable audit string from all non-empty POST
- * fields (for CREATE operations). Automatically skips internal
- * system fields, button names, and sensitive values.
- *
- * @param array  $post    The $_POST  superglobal (or subset)
- * @param array  $skip    Additional field names to skip
- * @param array  $labels  Optional ['field_name' => 'Human Label']
- * @return string         "Field1: [val1], Field2: [val2], ..."
- */
-function auditFromPost(array $post, array $skip = [], array $labels = []): string
-{
-    $system_skip = [
-        'save_user',
-        'save_transporter',
-        'save_driver',
-        'save_vehicle',
-        'save_employee',
-        'save_register',
-        'save_department',
-        'save_patrol',
-        'save_material',
-        'save_supplier',
-        'save_purpose',
-        'save_webhook',
-        'submit_inward',
-        'submit_outward',
-        'update_inward',
-        'update_outward',
-        'update_register',
-        'update_ticket',
-        'import_employees',
-        'import_suppliers',
-        'git_sync',
-        'upload_logo',
-        'add_type',
-        'update_fields',
-        'user_id',
-        'trans_id',
-        'driver_id',
-        'vehicle_id',
-        'e_id',
-        'department_id',
-        'location_id',
-        'material_id',
-        'supplier_id',
-        'purpose_id',
-        'inward_id',
-        'id',
-        'register_type',
-        'reg_type',
-        'password',
-        'password_confirm',
-        'new_password',
-        'old_password',
-        'ajax',
-        '_token',
-        'items',
-        'qr_code_data',
-        'qr_raw_data',
-        'dynamic_data',
-        'commit_remarks',
-        'webhook_url',
-    ];
-    $skip_all = array_merge($system_skip, $skip);
-    $parts = [];
-    foreach ($post as $key => $val) {
-        if (in_array($key, $skip_all, true))
-            continue;
-        if (is_array($val))
-            continue;
-        $val = trim((string) $val);
-        if ($val === '')
-            continue;
-        $label = $labels[$key] ?? ucwords(str_replace('_', ' ', $key));
-        $parts[] = "$label: [$val]";
-    }
-    return implode("\n", $parts);
-}
-
-/**
- * Build a human-readable diff string by comparing submitted POST
- * fields against the existing DB row (for UPDATE operations).
- * Only fields present in BOTH $_POST and the DB row are compared.
- *
- * @param array  $old_row  Associative array fetched from DB
- * @param array  $post     The $_POST superglobal (or subset)
- * @param array  $skip     Additional field names to skip
- * @param array  $labels   Optional ['field_name' => 'Human Label']
- * @return string          "Field1: [old ➔ new], ..."
+ * Filter POST data to show differences between old and new state
  */
 function auditDiff(array $old_row, array $post, array $skip = [], array $labels = []): string
 {
     $system_skip = [
-        'save_user',
-        'save_transporter',
-        'save_driver',
-        'save_vehicle',
-        'save_employee',
-        'save_register',
-        'save_department',
-        'save_patrol',
-        'save_material',
-        'save_supplier',
-        'save_purpose',
-        'save_webhook',
-        'submit_inward',
-        'submit_outward',
-        'update_inward',
-        'update_outward',
-        'update_register',
-        'update_ticket',
-        'import_employees',
-        'import_suppliers',
-        'git_sync',
-        'upload_logo',
-        'add_type',
-        'update_fields',
-        'user_id',
-        'trans_id',
-        'driver_id',
-        'vehicle_id',
-        'e_id',
-        'department_id',
-        'location_id',
-        'material_id',
-        'supplier_id',
-        'purpose_id',
-        'inward_id',
-        'id',
-        'register_type',
-        'reg_type',
-        'password',
-        'password_confirm',
-        'new_password',
-        'old_password',
-        'ajax',
-        '_token',
-        'items',
-        'qr_code_data',
-        'qr_raw_data',
-        'dynamic_data',
-        'commit_remarks',
-        'webhook_url',
+        'save_user', 'save_tenant', 'create_tenant', 'admin_pass', 'save_transporter',
+        'id', 'ajax', '_token'
     ];
     $skip_all = array_merge($system_skip, $skip);
     $changes = [];
     foreach ($post as $key => $new_val) {
-        if (in_array($key, $skip_all, true))
-            continue;
-        if (is_array($new_val))
-            continue;
-        if (!array_key_exists($key, $old_row))
-            continue;
+        if (in_array($key, $skip_all, true)) continue;
+        if (is_array($new_val)) continue;
+        if (!array_key_exists($key, $old_row)) continue;
+        
         $new_val = trim((string) $new_val);
         $old_val = trim((string) ($old_row[$key] ?? ''));
         if ($old_val !== $new_val) {
@@ -219,127 +31,92 @@ function auditDiff(array $old_row, array $post, array $skip = [], array $labels 
 
 /**
  * Provision a new tenant database and register it in the master table
- * Restricted to Super Admins only
  */
 function createTenant($customer_name, $slug, $admin_username, $admin_password, $contact_person = '', $mobile = '', $email = '', $address = '', $gst_no = '')
 {
-    // 1. Validate Input
+    // 1. Basic Validation
     if (empty($admin_username) || empty($admin_password)) {
-        return ["success" => false, "message" => "❌ Admin Username and Password are mandatory fields!"];
+        return ["success" => false, "message" => "Admin Username and Password are required!"];
     }
 
     $slug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $slug));
-
-    // Prefix for grouping in phpMyAdmin and shortening for compliance
+    
+    // Database naming based on environment
     if (defined('ENVIRONMENT') && ENVIRONMENT === 'LOCAL') {
-        $db_name = "gp_" . $slug; // Local prefix
+        $db_name = "gp_" . $slug;
     } else {
-        // PRODUCTION: Use Hostinger account prefix if available
-        // Usually, the DB_USER or DB_NAME will have the prefix like u875321134_
-        $prefix = explode('_', DB_NAME)[0]; // Extract account ID (e.g. u875321134)
+        $prefix = explode('_', DB_NAME)[0]; 
         $db_name = $prefix . "_gp_" . $slug;
     }
 
     $master_conn = getMasterDatabaseConnection();
     if (!$master_conn) {
-        return ["success" => false, "message" => "Master database connection failed! Check your PRODUCTION settings in config.php"];
+        return ["success" => false, "message" => "Master connection failed!"];
     }
 
-    // Check if slug exists
-    $check = mysqli_query($master_conn, "SELECT id FROM tenants WHERE slug = '" . mysqli_real_escape_string($master_conn, $slug) . "'");
-    if ($check === false) {
-        return ["success" => false, "message" => "Failed to query Master database: " . mysqli_error($master_conn)];
-    }
-    
-    if (mysqli_num_rows($check) > 0) {
-        return ["success" => false, "message" => "The slug '$slug' is already taken!"];
+    // 2. Check duplicate slug
+    $slug_esc = mysqli_real_escape_string($master_conn, $slug);
+    $check = mysqli_query($master_conn, "SELECT id FROM tenants WHERE slug = '$slug_esc'");
+    if ($check && mysqli_num_rows($check) > 0) {
+        return ["success" => false, "message" => "Slug '$slug' is already in use."];
     }
 
-    // 2. Validate Password uniqueness across all tenants
-    $admin_password_trimmed = trim($admin_password);
-    $all_pw_q = mysqli_query($master_conn, "SELECT slug, admin_password_hash FROM tenants WHERE admin_password_hash IS NOT NULL AND admin_password_hash != ''");
-    if ($all_pw_q !== false) {
-        while ($row = mysqli_fetch_assoc($all_pw_q)) {
-            if (password_verify($admin_password_trimmed, $row['admin_password_hash'] ?? '')) {
-                $existing_slug = strtoupper($row['slug']);
-                return ["success" => false, "message" => "❌ Security Violation: This password is already being used by the '$existing_slug' system! Every customer must have a unique administrative password."];
-            }
-        }
-    }
-
-    // 3. Create New Database
-    // Note: Hostinger often blocks dynamic DB creation. If this fails, the DB must be created in the panel first.
+    // 3. Connect to server to create DB
     $conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS);
     if (!$conn) {
-        return ["success" => false, "message" => "Database server connection failed: " . mysqli_connect_error()];
+        return ["success" => false, "message" => "MySQL Connection Failed: " . mysqli_connect_error()];
     }
 
-    if (!mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
-        $error = mysqli_error($conn);
-        return ["success" => false, "message" => "Failed to provision new database '$db_name'. Your hosting provider likely blocks dynamic DB creation via PHP scripts. Error: $error"];
+    // Try creating database
+    $create_q = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    if (!$create_q) {
+        return ["success" => false, "message" => "Cannot create database '$db_name'. Permission Denied on Hostinger."];
     }
-    
+
     if (!mysqli_select_db($conn, $db_name)) {
-        return ["success" => false, "message" => "Access denied to the new database '$db_name'. Permission issue."];
+        return ["success" => false, "message" => "Database created, but access was denied."];
     }
 
-    // 4. Import Schema from database/schema.sql
+    // 4. Import Schema
     $schema_file = dirname(__DIR__) . '/database/schema.sql';
     if (!file_exists($schema_file)) {
-        return ["success" => false, "message" => "Schema file not found at $schema_file"];
+        return ["success" => false, "message" => "schema.sql missing!"];
     }
 
     $sql = file_get_contents($schema_file);
-
-    // Split and run each query
     $queries = array_filter(array_map('trim', explode(';', $sql)));
-    foreach ($queries as $query) {
-        if (!empty($query)) {
-            mysqli_query($conn, $query);
-        }
+    foreach ($queries as $q) {
+        if (!empty($q)) mysqli_query($conn, $q);
     }
 
-    // 5. Create Initial Admin User in the NEW database
+    // 5. Initialize Admin
     $hashed_pass = password_hash($admin_password, PASSWORD_DEFAULT);
-    $full_perms = '{}'; 
-
-    $esc_admin_user = mysqli_real_escape_string($conn, $admin_username);
-    $esc_cust_name = mysqli_real_escape_string($conn, $customer_name);
-    $esc_mobile = mysqli_real_escape_string($conn, $mobile);
-    $esc_email = mysqli_real_escape_string($conn, $email);
+    $admin_user_esc = mysqli_real_escape_string($conn, $admin_username);
+    $cust_name_esc = mysqli_real_escape_string($conn, $customer_name);
+    $mob_esc = mysqli_real_escape_string($conn, $mobile);
+    $em_esc = mysqli_real_escape_string($conn, $email);
 
     $admin_sql = "INSERT INTO user_master (username, password, full_name, role, super_admin, is_active, permissions, mobile, email) 
-                  VALUES ('$esc_admin_user', '$hashed_pass', '$esc_cust_name Admin', 'admin', 0, 1, '$full_perms', '$esc_mobile', '$esc_email')
-                  ON DUPLICATE KEY UPDATE 
-                  password = VALUES(password), 
-                  full_name = VALUES(full_name), 
-                  role = 'admin',
-                  is_active = 1,
-                  permissions = VALUES(permissions),
-                  mobile = VALUES(mobile),
-                  email = VALUES(email)";
-    
-    if (!mysqli_query($conn, $admin_sql)) {
-        return ["success" => false, "message" => "Failed to initialize Admin user in the new database: " . mysqli_error($conn)];
-    }
+                  VALUES ('$admin_user_esc', '$hashed_pass', '$cust_name_esc Admin', 'admin', 0, 1, '{}', '$mob_esc', '$em_esc')";
+    mysqli_query($conn, $admin_sql);
 
-    // 6. Register in Master DB
-    $register_sql = "INSERT INTO tenants (customer_name, slug, db_name, admin_password_hash, contact_person, mobile, email, address, gst_no) 
-                     VALUES ('" . mysqli_real_escape_string($master_conn, $customer_name) . "', 
-                             '" . mysqli_real_escape_string($master_conn, $slug) . "', 
-                             '" . mysqli_real_escape_string($master_conn, $db_name) . "', 
-                             '$hashed_pass', 
-                             '" . mysqli_real_escape_string($master_conn, $contact_person) . "', 
-                             '" . mysqli_real_escape_string($master_conn, $mobile) . "', 
-                             '" . mysqli_real_escape_string($master_conn, $email) . "', 
-                             '" . mysqli_real_escape_string($master_conn, $address) . "', 
-                             '" . mysqli_real_escape_string($master_conn, $gst_no) . "')";
-    
-    if (mysqli_query($master_conn, $register_sql)) {
-        return ["success" => true, "message" => "Tenant '$customer_name' created successfully! Database: $db_name"];
+    // 6. Final Registration
+    $reg_sql = "INSERT INTO tenants (customer_name, slug, db_name, admin_password_hash, contact_person, mobile, email, address, gst_no) 
+                VALUES (
+                    '" . mysqli_real_escape_string($master_conn, $customer_name) . "',
+                    '$slug_esc',
+                    '" . mysqli_real_escape_string($master_conn, $db_name) . "',
+                    '$hashed_pass',
+                    '" . mysqli_real_escape_string($master_conn, $contact_person) . "',
+                    '" . mysqli_real_escape_string($master_conn, $mobile) . "',
+                    '" . mysqli_real_escape_string($master_conn, $email) . "',
+                    '" . mysqli_real_escape_string($master_conn, $address) . "',
+                    '" . mysqli_real_escape_string($master_conn, $gst_no) . "'
+                )";
+
+    if (mysqli_query($master_conn, $reg_sql)) {
+        return ["success" => true, "message" => "System '$customer_name' provisioned successfully!"];
     } else {
-        return ["success" => false, "message" => "Provisioning complete, but failed to register in Master Index: " . mysqli_error($master_conn)];
+        return ["success" => false, "message" => "Provisioning partial success, but Master Registry failed."];
     }
 }
-
-
