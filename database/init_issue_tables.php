@@ -17,6 +17,8 @@ function initIssueTables($conn)
       `assigned_to` INT DEFAULT NULL,
       `assigned_at` DATETIME DEFAULT NULL,
       `resolution_remarks` TEXT,
+      `closing_remarks` TEXT,
+      `status_history` TEXT,
       `resolved_at` DATETIME DEFAULT NULL,
       `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
       `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

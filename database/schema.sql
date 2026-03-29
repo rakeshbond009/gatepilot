@@ -3,24 +3,6 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
-CREATE TABLE IF NOT EXISTS `app_issues` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `app_name` varchar(100) NOT NULL,
-  `client_name` varchar(100) DEFAULT NULL,
-  `client_contact` varchar(100) DEFAULT NULL,
-  `reported_by` varchar(50) DEFAULT NULL,
-  `issue_type` enum('Bug','Feature Request','UI Issue','Access Issue','Other') DEFAULT 'Bug',
-  `priority` enum('Low','Medium','High','Critical') DEFAULT 'Medium',
-  `description` text NOT NULL,
-  `photo_url` varchar(255) DEFAULT NULL,
-  `status` enum('Pending','In Progress','Resolved','Closed','Invalid') DEFAULT 'Pending',
-  `admin_remarks` text DEFAULT NULL,
-  `reported_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_app` (`app_name`),
-  KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `app_settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -187,6 +169,7 @@ CREATE TABLE IF NOT EXISTS `patrol_issues` (
   `assigned_at` datetime DEFAULT NULL,
   `resolution_remarks` text DEFAULT NULL,
   `closing_remarks` text DEFAULT NULL,
+  `status_history` text DEFAULT NULL,
   `resolved_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),

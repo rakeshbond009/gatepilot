@@ -16,6 +16,7 @@ function initAppIssuesTable($conn) {
       `photo_url` VARCHAR(255),
       `status` ENUM('Pending', 'In Progress', 'Resolved', 'Closed', 'Invalid') DEFAULT 'Pending',
       `admin_remarks` TEXT,
+      `status_history` TEXT,
       `reported_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
       `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX `idx_app` (`app_name`),

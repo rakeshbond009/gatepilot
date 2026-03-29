@@ -51,6 +51,12 @@ if ($is_local) {
     define('DB_PASS', '');
     define('DB_NAME', 'gp_admin');
     define('ENVIRONMENT', 'LOCAL');
+
+    // ========== CENTRALIZED SUPPORT DATABASE (LOCAL TESTING) ==========
+    define('SUPPORT_DB_HOST', 'localhost');
+    define('SUPPORT_DB_NAME', 'codepilotx');
+    define('SUPPORT_DB_USER', 'root');
+    define('SUPPORT_DB_PASS', '');
 } else {
     // ========== HOSTED ENVIRONMENT (HOSTINGER) ==========
     // Update these credentials with your Hostinger database details
@@ -59,13 +65,13 @@ if ($is_local) {
     define('DB_PASS', 'Gatepilot@123'); // Your Hostinger MySQL password
     define('DB_NAME', 'u875321134_gp_admin'); // Shortened for grouping AND length compliance
     define('ENVIRONMENT', 'PRODUCTION');
-}
 
-// ========== CENTRALIZED SUPPORT DATABASE (For Issue/Bug Reporting) ==========
-define('SUPPORT_DB_HOST', 'localhost');
-define('SUPPORT_DB_NAME', 'u875321134_mywebsite');
-define('SUPPORT_DB_USER', 'u875321134_rakeshwebsite');
-define('SUPPORT_DB_PASS', 'Mywebsite@2025');
+    // ========== CENTRALIZED SUPPORT DATABASE (PRODUCTION) ==========
+    define('SUPPORT_DB_HOST', 'localhost');
+    define('SUPPORT_DB_NAME', 'u875321134_mywebsite');
+    define('SUPPORT_DB_USER', 'u875321134_rakeshwebsite');
+    define('SUPPORT_DB_PASS', 'Mywebsite@2025');
+}
 define('CLIENT_APP_NAME', 'GatePilot - Truck Movement'); // Identifies which app reported the issue
 
 // ========== UNIVERSAL SESSION CONFIGURATION (FOR "LOGIN FOREVER") ==========
