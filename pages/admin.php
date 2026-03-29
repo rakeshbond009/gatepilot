@@ -1163,19 +1163,16 @@
                     if (isset($_GET['clear_form'])) {
                         unset($_SESSION['tenant_form_data']);
                         unset($_SESSION['tenant_error']);
-                        $tenant_data = [];
-                        $tenant_error = null;
                     }
 
-                    if (isset($_GET['open_setup'])) {
-                        unset($_SESSION['tenant_form_data']);
-                        unset($_SESSION['tenant_error']);
+                    // Only reset if NOT returning from a failure
+                    if (isset($_GET['open_setup']) && !isset($_SESSION['tenant_error'])) {
                         $_SESSION['tenant_form_data'] = ['is_new' => true];
-                        $tenant_data = $_SESSION['tenant_form_data'];
-                        $tenant_error = null;
                     }
 
-                    $showModal = !empty($tenant_data);
+                    $tenant_data = $_SESSION['tenant_form_data'] ?? [];
+                    $tenant_error = $_SESSION['tenant_error'] ?? null;
+                    $showModal = !empty($tenant_data) || !empty($tenant_error) || isset($_GET['open_setup']);
                     $isEditMode = !empty($tenant_data['edit_tenant_id']);
                     ?>
                     <div id="tenantModal" class="perm-modal-overlay"
