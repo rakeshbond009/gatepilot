@@ -23,7 +23,7 @@ final String initialUrl = "http://YOUR_IP_ADDRESS/gatepilot/";
 ```
 
 ### 2. Building for Android
-Run the following command in the `truck_movement_mobile` directory:
+Run the following command in the `gatepilot_mobile` directory:
 ```bash
 flutter build apk --debug
 ```

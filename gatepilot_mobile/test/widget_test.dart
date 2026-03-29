@@ -8,12 +8,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:truck_movement_mobile/main.dart';
+import 'package:gatepilot_mobile/main.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const TruckMovementApp());
+    await tester.pumpWidget(const GatePilotApp());
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);
