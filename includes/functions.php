@@ -259,29 +259,30 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
     }
 
     // 3. Create New Database
-    // CAUTION: On Hostinger, dynamic CREATE DATABASE is blocked. 
-    // We catch the SQL exception to prevent a system crash (White Page).
+    // Note: Hostinger often blocks dynamic CREATE DATABASE via PHP.
     $conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS);
     if (!$conn) {
-        return ["success" => false, "message" => "MySQL Server connection failed: " . mysqli_connect_error()];
+        return ["success" => false, "message" => "Database server connection failed: " . mysqli_connect_error()];
     }
 
-    try {
-        $create_q = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    } catch (Throwable $e) {
-        // This is where Hostinger blocks us
-        $msg = $e->getMessage();
-        if (strpos($msg, 'Access denied') !== false) {
+    // Check if we can select it first (already created manually)
+    if (!@mysqli_select_db($conn, $db_name)) {
+        // Not exists or no access - attempt to create
+        $create_q = @mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        
+        if (!$create_q) {
+            // Creation blocked by Hostinger - common on shared plans
+            $msg = mysqli_error($conn);
             return [
-                "success" => false, 
-                "message" => "❌ <b>Database Creation Blocked by Hostinger:</b> Your hosting plan does not allow automatic database creation via PHP.<br><br><b>What to do now:</b><br>1. Log into your Hostinger hPanel.<br>2. Manually create a MySQL Database named: <b>$db_name</b><br>3. Assign the user <b>" . DB_USER . "</b> to that database.<br>4. Run this 'Create Tenant' tool again.<br><br><i>(Technical Error: $msg)</i>"
+                "success" => false,
+                "message" => "<b>❌ Hostinger Permission Blocked:</b> Automatic database creation is restricted.<br><br><b>What to do now:</b><br>1. Log into your Hostinger hPanel.<br>2. Manually create a MySQL Database named: <b>$db_name</b><br>3. Assign the user <b>" . DB_USER . "</b> to that database.<br>4. Re-run this setup tool.<br><br><i>(Hostinger Exception: $msg)</i>"
             ];
         }
-        return ["success" => false, "message" => "Failed to provision database: " . $msg];
     }
     
+    // Select the DB (it exists now)
     if (!mysqli_select_db($conn, $db_name)) {
-        return ["success" => false, "message" => "❌ Database <b>$db_name</b> exists, but your user '" . DB_USER . "' does not have permission to access it. Please add this user to the database in your Hostinger Panel."];
+        return ["success" => false, "message" => "Database exists, but your user '" . DB_USER . "' is not allowed to use it. Please assign the user in your Hostinger Panel."];
     }
 
     // 4. Import Schema from database/schema.sql

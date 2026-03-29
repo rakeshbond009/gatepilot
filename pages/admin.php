@@ -512,13 +512,14 @@
 
                 $_SESSION['admin_msg'] = ["type" => "success", "title" => "Success", "msg" => $res['message']];
                 unset($_SESSION['tenant_form_data']); // Clear success data
+                header("Location: index.php?page=admin&master=multi-tenancy");
             } else {
                 // Store error specifically for the modal
                 $_SESSION['tenant_error'] = $res['message'];
                 $_SESSION['tenant_form_data'] = $_POST; // Save form data for retry
+                // RE-OPEN the modal on error
+                header("Location: index.php?page=admin&master=multi-tenancy&open_setup=1");
             }
-
-            header("Location: index.php?page=admin&master=multi-tenancy");
             exit;
         }
     }
