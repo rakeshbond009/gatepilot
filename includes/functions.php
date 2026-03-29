@@ -258,31 +258,16 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
         }
     }
 
-    // 3. Create/Select Database
-    // Note: On Hostinger, we must catch mysqli_sql_exception explicitly
+    // 3. Create New Database
     $conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS);
     if (!$conn) {
-        return ["success" => false, "message" => "MySQL Server connection failed: " . mysqli_connect_error()];
+        return ["success" => false, "message" => "Database server connection failed: " . mysqli_connect_error()];
     }
 
-    try {
-        // Try selecting first
-        if (!@mysqli_select_db($conn, $db_name)) {
-            // If doesn't exist, try creating it
-            if (!mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
-                throw new Exception("Creation failed"); // Fallback for old modes
-            }
-            // Selecting it again after creation
-            mysqli_select_db($conn, $db_name);
-        }
-    } catch (Throwable $e) {
-        // If we reach here, Hostinger has blocked our database setp
-        $msg = $e->getMessage();
-        return [
-            "success" => false,
-            "message" => "<b>⚠️ Hostinger Database Permission Required:</b><br><br>Your hosting plan restricts automatic database creation.<br><br><b>Please do this manually:</b><br>1. Log into hPanel.<br>2. Create a MySQL database named: <b>$db_name</b><br>3. Connect user <b>" . DB_USER . "</b> to it.<br>4. Re-run this tool.<br><br><small>(Technical Note: $msg)</small>"
-        ];
+    if (!mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
+        return ["success" => false, "message" => "Database creation failed: " . mysqli_error($conn)];
     }
+    mysqli_select_db($conn, $db_name);
 
     // 4. Import Schema from database/schema.sql
     $schema_file = dirname(__DIR__) . '/database/schema.sql';

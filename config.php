@@ -72,7 +72,7 @@ if ($is_local) {
     define('SUPPORT_DB_USER', 'u875321134_rakeshwebsite');
     define('SUPPORT_DB_PASS', 'Mywebsite@2025');
 }
-define('CLIENT_APP_NAME', 'GatePilot - Truck Movement'); // Identifies which app reported the issue
+define('CLIENT_APP_NAME', 'GatePilot'); // Identifies which app reported the issue
 
 // ========== UNIVERSAL SESSION CONFIGURATION (FOR "LOGIN FOREVER") ==========
 $session_lifetime = 365 * 24 * 60 * 60; // 1 year
@@ -118,8 +118,8 @@ if ($is_local) {
     error_reporting(E_ALL);
     ini_set('display_errors', 1);
 } else {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
+    error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING);
+    ini_set('display_errors', 0);
     ini_set('log_errors', 1);
     ini_set('error_log', __DIR__ . '/error.log');
 }

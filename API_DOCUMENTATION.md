@@ -1,9 +1,9 @@
-# API Documentation: Truck Gate Management System
+# API Documentation: GatePilot Platform
 
 This document outlines the internal API endpoints and action handlers used for data exchange between the frontend, mobile app, and backend.
 
 ## 📡 Base URL
-- **Local**: `http://localhost/Truckmovement/`
+- **Local**: `http://localhost/gatepilot/`
 - **Production**: `https://gatemanagement.codepilotx.com/`
 
 ---

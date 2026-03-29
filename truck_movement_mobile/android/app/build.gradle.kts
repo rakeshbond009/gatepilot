@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.truckmovement.truck_movement_mobile"
+    namespace = "com.gatepilot.app"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
     ndkVersion = "25.1.8937393"
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.truckmovement.truck_movement_mobile"
+        applicationId = "com.gatepilot.app"
         minSdk = 24
         targetSdk = 35
         versionCode = flutter.versionCode

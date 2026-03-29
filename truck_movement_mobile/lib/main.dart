@@ -12,11 +12,11 @@ void main() async {
     await InAppWebViewController.setWebContentsDebuggingEnabled(kDebugMode);
   }
 
-  runApp(const TruckMovementApp());
+  runApp(const GatePilotApp());
 }
 
-class TruckMovementApp extends StatelessWidget {
-  const TruckMovementApp({super.key});
+class GatePilotApp extends StatelessWidget {
+  const GatePilotApp({super.key});
 
   @override
   Widget build(BuildContext context) {

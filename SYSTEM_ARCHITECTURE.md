@@ -1,7 +1,7 @@
-# System Architecture: Truck Gate Management System
+# System Architecture: GatePilot Platform
 
 ## 🏗️ High-Level Architecture
-The **Truck Gate Management System** is built on a robust, mobile-first monolith architecture designed for high availability and ease of deployment. It follows a multi-tier structure comprising a Presentation Layer, Business Logic Layer, and Data Tier.
+The **GatePilot Platform** is built on a robust, mobile-first monolith architecture designed for high availability and ease of deployment. It follows a multi-tier structure comprising a Presentation Layer, Business Logic Layer, and Data Tier.
 
 ### 1. Presentation Layer (Frontend)
 - **Web Application**: Developed using **HTML5, CSS3 (Mobile-First), and Vanilla JavaScript**. It uses **Bootstrap 5** for responsive layouts and premium aesthetics.

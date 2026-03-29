@@ -1,4 +1,4 @@
-# Truck Movement - Full Setup & Version Update Guide
+# GatePilot - Full Setup & Version Update Guide
 
 This project includes a professional Version Control system using Git and GitHub, designed to work seamlessly with Hostinger's standard deployment.
 
@@ -8,7 +8,7 @@ This project includes a professional Version Control system using Git and GitHub
 
 These are the commands used to initialize this repository on your laptop and link it to GitHub.
 
-1.  **Start Git**: Open your terminal in the `Truckmovement` folder and run:
+1.  **Start Git**: Open your terminal in the `gatepilot` folder and run:
     ```bash
     git init
     ```
@@ -31,7 +31,7 @@ These are the commands used to initialize this repository on your laptop and lin
     ```
 6.  **Connect to GitHub**: Link your local laptop to your GitHub repository:
     ```bash
-    git remote add origin https://github.com/rakeshbond009/Truckmovement.git
+    git remote add origin https://github.com/rakeshbond009/gatepilot.git
     ```
 7.  **Push to Cloud**: Send your code to the online GitHub repository:
     ```bash
@@ -52,7 +52,7 @@ Hostinger won't let you link a GitHub repository if your `public_html` folder al
 
 2.  **Link GitHub Repository**:
     *   Go to Hostinger Dashboard -> **Advanced -> Git**.
-    *   **Repository URL**: `https://github.com/rakeshbond009/Truckmovement.git`
+    *   **Repository URL**: `https://github.com/rakeshbond009/gatepilot.git`
     *   **Branch**: `main`
     *   **Install Directory**: Leave it as `public_html` (don't change).
     *   Click **"Create"**.

@@ -512,14 +512,13 @@
 
                 $_SESSION['admin_msg'] = ["type" => "success", "title" => "Success", "msg" => $res['message']];
                 unset($_SESSION['tenant_form_data']); // Clear success data
-                header("Location: index.php?page=admin&master=multi-tenancy");
             } else {
                 // Store error specifically for the modal
                 $_SESSION['tenant_error'] = $res['message'];
                 $_SESSION['tenant_form_data'] = $_POST; // Save form data for retry
-                // RE-OPEN the modal on error
-                header("Location: index.php?page=admin&master=multi-tenancy&open_setup=1");
             }
+
+            header("Location: index.php?page=admin&master=multi-tenancy");
             exit;
         }
     }
@@ -637,7 +636,7 @@
             $webhook = getSetting($m_conn, 'hostinger_webhook');
             if ($webhook) {
                 // Hostinger webhooks expect a GitHub-style POST request with push event headers
-                $payload = json_encode(['ref' => 'refs/heads/main', 'repository' => ['full_name' => 'rakeshbond009/Truckmovement']]);
+                $payload = json_encode(['ref' => 'refs/heads/main', 'repository' => ['full_name' => 'rakeshbond009/gatepilot']]);
                 $ch = curl_init($webhook);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
@@ -1163,16 +1162,19 @@
                     if (isset($_GET['clear_form'])) {
                         unset($_SESSION['tenant_form_data']);
                         unset($_SESSION['tenant_error']);
+                        $tenant_data = [];
+                        $tenant_error = null;
                     }
 
-                    // Only reset if NOT returning from a failure
-                    if (isset($_GET['open_setup']) && !isset($_SESSION['tenant_error'])) {
+                    if (isset($_GET['open_setup'])) {
+                        unset($_SESSION['tenant_form_data']);
+                        unset($_SESSION['tenant_error']);
                         $_SESSION['tenant_form_data'] = ['is_new' => true];
+                        $tenant_data = $_SESSION['tenant_form_data'];
+                        $tenant_error = null;
                     }
 
-                    $tenant_data = $_SESSION['tenant_form_data'] ?? [];
-                    $tenant_error = $_SESSION['tenant_error'] ?? null;
-                    $showModal = !empty($tenant_data) || !empty($tenant_error) || isset($_GET['open_setup']);
+                    $showModal = !empty($tenant_data);
                     $isEditMode = !empty($tenant_data['edit_tenant_id']);
                     ?>
                     <div id="tenantModal" class="perm-modal-overlay"
@@ -4946,7 +4948,7 @@
                             Purpose Types</h2>
                         <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage purpose
                             categories
-                            for truck movements</p>
+                            for gate movements</p>
                     </div>
                 </div>
             </div>

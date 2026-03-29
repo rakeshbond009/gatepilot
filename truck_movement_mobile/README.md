@@ -1,6 +1,6 @@
-# Truck Movement Mobile App
+# GatePilot Mobile App
 
-This is a Flutter application that wraps the Truck Movement web portal (`http://192.168.10.250/Truckmovement/`) in a native WebView for Android and iOS.
+This is a Flutter application that wraps the GatePilot web portal (`http://192.168.10.250/gatepilot/`) in a native WebView for Android and iOS.
 
 ## Features
 - **WebView Integration**: Fullscreen native WebView.
@@ -12,14 +12,14 @@ This is a Flutter application that wraps the Truck Movement web portal (`http://
 ## Setup & Configuration
 
 ### 1. Web URL Configuration
-The app is currently configured to point to `http://192.168.10.250/Truckmovement/`.
+The app is currently configured to point to `http://192.168.10.250/gatepilot/`.
 If your server IP changes or if you are using an emulator:
-- **Emulator**: Use `http://10.0.2.2/Truckmovement/` (references the host machine's localhost).
+- **Emulator**: Use `http://10.0.2.2/gatepilot/` (references the host machine's localhost).
 - **Physical Device**: Ensure your phone is on the same WiFi as the server and use the server's LAN IP (e.g., `192.168.x.x`).
 
 To change the URL, edit `lib/main.dart`:
 ```dart
-final String initialUrl = "http://YOUR_IP_ADDRESS/Truckmovement/";
+final String initialUrl = "http://YOUR_IP_ADDRESS/gatepilot/";
 ```
 
 ### 2. Building for Android

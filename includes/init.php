@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.29.1530');
+    define('APP_VERSION', '26.03.29.1719');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -343,21 +343,21 @@ function hasPermission($key)
 // ========== PERSISTENT LOGIN (REMEMBER ME) ==========
 if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
     $token = mysqli_real_escape_string($master_conn, $_COOKIE['GATEPILOT_REMEMBER']);
-    
+
     // 1. Search GLOBAL sessions in Master DB
     $g_query = "SELECT * FROM global_sessions WHERE token = '$token' LIMIT 1";
     $g_res = mysqli_query($master_conn, $g_query);
-    
+
     if ($g_res && $g_row = mysqli_fetch_assoc($g_res)) {
         $r_slug = $g_row['tenant_slug'];
         $r_uid = $g_row['user_id'];
-        
+
         // 2. Fetch Tenant Config
         $t_res = mysqli_query($master_conn, "SELECT db_name FROM tenants WHERE slug = '$r_slug' LIMIT 1");
         if ($t_row = mysqli_fetch_assoc($t_res)) {
             $r_db = $t_row['db_name'];
             $r_conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, $r_db);
-            
+
             if ($r_conn) {
                 // 3. Restore User Session
                 $u_res = mysqli_query($r_conn, "SELECT * FROM user_master WHERE id = $r_uid LIMIT 1");
@@ -368,9 +368,9 @@ if (!isLoggedIn() && isset($_COOKIE['GATEPILOT_REMEMBER'])) {
                     $_SESSION['role'] = $user['role'];
                     $_SESSION['tenant_slug'] = $r_slug;
                     $_SESSION['tenant_db'] = $r_db;
-                    $_SESSION['super_admin'] = (int)($user['super_admin'] ?? 0);
+                    $_SESSION['super_admin'] = (int) ($user['super_admin'] ?? 0);
                     $_SESSION['permissions'] = $user['permissions'] ?? '';
-                    
+
                     // Refresh connection to its new tenant state
                     $conn = $r_conn;
                 }
@@ -516,7 +516,7 @@ if ($page == 'login' && isset($_POST['login'])) {
                     }
 
                     $user_agent = mysqli_real_escape_string($master_conn, $_SERVER['HTTP_USER_AGENT'] ?? '');
-                    $user_id = (int)$row['id'];
+                    $user_id = (int) $row['id'];
                     $slug_safe = mysqli_real_escape_string($master_conn, $tenant_slug);
 
                     // Ensure global table exists in Master DB
@@ -2204,4 +2204,4 @@ if ($page == 'check-duplicate-employee-id') {
     }
     exit;
 }
-?>
+?>
