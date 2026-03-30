@@ -1251,6 +1251,12 @@
 
                     $showModal = !empty($tenant_data);
                     $isEditMode = !empty($tenant_data['edit_tenant_id']);
+                    
+                    // Hosted Environment Verification
+                    $hostname = $_SERVER['SERVER_NAME'];
+                    $isLocal = ($hostname === 'localhost' || $hostname === '127.0.0.1' || str_contains($hostname, '192.168.'));
+                    $isHosted = !$isLocal;
+                    $dbReq = $isHosted ? 'required' : '';
                     ?>
                             <div id="tenantModal" class="perm-modal-overlay"
                                 style="display: <?php echo $showModal ? 'flex' : 'none'; ?>; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
@@ -1402,14 +1408,23 @@
                                                             style="background: #4338ca; color: white; font-size: 9px; padding: 2px 6px; border-radius: 4px;">SYSTEM
                                                             ADMIN</span>
                                                     </h4>
-                                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                                         <div>
                                                             <label
                                                                 style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #475569;">Database
                                                                 Host</label>
                                                             <input type="text" name="db_host" id="t_db_host"
                                                                 value="<?php echo htmlspecialchars($tenant_data['db_host'] ?? 'localhost'); ?>"
-                                                                placeholder="localhost"
+                                                                placeholder="localhost" <?php echo $dbReq; ?>
+                                                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                                        </div>
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #475569;">Database
+                                                                Name</label>
+                                                            <input type="text" name="db_name" id="t_db_name"
+                                                                value="<?php echo htmlspecialchars($tenant_data['db_name'] ?? ''); ?>"
+                                                                placeholder="e.g. u12345_gatepilot_db" <?php echo $dbReq; ?>
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                         <div>
@@ -1418,7 +1433,7 @@
                                                                 DB User</label>
                                                             <input type="text" name="db_user" id="t_db_user"
                                                                 value="<?php echo htmlspecialchars($tenant_data['db_user'] ?? ''); ?>"
-                                                                placeholder="(Leave blank for default root)"
+                                                                placeholder="(Leave blank for default root)" <?php echo $dbReq; ?>
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                         <div>
@@ -1427,7 +1442,7 @@
                                                                 DB Password</label>
                                                             <input type="password" name="db_pass" id="t_db_pass"
                                                                 value="<?php echo htmlspecialchars($tenant_data['db_pass'] ?? ''); ?>"
-                                                                placeholder="(Leave blank for none)"
+                                                                placeholder="(Leave blank for none)" <?php echo $dbReq; ?>
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                     </div>
@@ -1463,6 +1478,14 @@
                             </div>
 
                             <script>
+                                document.getElementById('provisionForm').addEventListener('submit', function(e) {
+                                    const btn = document.getElementById('provisionBtn');
+                                    // Visual loader state
+                                    btn.disabled = true;
+                                    btn.style.opacity = '0.7';
+                                    btn.style.cursor = 'wait';
+                                    btn.innerHTML = '<span style="display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-radius:50%; border-top-color:white; animation:spin 0.8s linear infinite; margin-right:8px;"></span> Processing Setup...';
+                                });
 
                                 document.getElementById('t_admin_user').addEventListener('input', function () {
                                     const uname = this.value.trim();
@@ -1495,6 +1518,15 @@
                                     const slug = this.value.trim();
                                     const warning = document.getElementById('slugWarning');
                                     const btn = document.getElementById('provisionBtn');
+                                    
+                                    // Auto-populate DB name on Local ONLY (for new tenants)
+                                    const hostname = window.location.hostname;
+                                    const isLocal = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'));
+                                    const isEdit = document.getElementById('edit_tenant_id').value !== "";
+                                    
+                                    if (isLocal && !isEdit && slug.length > 0) {
+                                        document.getElementById('t_db_name').value = 'gp_' + slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                    }
                                     
                                     if (slug.length < 2) {
                                         warning.style.display = 'none';
@@ -1652,6 +1684,7 @@
                                                             'gst' => $t['gst_no'],
                                                             'address' => $t['address'],
                                                             'db_host' => $t['db_host'],
+                                                            'db_name' => $t['db_name'],
                                                             'db_user' => $t['db_user'],
                                                             'db_pass' => $t['db_pass']
                                                         ]), ENT_QUOTES, 'UTF-8');
@@ -1711,6 +1744,7 @@
                                     document.getElementById('t_gst_no').value = data.gst || '';
                                     document.getElementById('t_address').value = data.address || '';
                                     document.getElementById('t_db_host').value = data.db_host || 'localhost';
+                                    document.getElementById('t_db_name').value = data.db_name || '';
                                     document.getElementById('t_db_user').value = data.db_user || '';
                                     document.getElementById('t_db_pass').value = data.db_pass || '';
 
