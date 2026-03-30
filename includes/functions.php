@@ -234,7 +234,7 @@ function getAppDefaultPermissions($is_tenant_admin = true) {
         'masters' => [
             'transporters' => true, 'drivers' => true, 'vehicles' => true, 'purposes' => true,
             'employees' => true, 'departments' => true, 'patrol' => true, 'materials' => true,
-            'suppliers' => true, 'users' => true, 'settings' => true
+            'suppliers' => true, 'users' => true
         ],
         'actions' => [
             'edit_record' => true, 'delete_record' => true, 'view_buttons' => true
@@ -243,7 +243,7 @@ function getAppDefaultPermissions($is_tenant_admin = true) {
 
     // SECURE: Enforce exclusions for non-Super Admins
     if ($is_tenant_admin) {
-        $excl = ['multi-tenancy', 'cloud_config', 'db_manager'];
+        $excl = ['multi-tenancy', 'cloud_config', 'db_manager', 'settings'];
         foreach ($excl as $e) {
             unset($perms['pages'][$e]);
         }

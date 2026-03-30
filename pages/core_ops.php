@@ -5268,13 +5268,17 @@ elseif ($page == 'reports'):
     $employee_where_sql = $employee_where ? 'WHERE ' . implode(' AND ', $employee_where) : '';
 
 
-    $employee_query = mysqli_query($conn, "SELECT e.*, em.department, u.username as inward_by_name, u2.username as outward_by_name
-                                            FROM employee_entries e
-                                            LEFT JOIN employee_master em ON e.employee_id = em.employee_id
-                                            LEFT JOIN user_master u ON e.inward_by = u.id
-                                            LEFT JOIN user_master u2 ON e.outward_by = u2.id
-                                            $employee_where_sql
-                                            ORDER BY e.inward_datetime DESC");
+    $employee_query = mysqli_query($conn, "SELECT e.*, em.department, 
+                                                COALESCE(u.username, um.username) as inward_by_name, 
+                                                COALESCE(u2.username, um2.username) as outward_by_name
+                                              FROM employee_entries e
+                                              LEFT JOIN employee_master em ON e.employee_id = em.employee_id
+                                              LEFT JOIN user_master u ON e.inward_by = u.id
+                                              LEFT JOIN user_master u2 ON e.outward_by = u2.id
+                                              LEFT JOIN gp_admin.user_master um ON e.inward_by = um.id
+                                              LEFT JOIN gp_admin.user_master um2 ON e.outward_by = um2.id
+                                              $employee_where_sql
+                                              ORDER BY e.inward_datetime DESC");
 
     if ($patrol_query) {
         $logs_by_guard_date = [];
@@ -6121,13 +6125,10 @@ elseif ($page == 'reports'):
                                             </td>
                                             <td>
                                                 <small style="color: #666;">
-                                                    In:
-                                                    <?php echo htmlspecialchars($entry['inward_by_name'] ?: 'N/A'); ?><br>
+                                                    <strong>In:</strong> <?php echo htmlspecialchars($entry['inward_by_name'] ?: 'System Admin'); ?><br>
                                                     <?php if ($entry['outward_datetime']): ?>
-                                                        Out:
-                                                        <?php echo htmlspecialchars($entry['outward_by_name'] ?: 'N/A'); ?>
-                                                    <?php
-            endif; ?>
+                                                        <strong>Out:</strong> <?php echo htmlspecialchars($entry['outward_by_name'] ?: 'System Admin'); ?>
+                                                    <?php endif; ?>
                                                 </small>
                                             </td>
                                         </tr>

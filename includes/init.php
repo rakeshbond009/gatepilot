@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.30.1503');
+    define('APP_VERSION', '26.03.30.1734');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -88,11 +88,12 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
                 if ($page !== 'logout') {
                     // Fetch custom message if any
                     $custom_msg = !empty($status_row['deactivation_message']) ? $status_row['deactivation_message'] : "Your system access has been temporarily suspended by the administrator. Please contact support for more information.";
-                    
+
                     // Render Professional Full-Page Suspension UI
                     ?>
                     <!DOCTYPE html>
                     <html lang="en">
+
                     <head>
                         <meta charset="UTF-8">
                         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -107,7 +108,14 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
                                 --glass: rgba(255, 255, 255, 0.03);
                                 --border: rgba(255, 255, 255, 0.1);
                             }
-                            * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
+
+                            * {
+                                margin: 0;
+                                padding: 0;
+                                box-sizing: border-box;
+                                font-family: 'Outfit', sans-serif;
+                            }
+
                             body {
                                 background: var(--bg);
                                 color: var(--text);
@@ -115,11 +123,12 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
                                 display: flex;
                                 align-items: center;
                                 justify-content: center;
-                                background-image: 
+                                background-image:
                                     radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
                                     radial-gradient(circle at 80% 70%, rgba(239, 68, 68, 0.1) 0%, transparent 40%);
                                 overflow: hidden;
                             }
+
                             .card {
                                 background: var(--glass);
                                 backdrop-filter: blur(20px);
@@ -132,10 +141,19 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
                                 box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
                                 animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
                             }
+
                             @keyframes slideIn {
-                                from { opacity: 0; transform: translateY(30px); }
-                                to { opacity: 1; transform: translateY(0); }
+                                from {
+                                    opacity: 0;
+                                    transform: translateY(30px);
+                                }
+
+                                to {
+                                    opacity: 1;
+                                    transform: translateY(0);
+                                }
                             }
+
                             .icon-box {
                                 width: 80px;
                                 height: 80px;
@@ -147,10 +165,33 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
                                 margin: 0 auto 2rem;
                                 border: 1px solid rgba(239, 68, 68, 0.2);
                             }
-                            .icon-box svg { width: 40px; height: 40px; color: var(--danger); }
-                            h1 { font-weight: 800; font-size: 2.5rem; margin-bottom: 1rem; letter-spacing: -1px; }
-                            p.message { color: #94a3b8; font-size: 1.1rem; line-height: 1.6; margin-bottom: 2.5rem; }
-                            .btn-group { display: flex; gap: 1rem; justify-content: center; }
+
+                            .icon-box svg {
+                                width: 40px;
+                                height: 40px;
+                                color: var(--danger);
+                            }
+
+                            h1 {
+                                font-weight: 800;
+                                font-size: 2.5rem;
+                                margin-bottom: 1rem;
+                                letter-spacing: -1px;
+                            }
+
+                            p.message {
+                                color: #94a3b8;
+                                font-size: 1.1rem;
+                                line-height: 1.6;
+                                margin-bottom: 2.5rem;
+                            }
+
+                            .btn-group {
+                                display: flex;
+                                gap: 1rem;
+                                justify-content: center;
+                            }
+
                             .btn {
                                 padding: 0.8rem 2rem;
                                 border-radius: 0.75rem;
@@ -159,18 +200,46 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
                                 transition: all 0.3s;
                                 cursor: pointer;
                             }
-                            .btn-primary { background: var(--primary); color: white; border: none; }
-                            .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4); }
-                            .btn-outline { background: transparent; color: #94a3b8; border: 1px solid var(--border); }
-                            .btn-outline:hover { background: rgba(255, 255, 255, 0.05); color: white; }
-                            .brand { position: absolute; bottom: 3rem; opacity: 0.4; font-weight: 600; letter-spacing: 2px; }
+
+                            .btn-primary {
+                                background: var(--primary);
+                                color: white;
+                                border: none;
+                            }
+
+                            .btn-primary:hover {
+                                transform: translateY(-2px);
+                                box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+                            }
+
+                            .btn-outline {
+                                background: transparent;
+                                color: #94a3b8;
+                                border: 1px solid var(--border);
+                            }
+
+                            .btn-outline:hover {
+                                background: rgba(255, 255, 255, 0.05);
+                                color: white;
+                            }
+
+                            .brand {
+                                position: absolute;
+                                bottom: 3rem;
+                                opacity: 0.4;
+                                font-weight: 600;
+                                letter-spacing: 2px;
+                            }
                         </style>
                     </head>
+
                     <body>
                         <div class="card">
                             <div class="icon-box">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                                 </svg>
                             </div>
                             <h1>System Locked</h1>
@@ -182,6 +251,7 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
                         </div>
                         <div class="brand">GATEPILOT CLOUD</div>
                     </body>
+
                     </html>
                     <?php
                     exit;
@@ -802,7 +872,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
                 'materials' => isset($_POST['perm_master_materials']),
                 'suppliers' => isset($_POST['perm_master_suppliers']),
                 'users' => isset($_POST['perm_master_users']),
-                'settings' => isset($_POST['perm_master_settings']),
             ],
             'actions' => [
                 'edit_record' => isset($_POST['perm_action_edit']),
