@@ -523,7 +523,8 @@
                 $_POST['gst_no'] ?? '',
                 $_POST['db_host'] ?? 'localhost',
                 $_POST['db_user'] ?? '',
-                $_POST['db_pass'] ?? ''
+                $_POST['db_pass'] ?? '',
+                $_POST['db_name'] ?? ''
             );
 
             if ($res['success']) {

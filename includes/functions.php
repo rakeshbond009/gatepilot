@@ -256,7 +256,7 @@ function getAppDefaultPermissions($is_tenant_admin = true) {
  * Provision a new tenant database and register it in the master table
  * Restricted to Super Admins only
  */
-function createTenant($customer_name, $slug, $admin_username, $admin_password, $contact_person = '', $mobile = '', $email = '', $address = '', $gst_no = '', $db_host = 'localhost', $db_user = '', $db_pass = '')
+function createTenant($customer_name, $slug, $admin_username, $admin_password, $contact_person = '', $mobile = '', $email = '', $address = '', $gst_no = '', $db_host = 'localhost', $db_user = '', $db_pass = '', $custom_db_name = '')
 {
     // 1. Validate Input
     if (empty($admin_username) || empty($admin_password)) {
@@ -266,13 +266,17 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
     $slug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $slug));
     $db_host = !empty($db_host) ? $db_host : (defined('DB_HOST') ? DB_HOST : 'localhost');
 
-    // Prefix for grouping in phpMyAdmin and shortening for compliance
-    if (defined('ENVIRONMENT') && ENVIRONMENT === 'LOCAL') {
-        $db_name = "gp_" . $slug; // Local prefix
+    // Determine target database name
+    if (!empty($custom_db_name)) {
+        $db_name = $custom_db_name;
     } else {
-        // PRODUCTION: Use Hostinger account prefix if available
-        $prefix = explode('_', DB_NAME)[0]; // Extract account ID (e.g. u875321134)
-        $db_name = $prefix . "_gp_" . $slug;
+        if (defined('ENVIRONMENT') && ENVIRONMENT === 'LOCAL') {
+            $db_name = "gp_" . $slug; // Local prefix
+        } else {
+            // PRODUCTION: Use Hostinger account prefix if available
+            $prefix = explode('_', DB_NAME)[0]; // Extract account ID (e.g. u875321134)
+            $db_name = $prefix . "_gp_" . $slug;
+        }
     }
 
     $master_conn = getMasterDatabaseConnection();
