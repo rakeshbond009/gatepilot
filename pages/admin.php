@@ -1502,6 +1502,17 @@
                                         });
                                 });
 
+                                function openHostingerCheck() {
+                                    document.getElementById('hostingerCheckModal').style.display = 'flex';
+                                }
+                                function closeHostingerCheck() {
+                                    document.getElementById('hostingerCheckModal').style.display = 'none';
+                                }
+                                function confirmHostingerReady() {
+                                    closeHostingerCheck();
+                                    window.location.href = 'index.php?page=admin&master=multi-tenancy&open_setup=1';
+                                }
+
                                 function checkOverallStatus() {
                                     const btn = document.getElementById('provisionBtn');
                                     const slugWarn = document.getElementById('slugWarning');
