@@ -1189,15 +1189,44 @@
                         customers.
                     </p>
 
-                    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-                        <a href="index.php?page=admin&master=multi-tenancy&open_setup=1" class="btn btn-primary"
-                            style="background:#10b981; border:none; padding: 12px 25px; cursor: pointer; text-decoration: none; color: white; display: inline-block; border-radius: 8px; font-weight: 700;">
-                            ➕ Create New Tenant Instance
-                        </a>
-                        <span style="color: #64748b; font-size: 12px;">
-                            Master Database: <strong><?php echo DB_NAME; ?></strong>
-                        </span>
+                    <div style="margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                        <div>
+                            <button onclick="openHostingerCheck()"
+                                style="background: #10b981; color: white; padding: 12px 25px; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); font-size: 14px; display: flex; align-items: center; gap: 8px;">
+                                ➕ Provision New Tenant
+                            </button>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="color: #64748b; font-size: 11px; display: block; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">System Authority</span>
+                            <span style="color: #1e293b; font-size: 13px; font-weight: 700;">Admin Master Context</span>
+                        </div>
                     </div>
+
+                    <!-- Hostinger DB Pre-Check Modal -->
+                    <div id="hostingerCheckModal" class="perm-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); z-index: 10001; align-items: center; justify-content: center;">
+                        <div class="perm-modal-content" style="width: 90%; max-width: 450px; background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center; border: 1px solid rgba(255,255,255,0.1); animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+                            <div style="padding: 40px 30px; background: #ef4444; color: white;">
+                                <div style="font-size: 60px; margin-bottom: 15px; animation: pulse 2s infinite;">⚠️</div>
+                                <h3 style="margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.5px;">MANDATORY STEP</h3>
+                                <p style="margin: 10px 0 0 0; opacity: 0.8; font-size: 13px; text-transform: uppercase; font-weight: 700;">Hostinger & Shared Hosting Only</p>
+                            </div>
+                            <div style="padding: 40px 35px;">
+                                <h4 style="margin: 0 0 15px 0; color: #1e293b; font-size: 19px; font-weight: 800; line-height: 1.3;">Is your Hostinger Database Created?</h4>
+                                <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-bottom: 30px;">
+                                    For production environments like <strong>Hostinger hPanel</strong>, you MUST manually create the <strong>Database, User, and Password</strong> first.<br><br>
+                                    Do you have your MySQL credentials ready?
+                                </p>
+                                <div style="display: flex; gap: 12px;">
+                                    <button type="button" onclick="closeHostingerCheck()" style="flex: 1; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #64748b; font-weight: 600; cursor: pointer; transition: all 0.2s;">No, not yet</button>
+                                    <button type="button" onclick="confirmHostingerReady()" style="flex: 1.5; padding: 14px; border: none; border-radius: 12px; background: #ef4444; color: white; font-weight: 700; cursor: pointer; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.3); transition: all 0.2s;">Yes, DB is Ready! 🚀</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <style>
+                        @keyframes modalPop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+                        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+                    </style>
 
                     <!-- Create/Edit Tenant Modal -->
                     <?php
@@ -1402,19 +1431,6 @@
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                     </div>
-                                                    
-                                                    <div style="margin-top: 15px; padding: 15px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; display: flex; gap: 12px; align-items: start;">
-                                                        <div style="font-size: 20px;">⚠️</div>
-                                                        <div>
-                                                            <strong style="display: block; color: #92400e; font-size: 13px;">Hostinger & Shared Hosting Only:</strong>
-                                                            <p style="margin: 4px 0 10px 0; font-size: 11px; color: #92400e; line-height: 1.5;">
-                                                                PHP on Hostinger <strong>cannot create databases</strong>. You MUST create the database, user, and password manually in your <strong>hPanel</strong> first, then provide those exact credentials above.
-                                                            </p>
-                                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #92400e; font-weight: 600; font-size: 12px;">
-                                                                <input type="checkbox" id="hpanel_confirm" <?php echo $isEditMode ? 'checked' : ''; ?> style="width: 16px; height: 16px;">
-                                                                I confirm the DB is created & ready in hPanel
-                                                            </label>
-                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -1503,7 +1519,16 @@
                                 });
 
                                 function openHostingerCheck() {
-                                    document.getElementById('hostingerCheckModal').style.display = 'flex';
+                                    const hostname = window.location.hostname;
+                                    const isLocal = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'));
+                                    
+                                    if (isLocal) {
+                                        // Skip popup on local dev
+                                        window.location.href = 'index.php?page=admin&master=multi-tenancy&open_setup=1';
+                                    } else {
+                                        // Hosted environment (e.g., Hostinger) - Show mandatory popup
+                                        document.getElementById('hostingerCheckModal').style.display = 'flex';
+                                    }
                                 }
                                 function closeHostingerCheck() {
                                     document.getElementById('hostingerCheckModal').style.display = 'none';
@@ -1517,16 +1542,11 @@
                                     const btn = document.getElementById('provisionBtn');
                                     const slugWarn = document.getElementById('slugWarning');
                                     const userWarn = document.getElementById('userWarning');
-                                    const hConfirm = document.getElementById('hpanel_confirm');
-                                    const dbHost = document.getElementById('t_db_host').value.trim().toLowerCase();
-                                    
-                                    const isLocalhost = dbHost === 'localhost' || dbHost === '127.0.0.1';
-                                    const hVerified = isLocalhost || (hConfirm && hConfirm.checked);
                                     
                                     const hasConflict = (slugWarn && slugWarn.style.display === 'block') || 
                                                        (userWarn && userWarn.style.display === 'block');
                                     
-                                    if (!hasConflict && hVerified) {
+                                    if (!hasConflict) {
                                         btn.style.backgroundColor = '<?php echo $isEditMode ? "#3b82f6" : "#10b981"; ?>';
                                         btn.style.opacity = '1';
                                         btn.style.cursor = 'pointer';
