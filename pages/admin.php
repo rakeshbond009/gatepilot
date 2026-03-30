@@ -465,19 +465,37 @@
 
 <?php if ($page == 'admin'):
     // Handle Create Tenant (Multi-Tenancy)
-    if (isset($_POST['create_tenant']) && isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] == 'admin') {
+    if (isset($_POST['create_tenant'])) {
+        // DEBUG: Log the arrival of a create_tenant request
+        error_log("POST Request received for create_tenant. Slug: " . ($_POST['slug'] ?? 'missing'));
+        
         if (!empty($_POST['edit_tenant_id'])) {
             // MUST update existing instead of creating
             $tenant_id = (int) $_POST['edit_tenant_id'];
             $master_conn = getMasterDatabaseConnection();
 
-            $old_res = mysqli_query($master_conn, "SELECT contact_person, mobile, email, gst_no, address FROM tenants WHERE id = $tenant_id");
+            $old_res = mysqli_query($master_conn, "SELECT contact_person, mobile, email, gst_no, address, db_host, db_user, db_pass FROM tenants WHERE id = $tenant_id");
             $old_row = mysqli_fetch_assoc($old_res) ?: [];
 
-            $stmt = $master_conn->prepare("UPDATE tenants SET contact_person=?, mobile=?, email=?, gst_no=?, address=? WHERE id=?");
-            $stmt->bind_param("sssssi", $_POST['contact_person'], $_POST['mobile'], $_POST['email'], $_POST['gst_no'], $_POST['address'], $tenant_id);
+            $stmt = $master_conn->prepare("UPDATE tenants SET contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=? WHERE id=?");
+            $stmt->bind_param("ssssssssi", $_POST['contact_person'], $_POST['mobile'], $_POST['email'], $_POST['gst_no'], $_POST['address'], $_POST['db_host'], $_POST['db_user'], $_POST['db_pass'], $tenant_id);
 
             if ($stmt->execute()) {
+                // Apply Dynamic Permissions Update to existing tenant admins if metadata is saved
+                $t_res = mysqli_query($master_conn, "SELECT db_name FROM tenants WHERE id = $tenant_id");
+                $t_row = mysqli_fetch_assoc($t_res);
+                if ($t_row) {
+                    $t_db = $t_row['db_name'];
+                    $t_conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS, $t_db);
+                    if ($t_conn) {
+                        $latest_perms = json_encode(getAppDefaultPermissions(true));
+                        $esc_perms = mysqli_real_escape_string($t_conn, $latest_perms);
+                        // Update only 'admin' role users to have the latest permissions
+                        mysqli_query($t_conn, "UPDATE user_master SET permissions = '$esc_perms' WHERE role = 'admin'");
+                        mysqli_close($t_conn);
+                    }
+                }
+
                 $audit_str = auditDiff($old_row, $_POST, ['edit_tenant_id', 'create_tenant'], ['customer_name' => 'Customer Name', 'slug' => 'URL Slug']);
                 if (!empty($audit_str)) {
                     logActivity($conn, 'TENANT_UPDATE', 'Multi-Tenancy', "Updated Tenant Metadata:\n" . $audit_str);
@@ -503,7 +521,10 @@
                 $_POST['mobile'] ?? '',
                 $_POST['email'] ?? '',
                 $_POST['address'] ?? '',
-                $_POST['gst_no'] ?? ''
+                $_POST['gst_no'] ?? '',
+                $_POST['db_host'] ?? 'localhost',
+                $_POST['db_user'] ?? '',
+                $_POST['db_pass'] ?? ''
             );
 
             if ($res['success']) {
@@ -518,6 +539,7 @@
                 $_SESSION['tenant_form_data'] = $_POST; // Save form data for retry
             }
 
+            session_write_close();
             header("Location: index.php?page=admin&master=multi-tenancy");
             exit;
         }
@@ -1138,7 +1160,27 @@
         elseif ($master_page == 'multi-tenancy' && isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] == 'admin' && ($_SESSION['super_admin'] ?? 0) == 1):
             ?>
             <div id="tenantsSection">
-                <div class="card" style="border-top: 4px solid #10b981;">
+                <div class="master-card"
+                    style="background: white; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); padding: 30px; margin-bottom: 30px; border: 1px solid #e2e8f0;">
+                    
+                    <?php 
+                    // Display Global Admin Messages (Success/Persisted Errors)
+                    if (isset($_SESSION['admin_msg'])): 
+                        $msg = $_SESSION['admin_msg'];
+                        $bgColor = ($msg['type'] == 'success') ? '#10b981' : '#ef4444';
+                        $icon = ($msg['type'] == 'success') ? '✅' : '⚠️';
+                    ?>
+                        <div style="background: <?php echo $bgColor; ?>; color: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 25px; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 12px; animation: slideDown 0.4s ease-out;">
+                            <span style="font-size: 20px;"><?php echo $icon; ?></span>
+                            <div>
+                                <strong style="display:block; font-size: 14px;"><?php echo htmlspecialchars($msg['title']); ?></strong>
+                                <span style="font-weight: 400; font-size: 13px; opacity: 0.9;"><?php echo htmlspecialchars($msg['msg']); ?></span>
+                            </div>
+                        </div>
+                        <style>@keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }</style>
+                        <?php unset($_SESSION['admin_msg']); ?>
+                    <?php endif; ?>
+
                     <h3 style="display: flex; align-items: center; gap: 10px;">🏢 Multi-Tenant Management <span
                             style="background:#10b981; color:white; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase;">System
                             Admin ONLY</span></h3>
@@ -1159,6 +1201,10 @@
 
                     <!-- Create/Edit Tenant Modal -->
                     <?php
+                    // Robust state initialization from session
+                    $tenant_data = $_SESSION['tenant_form_data'] ?? [];
+                    $tenant_error = $_SESSION['tenant_error'] ?? null;
+
                     if (isset($_GET['clear_form'])) {
                         unset($_SESSION['tenant_form_data']);
                         unset($_SESSION['tenant_error']);
@@ -1177,392 +1223,538 @@
                     $showModal = !empty($tenant_data);
                     $isEditMode = !empty($tenant_data['edit_tenant_id']);
                     ?>
-                    <div id="tenantModal" class="perm-modal-overlay"
-                        style="display: <?php echo $showModal ? 'flex' : 'none'; ?>; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
-                        <div class="perm-modal-content"
-                            style="width: 90%; max-width: 800px; max-height: 90vh; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; background: white;">
-                            <div
-                                style="padding: 24px 30px; background: linear-gradient(135deg, <?php echo $isEditMode ? '#3b82f6 0%, #2563eb' : '#10b981 0%, #059669'; ?> 100%); color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-                                <div>
-                                    <h3 style="margin:0; font-size: 20px; font-weight: 700;" id="tenantModalTitle">🏢
-                                        <?php echo $isEditMode ? 'Edit Tenant' : 'New Tenant Setup'; ?>
-                                    </h3>
-                                    <p style="margin: 4px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.8);"
-                                        id="tenantModalDesc">
-                                        <?php echo $isEditMode ? 'Update customer metadata' : 'Provision a new isolated database instance'; ?>
-                                    </p>
+                            <div id="tenantModal" class="perm-modal-overlay"
+                                style="display: <?php echo $showModal ? 'flex' : 'none'; ?>; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+                                <div class="perm-modal-content"
+                                    style="width: 90%; max-width: 800px; max-height: 90vh; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; background: white;">
+                                    <div
+                                        style="padding: 24px 30px; background: linear-gradient(135deg, <?php echo $isEditMode ? '#3b82f6 0%, #2563eb' : '#10b981 0%, #059669'; ?> 100%); color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                                        <div>
+                                            <h3 style="margin:0; font-size: 20px; font-weight: 700;" id="tenantModalTitle">🏢
+                                                <?php echo $isEditMode ? 'Edit Tenant' : 'New Tenant Setup'; ?>
+                                            </h3>
+                                            <p style="margin: 4px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.8);"
+                                                id="tenantModalDesc">
+                                                <?php echo $isEditMode ? 'Update customer metadata' : 'Provision a new isolated database instance'; ?>
+                                            </p>
+                                        </div>
+                                        <button type="button"
+                                            onclick="window.location.href='index.php?page=admin&master=multi-tenancy&clear_form=1'"
+                                            style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+                                    </div>
+                                    <div style="flex-grow: 1; overflow-y: auto; padding: 30px;">
+                                        <form id="provisionForm" method="POST">
+                                            <input type="hidden" name="edit_tenant_id" id="edit_tenant_id"
+                                                value="<?php echo htmlspecialchars($tenant_data['edit_tenant_id'] ?? ''); ?>">
+                                            <?php if ($tenant_error): ?>
+                                                    <div
+                                                        style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; border-radius: 8px; margin-bottom: 20px; color: #991b1b; font-size: 14px; display: flex; align-items: center; gap: 10px;">
+                                                        <span style="font-size: 20px;">⚠️</span>
+                                                        <div>
+                                                            <strong style="display:block;">Validation Failed</strong>
+                                                            <?php echo $tenant_error; ?>
+                                                        </div>
+                                                    </div>
+                                                    <?php unset($_SESSION['tenant_error']); ?>
+                                            <?php endif; ?>
+
+                                            <div id="slugWarning"
+                                                style="display:none; background: #fff7ed; border-left: 4px solid #f97316; padding: 12px; border-radius: 8px; margin-bottom: 20px; color: #9a3412; font-size: 13px;">
+                                                <strong>⚠️ Company Code Conflict</strong>
+                                                <div id="slugWarningText"></div>
+                                            </div>
+
+                                            <div class="master-form-grid"
+                                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                                <!-- Core Config -->
+                                                <div
+                                                    style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                                    <h4
+                                                        style="margin: 0 0 15px 0; font-size: 13px; color: #10b981; text-transform: uppercase;">
+                                                        🔑 System Config</h4>
+                                                    <div style="margin-bottom: 15px;">
+                                                        <label
+                                                            style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Customer
+                                                            Name *</label>
+                                                        <input type="text" name="customer_name" id="t_customer_name"
+                                                            value="<?php echo htmlspecialchars($tenant_data['customer_name'] ?? ''); ?>"
+                                                            placeholder="e.g. Tata Motors" required <?php echo $isEditMode ? 'readonly style="background:#f1f5f9; width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"' : 'style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"'; ?>>
+                                                    </div>
+                                                    <div style="margin-bottom: 15px;">
+                                                        <label
+                                                            style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Company
+                                                            Code (URL Slug) *</label>
+                                                        <input type="text" name="slug" id="t_slug"
+                                                            value="<?php echo htmlspecialchars($tenant_data['slug'] ?? ''); ?>"
+                                                            placeholder="e.g. tata" required <?php echo $isEditMode ? 'readonly style="background:#f1f5f9; width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"' : 'style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"'; ?>>
+                                                    </div>
+                                                    <div id="credentialsWrapper"
+                                                        style="display: <?php echo $isEditMode ? 'none' : 'grid'; ?>; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Admin
+                                                                User</label>
+                                                            <input type="text" name="admin_user" id="t_admin_user"
+                                                                value="<?php echo htmlspecialchars($tenant_data['admin_user'] ?? ''); ?>"
+                                                                placeholder="e.g. admin"
+                                                                style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                            <div id="userWarning"
+                                                                style="display:none; color: #ef4444; font-size: 11px; margin-top: 5px; background: #fee2e2; padding: 5px; border-radius: 4px; border: 1px solid #fecaca;">
+                                                                ⚠️ <span id="userWarningText"></span>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Password</label>
+                                                            <div style="display: flex; gap: 5px;">
+                                                                <input type="text" name="admin_pass" id="tenantAdminPass"
+                                                                    value="<?php echo htmlspecialchars($tenant_data['admin_pass'] ?? ''); ?>"
+                                                                    placeholder="Enter password"
+                                                                    style="flex: 1; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                                <button type="button" onclick="document.getElementById('tenantAdminPass').value = generateRandomPass(12)"
+                                                                    style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 12px; cursor: pointer;" title="Generate Secure Password">
+                                                                    🎲
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Metadata -->
+                                                <div
+                                                    style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                                    <h4
+                                                        style="margin: 0 0 15px 0; font-size: 13px; color: #10b981; text-transform: uppercase;">
+                                                        📝 Customer Metadata</h4>
+                                                    <div style="margin-bottom: 15px;">
+                                                        <label
+                                                            style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Contact
+                                                            Person</label>
+                                                        <input type="text" name="contact_person" id="t_contact_person"
+                                                            value="<?php echo htmlspecialchars($tenant_data['contact_person'] ?? ''); ?>"
+                                                            placeholder="Name of Manager"
+                                                            style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                    </div>
+                                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Mobile</label>
+                                                            <input type="text" name="mobile" id="t_mobile"
+                                                                value="<?php echo htmlspecialchars($tenant_data['mobile'] ?? ''); ?>"
+                                                                placeholder="Contact number"
+                                                                style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                        </div>
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">GST
+                                                                No</label>
+                                                            <input type="text" name="gst_no" id="t_gst_no"
+                                                                value="<?php echo htmlspecialchars($tenant_data['gst_no'] ?? ''); ?>"
+                                                                placeholder="GST registration"
+                                                                style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                        </div>
+                                                    </div>
+                                                    <div style="margin-top: 15px;">
+                                                        <label
+                                                            style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Email</label>
+                                                        <input type="email" name="email" id="t_email"
+                                                            value="<?php echo htmlspecialchars($tenant_data['email'] ?? ''); ?>"
+                                                            placeholder="Email for notifications"
+                                                            style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                    </div>
+                                                </div>
+
+                                                <!-- Isolation Architecture (Full Width) -->
+                                                <div
+                                                    style="grid-column: span 2; background: #eef2ff; padding: 20px; border-radius: 12px; border: 1px solid #c7d2fe; margin-top: 10px;">
+                                                    <h4
+                                                        style="margin: 0 0 15px 0; font-size: 13px; color: #4338ca; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                                                        🌐 Isolation Architecture <span
+                                                            style="background: #4338ca; color: white; font-size: 9px; padding: 2px 6px; border-radius: 4px;">SYSTEM
+                                                            ADMIN</span>
+                                                    </h4>
+                                                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #475569;">Database
+                                                                Host</label>
+                                                            <input type="text" name="db_host" id="t_db_host"
+                                                                value="<?php echo htmlspecialchars($tenant_data['db_host'] ?? 'localhost'); ?>"
+                                                                placeholder="localhost"
+                                                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                                        </div>
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #475569;">Custom
+                                                                DB User</label>
+                                                            <input type="text" name="db_user" id="t_db_user"
+                                                                value="<?php echo htmlspecialchars($tenant_data['db_user'] ?? ''); ?>"
+                                                                placeholder="(Leave blank for default root)"
+                                                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                                        </div>
+                                                        <div>
+                                                            <label
+                                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #475569;">Custom
+                                                                DB Password</label>
+                                                            <input type="password" name="db_pass" id="t_db_pass"
+                                                                value="<?php echo htmlspecialchars($tenant_data['db_pass'] ?? ''); ?>"
+                                                                placeholder="(Leave blank for none)"
+                                                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div style="margin-top: 15px; padding: 15px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; display: flex; gap: 12px; align-items: start;">
+                                                        <div style="font-size: 20px;">⚠️</div>
+                                                        <div>
+                                                            <strong style="display: block; color: #92400e; font-size: 13px;">Hostinger & Shared Hosting Only:</strong>
+                                                            <p style="margin: 4px 0 10px 0; font-size: 11px; color: #92400e; line-height: 1.5;">
+                                                                PHP on Hostinger <strong>cannot create databases</strong>. You MUST create the database, user, and password manually in your <strong>hPanel</strong> first, then provide those exact credentials above.
+                                                            </p>
+                                                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #92400e; font-weight: 600; font-size: 12px;">
+                                                                <input type="checkbox" id="hpanel_confirm" <?php echo $isEditMode ? 'checked' : ''; ?> style="width: 16px; height: 16px;">
+                                                                I confirm the DB is created & ready in hPanel
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Address (Full Width) -->
+                                                <div
+                                                    style="grid-column: span 2; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                                    <label
+                                                        style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Physical
+                                                        Address</label>
+                                                    <textarea name="address" id="t_address" rows="2"
+                                                        placeholder="Full company address..."
+                                                        style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: inherit;"><?php echo htmlspecialchars($tenant_data['address'] ?? ''); ?></textarea>
+                                                </div>
+
+                                                <div
+                                                    style="grid-column: span 2; display: flex; gap: 12px; margin-top: 20px; border-top: 1px solid #f1f5f9; padding-top: 25px;">
+                                                    <input type="hidden" name="create_tenant" value="1">
+                                                    <button type="button"
+                                                        onclick="window.location.href='index.php?page=admin&master=multi-tenancy&clear_form=1'"
+                                                        style="flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #64748b; font-weight: 600; cursor: pointer;">Cancel</button>
+                                                    <button type="submit" id="provisionBtn"
+                                                        style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: <?php echo $isEditMode ? '#3b82f6' : '#10b981'; ?>; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                                        <?php echo $isEditMode ? '💾 Save Changes' : '🚀 Provision System'; ?>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
-                                <button type="button"
-                                    onclick="window.location.href='index.php?page=admin&master=multi-tenancy&clear_form=1'"
-                                    style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
                             </div>
-                            <div style="flex-grow: 1; overflow-y: auto; padding: 30px;">
-                                <form id="provisionForm" method="POST">
-                                    <input type="hidden" name="edit_tenant_id" id="edit_tenant_id"
-                                        value="<?php echo htmlspecialchars($tenant_data['edit_tenant_id'] ?? ''); ?>">
-                                    <?php if ($tenant_error): ?>
-                                        <div
-                                            style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; border-radius: 8px; margin-bottom: 20px; color: #991b1b; font-size: 14px; display: flex; align-items: center; gap: 10px;">
-                                            <span style="font-size: 20px;">⚠️</span>
-                                            <div>
-                                                <strong style="display:block;">Validation Failed</strong>
-                                                <?php echo $tenant_error; ?>
-                                            </div>
-                                        </div>
-                                        <?php unset($_SESSION['tenant_error']); ?>
-                                    <?php endif; ?>
 
-                                    <div id="passWarning"
-                                        style="display:none; background: #fff7ed; border-left: 4px solid #f97316; padding: 12px; border-radius: 8px; margin-bottom: 20px; color: #9a3412; font-size: 13px;">
-                                        <strong>⚠️ Password Conflict</strong>
-                                        <div id="passWarningText"></div>
-                                    </div>
+                            <script>
 
-                                    <div class="master-form-grid"
-                                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                                        <!-- Core Config -->
-                                        <div
-                                            style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                                            <h4
-                                                style="margin: 0 0 15px 0; font-size: 13px; color: #10b981; text-transform: uppercase;">
-                                                🔑 System Config</h4>
-                                            <div style="margin-bottom: 15px;">
-                                                <label
-                                                    style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Customer
-                                                    Name *</label>
-                                                <input type="text" name="customer_name" id="t_customer_name"
-                                                    value="<?php echo htmlspecialchars($tenant_data['customer_name'] ?? ''); ?>"
-                                                    placeholder="e.g. Tata Motors" required <?php echo $isEditMode ? 'readonly style="background:#f1f5f9; width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"' : 'style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"'; ?>>
-                                            </div>
-                                            <div style="margin-bottom: 15px;">
-                                                <label
-                                                    style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Company
-                                                    Code (URL Slug) *</label>
-                                                <input type="text" name="slug" id="t_slug"
-                                                    value="<?php echo htmlspecialchars($tenant_data['slug'] ?? ''); ?>"
-                                                    placeholder="e.g. tata" required <?php echo $isEditMode ? 'readonly style="background:#f1f5f9; width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"' : 'style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;"'; ?>>
-                                            </div>
-                                            <div id="credentialsWrapper"
-                                                style="display: <?php echo $isEditMode ? 'none' : 'grid'; ?>; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                                <div>
-                                                    <label
-                                                        style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Admin
-                                                        User</label>
-                                                    <input type="text" name="admin_user" id="t_admin_user"
-                                                        value="<?php echo htmlspecialchars($tenant_data['admin_user'] ?? ''); ?>"
-                                                        placeholder="e.g. admin"
-                                                        style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                </div>
-                                                <div>
-                                                    <label
-                                                        style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Password</label>
-                                                    <input type="text" name="admin_pass" id="tenantAdminPass"
-                                                        value="<?php echo htmlspecialchars($tenant_data['admin_pass'] ?? ''); ?>"
-                                                        placeholder="Enter password"
-                                                        style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                </div>
-                                            </div>
-                                        </div>
+                                document.getElementById('t_admin_user').addEventListener('input', function () {
+                                    const uname = this.value.trim();
+                                    const warning = document.getElementById('userWarning');
+                                    const btn = document.getElementById('provisionBtn');
+                                    
+                                    if (uname.length < 2) {
+                                        warning.style.display = 'none';
+                                        checkOverallStatus();
+                                        return;
+                                    }
+                                    
+                                    fetch('index.php?page=admin&check_username_uniqueness=1&username=' + encodeURIComponent(uname))
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (!data.unique) {
+                                                document.getElementById('userWarningText').innerText = 'Conflict: The username "' + uname + '" is already taken by ' + data.owner + '. Administrative usernames must be unique.';
+                                                warning.style.display = 'block';
+                                                btn.style.backgroundColor = '#94a3b8';
+                                                btn.style.opacity = '0.6';
+                                                btn.disabled = true;
+                                            } else {
+                                                warning.style.display = 'none';
+                                                checkOverallStatus();
+                                            }
+                                        });
+                                });
 
-                                        <!-- Metadata -->
-                                        <div
-                                            style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                                            <h4
-                                                style="margin: 0 0 15px 0; font-size: 13px; color: #10b981; text-transform: uppercase;">
-                                                📝 Customer Metadata</h4>
-                                            <div style="margin-bottom: 15px;">
-                                                <label
-                                                    style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Contact
-                                                    Person</label>
-                                                <input type="text" name="contact_person" id="t_contact_person"
-                                                    value="<?php echo htmlspecialchars($tenant_data['contact_person'] ?? ''); ?>"
-                                                    placeholder="Name of Manager"
-                                                    style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                            </div>
-                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                                <div>
-                                                    <label
-                                                        style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Mobile</label>
-                                                    <input type="text" name="mobile" id="t_mobile"
-                                                        value="<?php echo htmlspecialchars($tenant_data['mobile'] ?? ''); ?>"
-                                                        placeholder="Contact number"
-                                                        style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                </div>
-                                                <div>
-                                                    <label
-                                                        style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">GST
-                                                        No</label>
-                                                    <input type="text" name="gst_no" id="t_gst_no"
-                                                        value="<?php echo htmlspecialchars($tenant_data['gst_no'] ?? ''); ?>"
-                                                        placeholder="GST registration"
-                                                        style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                </div>
-                                            </div>
-                                            <div style="margin-top: 15px;">
-                                                <label
-                                                    style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Email</label>
-                                                <input type="email" name="email" id="t_email"
-                                                    value="<?php echo htmlspecialchars($tenant_data['email'] ?? ''); ?>"
-                                                    placeholder="Email for notifications"
-                                                    style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                            </div>
-                                        </div>
+                                document.getElementById('t_slug').addEventListener('input', function () {
+                                    const slug = this.value.trim();
+                                    const warning = document.getElementById('slugWarning');
+                                    const btn = document.getElementById('provisionBtn');
+                                    
+                                    if (slug.length < 2) {
+                                        warning.style.display = 'none';
+                                        checkOverallStatus();
+                                        return;
+                                    }
+                                    
+                                    fetch('index.php?page=admin&check_slug_uniqueness=1&slug=' + encodeURIComponent(slug))
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (!data.unique) {
+                                                document.getElementById('slugWarningText').innerText = 'The code "' + slug + '" is already taken by ' + data.owner + '. Please use a different company code.';
+                                                warning.style.display = 'block';
+                                                btn.style.backgroundColor = '#94a3b8';
+                                                btn.style.opacity = '0.6';
+                                                btn.disabled = true;
+                                            } else {
+                                                warning.style.display = 'none';
+                                                checkOverallStatus();
+                                            }
+                                        });
+                                });
 
-                                        <!-- Address (Full Width) -->
-                                        <div
-                                            style="grid-column: span 2; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                                            <label
-                                                style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Physical
-                                                Address</label>
-                                            <textarea name="address" id="t_address" rows="2"
-                                                placeholder="Full company address..."
-                                                style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: inherit;"><?php echo htmlspecialchars($tenant_data['address'] ?? ''); ?></textarea>
-                                        </div>
-
-                                        <div
-                                            style="grid-column: span 2; display: flex; gap: 12px; margin-top: 20px; border-top: 1px solid #f1f5f9; padding-top: 25px;">
-                                            <button type="button"
-                                                onclick="window.location.href='index.php?page=admin&master=multi-tenancy&clear_form=1'"
-                                                style="flex: 1; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #64748b; font-weight: 600; cursor: pointer;">Cancel</button>
-                                            <button type="submit" id="provisionBtn" name="create_tenant"
-                                                style="flex: 2; padding: 12px; border: none; border-radius: 8px; background: <?php echo $isEditMode ? '#3b82f6' : '#10b981'; ?>; color: white; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-                                                <?php echo $isEditMode ? '💾 Save Changes' : '🚀 Provision System'; ?>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <script>
-                        document.getElementById('tenantAdminPass').addEventListener('input', function () {
-                            const pass = this.value.trim();
-                            const warning = document.getElementById('passWarning');
-                            const btn = document.getElementById('provisionBtn');
-
-                            if (pass.length < 2) {
-                                warning.style.display = 'none';
-                                btn.style.opacity = '1';
-                                btn.disabled = false;
-                                return;
-                            }
-
-                            fetch('index.php?page=admin&check_pass_uniqueness=1&pass=' + encodeURIComponent(pass))
-                                .then(res => res.json())
-                                .then(data => {
-                                    if (!data.unique) {
-                                        document.getElementById('passWarningText').innerText = 'Conflict: This password is already in use by ' + data.owner + '. Usage of non-unique passwords is blocked.';
-                                        warning.style.display = 'block';
+                                function checkOverallStatus() {
+                                    const btn = document.getElementById('provisionBtn');
+                                    const slugWarn = document.getElementById('slugWarning');
+                                    const userWarn = document.getElementById('userWarning');
+                                    const hConfirm = document.getElementById('hpanel_confirm');
+                                    const dbHost = document.getElementById('t_db_host').value.trim().toLowerCase();
+                                    
+                                    const isLocalhost = dbHost === 'localhost' || dbHost === '127.0.0.1';
+                                    const hVerified = isLocalhost || (hConfirm && hConfirm.checked);
+                                    
+                                    const hasConflict = (slugWarn && slugWarn.style.display === 'block') || 
+                                                       (userWarn && userWarn.style.display === 'block');
+                                    
+                                    if (!hasConflict && hVerified) {
+                                        btn.style.backgroundColor = '<?php echo $isEditMode ? "#3b82f6" : "#10b981"; ?>';
+                                        btn.style.opacity = '1';
+                                        btn.style.cursor = 'pointer';
+                                        btn.disabled = false;
+                                    } else {
                                         btn.style.backgroundColor = '#94a3b8';
                                         btn.style.opacity = '0.6';
                                         btn.style.cursor = 'not-allowed';
                                         btn.disabled = true;
-                                    } else {
-                                        warning.style.display = 'none';
-                                        btn.style.backgroundColor = '#10b981';
-                                        btn.style.opacity = '1';
-                                        btn.style.cursor = 'pointer';
-                                        btn.disabled = false;
                                     }
-                                })
-                                .catch(err => {
-                                    console.error('Validation Error:', err);
-                                });
-                        });
-                    </script>
-                    </script>
-
-                    <div class="table-wrapper">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                            <thead>
-                                <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
-                                    <th style="padding: 12px; text-align: left;">Customer Name</th>
-                                    <th style="padding: 12px; text-align: left;">Company Code</th>
-                                    <th style="padding: 12px; text-align: left;">Contact Details</th>
-                                    <th style="padding: 12px; text-align: left;">Database</th>
-                                    <th style="padding: 12px; text-align: left;">Status</th>
-                                    <th style="padding: 12px; text-align: center;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                $master_conn = getMasterDatabaseConnection();
-                                $tenants_q = mysqli_query($master_conn, "SELECT * FROM tenants ORDER BY created_at DESC");
-                                while ($t = mysqli_fetch_assoc($tenants_q)):
-                                    ?>
-                                    <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;"
-                                        onmouseover="this.style.background='#f8fafc'"
-                                        onmouseout="this.style.background='transparent'">
-                                        <td style="padding: 12px;">
-                                            <div style="font-weight: 600; color: #1e293b;">
-                                                <?php echo htmlspecialchars($t['customer_name']); ?>
-                                            </div>
-                                            <div style="font-size: 11px; color: #94a3b8;">
-                                                <?php echo date('d M Y', strtotime($t['created_at'])); ?>
-                                            </div>
-                                        </td>
-                                        <td style="padding: 12px;"><code
-                                                style="background: #f1f5f9; color: #4338ca; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0;"><?php echo htmlspecialchars($t['slug']); ?></code>
-                                        </td>
-                                        <td style="padding: 12px;">
-                                            <div style="font-size: 13px; font-weight: 500;">
-                                                <?php echo htmlspecialchars($t['contact_person'] ?: '-'); ?>
-                                            </div>
-                                            <div style="font-size: 11px; color: #64748b;">
-                                                <?php echo htmlspecialchars($t['mobile'] ?: $t['email'] ?: '-'); ?>
-                                            </div>
-                                        </td>
-                                        <td style="padding: 12px; color: #64748b; font-family: monospace; font-size: 12px;">
-                                            <?php echo htmlspecialchars($t['db_name']); ?>
-                                        </td>
-                                        <td style="padding: 12px;">
-                                            <span
-                                                style="background: <?php echo $t['is_active'] ? '#dcfce7' : '#fee2e2'; ?>; color: <?php echo $t['is_active'] ? '#166534' : '#991b1b'; ?>; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid <?php echo $t['is_active'] ? '#bbf7d0' : '#fecaca'; ?>;">
-                                                <?php echo $t['is_active'] ? 'ACTIVE' : 'INACTIVE'; ?>
-                                            </span>
-                                        </td>
-                                        <td style="padding: 12px; text-align: center;">
-                                            <?php
-                                            // Prepare json object for js
-                                            $json_data = htmlspecialchars(json_encode([
-                                                'id' => $t['id'],
-                                                'name' => $t['customer_name'],
-                                                'slug' => $t['slug'],
-                                                'contact' => $t['contact_person'],
-                                                'mobile' => $t['mobile'],
-                                                'email' => $t['email'],
-                                                'gst' => $t['gst_no'],
-                                                'address' => $t['address']
-                                            ]), ENT_QUOTES, 'UTF-8');
-                                            ?>
-                                            <div style="display: flex; gap: 6px; justify-content: center;">
-                                                <button onclick="editTenant(<?php echo $json_data; ?>)" class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;"
-                                                    title="Edit Metadata">
-                                                    ✏️ Edit
-                                                </button>
-
-                                                <?php if ($t['is_active']): ?>
-                                                    <button onclick="toggleTenantStatus(this, <?php echo $t['id']; ?>, 0)"
-                                                        class="btn btn-sm"
-                                                        style="background: #f59e0b; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: none;"
-                                                        title="Disable System">
-                                                        🚫 Disable
-                                                    </button>
-                                                <?php else: ?>
-                                                    <button onclick="toggleTenantStatus(this, <?php echo $t['id']; ?>, 1)"
-                                                        class="btn btn-sm"
-                                                        style="background: #10b981; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: none;"
-                                                        title="Enable System">
-                                                        ✅ Enable
-                                                    </button>
-                                                <?php endif; ?>
-
-                                                <button
-                                                    onclick="confirmDeleteTenant(<?php echo $t['id']; ?>, '<?php echo addslashes($t['customer_name']); ?>', '<?php echo $t['db_name']; ?>')"
-                                                    class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;"
-                                                    title="Delete System & DB">
-                                                    🗑️ Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <script>
-                        function editTenant(data) {
-                            // Populate form
-                            document.getElementById('edit_tenant_id').value = data.id;
-                            document.getElementById('t_customer_name').value = data.name;
-                            document.getElementById('t_customer_name').readOnly = true;
-                            document.getElementById('t_customer_name').style.background = '#f1f5f9';
-
-                            document.getElementById('t_slug').value = data.slug;
-                            document.getElementById('t_slug').readOnly = true;
-                            document.getElementById('t_slug').style.background = '#f1f5f9';
-
-                            document.getElementById('t_contact_person').value = data.contact || '';
-                            document.getElementById('t_mobile').value = data.mobile || '';
-                            document.getElementById('t_email').value = data.email || '';
-                            document.getElementById('t_gst_no').value = data.gst || '';
-                            document.getElementById('t_address').value = data.address || '';
-
-                            // Hide credentials logic for edit mode
-                            document.getElementById('credentialsWrapper').style.display = 'none';
-                            document.getElementById('t_admin_user').removeAttribute('required');
-                            document.getElementById('tenantAdminPass').removeAttribute('required');
-
-                            // Update Modal UI for edit
-                            document.getElementById('tenantModalTitle').innerHTML = '🏢 Edit Tenant';
-                            document.getElementById('tenantModalDesc').innerText = 'Update customer metadata';
-                            document.getElementById('provisionBtn').innerHTML = '💾 Save Changes';
-                            document.getElementById('provisionBtn').style.background = '#3b82f6';
-                            document.getElementById('tenantModal').querySelector('.perm-modal-content > div').style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
-
-                            // Show modal
-                            document.getElementById('tenantModal').style.display = 'flex';
-                        }
-
-                        function toggleTenantStatus(btn, id, newStatus) {
-                            const originalContent = btn.innerHTML;
-                            btn.innerHTML = '⌛...';
-                            btn.disabled = true;
-
-                            fetch('index.php?page=admin&master=multi-tenancy&toggle_tenant=' + id + '&status=' + newStatus + '&ajax=1')
-                                .then(res => res.json())
-                                .then(data => {
-                                    if (data.success) {
-                                        // Keep scroll position on reload
-                                        const scrollPos = window.scrollY;
-                                        localStorage.setItem('admin_tenant_scroll', scrollPos);
-                                        window.location.reload();
-                                    } else {
-                                        Swal.fire('Error', 'Failed to update status.', 'error');
-                                        btn.innerHTML = originalContent;
-                                        btn.disabled = false;
-                                    }
-                                })
-                                .catch(err => {
-                                    console.error(err);
-                                    btn.innerHTML = originalContent;
-                                    btn.disabled = false;
-                                });
-                        }
-
-                        function confirmDeleteTenant(id, name, db) {
-                            Swal.fire({
-                                title: '🚨 CRITICAL ACTION 🚨',
-                                html: 'Are you sure you want to delete <b>' + name + '</b>?<br><br>This will PERMANENTLY DROP the database <b>' + db + '</b> and all its data. This action cannot be undone.',
-                                icon: 'warning',
-                                showCancelButton: true,
-                                confirmButtonColor: '#ef4444',
-                                cancelButtonColor: '#6b7280',
-                                confirmButtonText: 'Yes, DELETE EVERYTHING!',
-                                cancelButtonText: 'Cancel'
-                            }).then((result) => {
-                                if (result.isConfirmed) {
-                                    window.location.href = 'index.php?page=admin&master=multi-tenancy&delete_tenant=' + id;
                                 }
-                            });
-                        }
 
-                        // Restore scroll position after reload
-                        document.addEventListener('DOMContentLoaded', () => {
-                            const scrollPos = localStorage.getItem('admin_tenant_scroll');
-                            if (scrollPos) {
-                                window.scrollTo(0, parseInt(scrollPos));
-                                localStorage.removeItem('admin_tenant_scroll');
-                            }
-                        });
-                    </script>
-                </div>
-            </div>
+                                document.getElementById('hpanel_confirm').addEventListener('change', checkOverallStatus);
+                                document.getElementById('t_db_host').addEventListener('input', checkOverallStatus);
 
-            <?php
+                                document.getElementById('provisionForm').addEventListener('submit', function () {
+                                    const btn = document.getElementById('provisionBtn');
+                                    // Delay the disable slightly so the browser registers the intent
+                                    setTimeout(() => {
+                                        btn.disabled = true;
+                                        btn.innerHTML = '<span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid white; border-top:2px solid transparent; border-radius:50%; animation:spin 0.8s linear infinite; margin-right:8px; vertical-align: middle;"></span> Working...';
+                                        btn.style.opacity = '0.7';
+                                        btn.style.cursor = 'wait';
+                                    }, 10);
+
+                                    if (!document.getElementById('spinAnimation')) {
+                                        const style = document.createElement('style');
+                                        style.id = 'spinAnimation';
+                                        style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
+                                        document.head.appendChild(style);
+                                    }
+                                });
+
+                                function generateRandomPass(length = 12) {
+                                    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+                                    let retVal = "";
+                                    for (let i = 0, n = charset.length; i < length; ++i) {
+                                        retVal += charset.charAt(Math.floor(Math.random() * n));
+                                    }
+                                    return retVal;
+                                }
+                            </script>
+
+                            <div class="table-wrapper">
+                                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                    <thead>
+                                        <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                            <th style="padding: 12px; text-align: left;">Customer Name</th>
+                                            <th style="padding: 12px; text-align: left;">Company Code</th>
+                                            <th style="padding: 12px; text-align: left;">Contact Details</th>
+                                            <th style="padding: 12px; text-align: left;">Database</th>
+                                            <th style="padding: 12px; text-align: left;">Status</th>
+                                            <th style="padding: 12px; text-align: center;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php
+                                        $master_conn = getMasterDatabaseConnection();
+                                        $tenants_q = mysqli_query($master_conn, "SELECT * FROM tenants ORDER BY created_at DESC");
+                                        while ($t = mysqli_fetch_assoc($tenants_q)):
+                                            ?>
+                                                <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;"
+                                                    onmouseover="this.style.background='#f8fafc'"
+                                                    onmouseout="this.style.background='transparent'">
+                                                    <td style="padding: 12px;">
+                                                        <div style="font-weight: 600; color: #1e293b;">
+                                                            <?php echo htmlspecialchars($t['customer_name']); ?>
+                                                        </div>
+                                                        <div style="font-size: 11px; color: #94a3b8;">
+                                                            <?php echo date('d M Y', strtotime($t['created_at'])); ?>
+                                                        </div>
+                                                    </td>
+                                                    <td style="padding: 12px;"><code
+                                                            style="background: #f1f5f9; color: #4338ca; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 12px; border: 1px solid #e2e8f0;"><?php echo htmlspecialchars($t['slug']); ?></code>
+                                                    </td>
+                                                    <td style="padding: 12px;">
+                                                        <div style="font-size: 13px; font-weight: 500;">
+                                                            <?php echo htmlspecialchars($t['contact_person'] ?: '-'); ?>
+                                                        </div>
+                                                        <div style="font-size: 11px; color: #64748b;">
+                                                            <?php echo htmlspecialchars($t['mobile'] ?: $t['email'] ?: '-'); ?>
+                                                        </div>
+                                                    </td>
+                                                    <td style="padding: 12px; color: #64748b; font-family: monospace; font-size: 12px;">
+                                                        <?php echo htmlspecialchars($t['db_name']); ?>
+                                                    </td>
+                                                    <td style="padding: 12px;">
+                                                        <span
+                                                            style="background: <?php echo $t['is_active'] ? '#dcfce7' : '#fee2e2'; ?>; color: <?php echo $t['is_active'] ? '#166534' : '#991b1b'; ?>; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid <?php echo $t['is_active'] ? '#bbf7d0' : '#fecaca'; ?>;">
+                                                            <?php echo $t['is_active'] ? 'ACTIVE' : 'INACTIVE'; ?>
+                                                        </span>
+                                                    </td>
+                                                    <td style="padding: 12px; text-align: center;">
+                                                        <?php
+                                                        // Prepare json object for js
+                                                        $json_data = htmlspecialchars(json_encode([
+                                                            'id' => $t['id'],
+                                                            'name' => $t['customer_name'],
+                                                            'slug' => $t['slug'],
+                                                            'contact' => $t['contact_person'],
+                                                            'mobile' => $t['mobile'],
+                                                            'email' => $t['email'],
+                                                            'gst' => $t['gst_no'],
+                                                            'address' => $t['address'],
+                                                            'db_host' => $t['db_host'],
+                                                            'db_user' => $t['db_user'],
+                                                            'db_pass' => $t['db_pass']
+                                                        ]), ENT_QUOTES, 'UTF-8');
+                                                        ?>
+                                                        <div style="display: flex; gap: 6px; justify-content: center;">
+                                                            <button onclick="editTenant(<?php echo $json_data; ?>)" class="btn btn-sm"
+                                                                style="background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;"
+                                                                title="Edit Metadata">
+                                                                ✏️ Edit
+                                                            </button>
+
+                                                            <?php if ($t['is_active']): ?>
+                                                                    <button onclick="toggleTenantStatus(this, <?php echo $t['id']; ?>, 0)"
+                                                                        class="btn btn-sm"
+                                                                        style="background: #f59e0b; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: none;"
+                                                                        title="Disable System">
+                                                                        🚫 Disable
+                                                                    </button>
+                                                            <?php else: ?>
+                                                                    <button onclick="toggleTenantStatus(this, <?php echo $t['id']; ?>, 1)"
+                                                                        class="btn btn-sm"
+                                                                        style="background: #10b981; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: none;"
+                                                                        title="Enable System">
+                                                                        ✅ Enable
+                                                                    </button>
+                                                            <?php endif; ?>
+
+                                                            <button
+                                                                onclick="confirmDeleteTenant(<?php echo $t['id']; ?>, '<?php echo addslashes($t['customer_name']); ?>', '<?php echo $t['db_name']; ?>')"
+                                                                class="btn btn-sm"
+                                                                style="background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;"
+                                                                title="Delete System & DB">
+                                                                🗑️ Delete
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                        <?php endwhile; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <script>
+                                function editTenant(data) {
+                                    // Populate form
+                                    document.getElementById('edit_tenant_id').value = data.id;
+                                    document.getElementById('t_customer_name').value = data.name;
+                                    document.getElementById('t_customer_name').readOnly = true;
+                                    document.getElementById('t_customer_name').style.background = '#f1f5f9';
+
+                                    document.getElementById('t_slug').value = data.slug;
+                                    document.getElementById('t_slug').readOnly = true;
+                                    document.getElementById('t_slug').style.background = '#f1f5f9';
+
+                                    document.getElementById('t_contact_person').value = data.contact || '';
+                                    document.getElementById('t_mobile').value = data.mobile || '';
+                                    document.getElementById('t_email').value = data.email || '';
+                                    document.getElementById('t_gst_no').value = data.gst || '';
+                                    document.getElementById('t_address').value = data.address || '';
+                                    document.getElementById('t_db_host').value = data.db_host || 'localhost';
+                                    document.getElementById('t_db_user').value = data.db_user || '';
+                                    document.getElementById('t_db_pass').value = data.db_pass || '';
+
+                                    // Hide credentials logic for edit mode
+                                    document.getElementById('credentialsWrapper').style.display = 'none';
+                                    document.getElementById('t_admin_user').removeAttribute('required');
+                                    document.getElementById('tenantAdminPass').removeAttribute('required');
+
+                                    // Update Modal UI for edit
+                                    document.getElementById('tenantModalTitle').innerHTML = '🏢 Edit Tenant';
+                                    document.getElementById('tenantModalDesc').innerText = 'Update customer metadata';
+                                    document.getElementById('provisionBtn').innerHTML = '💾 Save Changes';
+                                    document.getElementById('provisionBtn').style.background = '#3b82f6';
+                                    document.getElementById('tenantModal').querySelector('.perm-modal-content > div').style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+
+                                    // Show modal
+                                    document.getElementById('tenantModal').style.display = 'flex';
+                                }
+
+                                function toggleTenantStatus(btn, id, newStatus) {
+                                    const originalContent = btn.innerHTML;
+                                    btn.innerHTML = '⌛...';
+                                    btn.disabled = true;
+
+                                    fetch('index.php?page=admin&master=multi-tenancy&toggle_tenant=' + id + '&status=' + newStatus + '&ajax=1')
+                                        .then(res => res.json())
+                                        .then(data => {
+                                            if (data.success) {
+                                                // Keep scroll position on reload
+                                                const scrollPos = window.scrollY;
+                                                localStorage.setItem('admin_tenant_scroll', scrollPos);
+                                                window.location.reload();
+                                            } else {
+                                                Swal.fire('Error', 'Failed to update status.', 'error');
+                                                btn.innerHTML = originalContent;
+                                                btn.disabled = false;
+                                            }
+                                        })
+                                        .catch(err => {
+                                            console.error(err);
+                                            btn.innerHTML = originalContent;
+                                            btn.disabled = false;
+                                        });
+                                }
+
+                                function confirmDeleteTenant(id, name, db) {
+                                    Swal.fire({
+                                        title: '🚨 CRITICAL ACTION 🚨',
+                                        html: 'Are you sure you want to delete <b>' + name + '</b>?<br><br>This will PERMANENTLY DROP the database <b>' + db + '</b> and all its data. This action cannot be undone.',
+                                        icon: 'warning',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#ef4444',
+                                        cancelButtonColor: '#6b7280',
+                                        confirmButtonText: 'Yes, DELETE EVERYTHING!',
+                                        cancelButtonText: 'Cancel'
+                                    }).then((result) => {
+                                        if (result.isConfirmed) {
+                                            window.location.href = 'index.php?page=admin&master=multi-tenancy&delete_tenant=' + id;
+                                        }
+                                    });
+                                }
+
+                                // Restore scroll position after reload
+                                document.addEventListener('DOMContentLoaded', () => {
+                                    const scrollPos = localStorage.getItem('admin_tenant_scroll');
+                                    if (scrollPos) {
+                                        window.scrollTo(0, parseInt(scrollPos));
+                                        localStorage.removeItem('admin_tenant_scroll');
+                                    }
+                                });
+                            </script>
+                        </div>
+                    </div>
+
+                    <?php
             // ========== USERS MASTER ==========
         elseif ($master_page == 'users' && (hasPermission('masters.users') || (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1))):
 
@@ -1739,292 +1931,329 @@
 
             $users = mysqli_query($conn, "SELECT * FROM user_master WHERE is_active=1 ORDER BY created_at DESC");
             ?>
-            <!-- Form Header with Gradient -->
-            <div
-                style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">👥</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Users Management</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage system
-                            users
-                            and
-                            their access roles</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-bottom: 20px;">
-                <button onclick="newUser()" class="btn btn-primary"
-                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
-                    ➕ Add New User
-                </button>
-
-                <!-- Add/Edit Form Modal -->
-                <div id="userForm" class="perm-modal-overlay">
-                    <div class="perm-modal-content"
-                        style="max-width: 800px; padding: 0; border-radius: 16px; overflow: hidden;">
-                        <div
-                            style="padding: 24px 30px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
+                    <!-- Form Header with Gradient -->
+                    <div
+                        style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">👥</div>
                             <div>
-                                <h3 id="userFormTitle" style="margin:0; font-size: 20px; font-weight: 700;">👤 User Profile
-                                    Manager</h3>
-                                <p style="margin: 4px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.8);">Create or update
-                                    system user accounts</p>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Users Management</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage system
+                                    users
+                                    and
+                                    their access roles</p>
                             </div>
-                            <button type="button" onclick="document.getElementById('userForm').style.display='none'"
-                                style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
                         </div>
-                        <form method="POST" enctype="multipart/form-data" style="padding: 30px; background: white;">
-                            <input type="hidden" name="user_id" id="user_id">
-
-                            <div class="master-form-grid">
-                                <!-- Account Info -->
-                                <div
-                                    style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                                    <h4
-                                        style="margin: 0 0 15px 0; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3b82f6; display: inline-block; padding-bottom: 2px;">
-                                        🔐 Account Settings</h4>
-                                    <div class="form-group" style="margin-bottom: 15px;">
-                                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Username *</label>
-                                        <input type="text" name="username" id="username"
-                                            value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>"
-                                            required
-                                            style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group" style="margin-bottom: 15px;">
-                                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Full Name *</label>
-                                        <input type="text" name="full_name" id="full_name"
-                                            value="<?php echo isset($_POST['full_name']) ? htmlspecialchars($_POST['full_name']) : ''; ?>"
-                                            required
-                                            style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group" style="margin-bottom: 15px;">
-                                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Role *</label>
-                                        <select name="role" id="role" required
-                                            style="width: 100%; padding: 11px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
-                                            <option value="admin">Admin</option>
-                                            <option value="manager">Manager</option>
-                                            <option value="security">Security</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Password <span
-                                                id="pwd_req" style="display:none;">*</span></label>
-                                        <input type="password" name="password" id="user_password"
-                                            placeholder="Leave blank to keep current"
-                                            style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                </div>
-
-                                <!-- Contact & Media -->
-                                <div
-                                    style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                                    <h4
-                                        style="margin: 0 0 15px 0; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #10b981; display: inline-block; padding-bottom: 2px;">
-                                        📞 Contact & Photo</h4>
-                                    <div class="form-group" style="margin-bottom: 15px;">
-                                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Email</label>
-                                        <input type="email" name="email" id="email"
-                                            value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>"
-                                            style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group" style="margin-bottom: 15px;">
-                                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Mobile</label>
-                                        <input type="tel" name="mobile" id="p_mobile" inputmode="numeric" pattern="[0-9]{10}"
-                                            maxlength="10" minlength="10" title="Please enter a valid 10-digit mobile number"
-                                            value="<?php echo isset($_POST['mobile']) ? htmlspecialchars($_POST['mobile']) : ''; ?>"
-                                            style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Profile
-                                            Photo</label>
-                                        <input type="file" name="user_photo" id="user_photo" accept="image/*"
-                                            style="width: 100%; padding: 8px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
-                                        <small style="color: #64748b; font-size: 11px; margin-top: 4px; display: block;">JPG or
-                                            PNG, max 2MB</small>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div
-                                style="display: flex; gap: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #f1f5f9; justify-content: flex-end;">
-                                <button type="button" onclick="document.getElementById('userForm').style.display='none'"
-                                    class="btn btn-secondary"
-                                    style="padding: 12px 25px; border-radius: 10px; font-weight: 600; min-width: 120px;">Cancel</button>
-                                <button type="submit" name="save_user" class="btn btn-primary"
-                                    style="padding: 12px 30px; border-radius: 10px; font-weight: 600; background: #3b82f6; border: none; min-width: 150px; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);">💾
-                                    Save Profile</button>
-                            </div>
-                        </form>
                     </div>
-                </div>
 
-                <?php if (isset($success_msg)): ?>
-                    <div class="alert alert-success">
-                        <?php echo $success_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
+                    <div class="card" style="margin-bottom: 20px;">
+                        <button onclick="newUser()" class="btn btn-primary"
+                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
+                            ➕ Add New User
+                        </button>
 
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="userSearch" placeholder="🔍 Search Users (Name, Username, Role, Email...)"
-                        oninput="filterTable('userSearch', 'usersTable')" onsearch="filterTable('userSearch', 'usersTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
+                        <!-- Add/Edit Form Modal -->
+                        <div id="userForm" class="perm-modal-overlay">
+                            <div class="perm-modal-content"
+                                style="max-width: 800px; padding: 0; border-radius: 16px; overflow: hidden;">
+                                <div
+                                    style="padding: 24px 30px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <h3 id="userFormTitle" style="margin:0; font-size: 20px; font-weight: 700;">👤 User Profile
+                                            Manager</h3>
+                                        <p style="margin: 4px 0 0 0; font-size: 13px; color: rgba(255,255,255,0.8);">Create or update
+                                            system user accounts</p>
+                                    </div>
+                                    <button type="button" onclick="document.getElementById('userForm').style.display='none'"
+                                        style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+                                </div>
+                                <form method="POST" enctype="multipart/form-data" style="padding: 30px; background: white;">
+                                    <input type="hidden" name="user_id" id="user_id">
 
-                <div class="table-wrapper" id="usersTable">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Username</th>
-                                <th>Full Name</th>
-                                <th>Role</th>
-                                <th>Email</th>
-                                <th>Mobile</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($user = mysqli_fetch_assoc($users)): ?>
-                                <tr style="cursor: pointer;"
-                                    onclick="window.location.href='?page=user-detail&id=<?php echo $user['id']; ?>'"
-                                    title="Click to view details">
-                                    <td>
-                                        <?php echo $user['username']; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $user['full_name']; ?>
-                                    </td>
-                                    <td><span class="badge badge-info">
-                                            <?php echo strtoupper($user['role']); ?>
-                                        </span></td>
-                                    <td>
-                                        <?php echo $user['email'] ?: '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $user['mobile'] ?: '-'; ?>
-                                    </td>
-                                    <td>
-                                        <span class="badge badge-<?php echo $user['is_active'] ? 'success' : 'danger'; ?>">
-                                            <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
-                                        </span>
-                                    </td>
-                                    <td onclick="event.stopPropagation();">
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php
-                                            // Only allow editing if user is NOT super admin, OR if super admin is editing themselves
-                                            $is_super = (isset($user['super_admin']) && $user['super_admin'] == 1);
-                                            // Allow editing if user is NOT super admin, OR if super admin is editing themselves, OR if logged in user is a super admin
-                                            if (hasPermission('actions.edit_record') && (!$is_super || $user['id'] == $_SESSION['user_id'] || (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1))):
-                                                ?>
-                                                <button
-                                                    onclick='editUser(<?php echo $user["id"]; ?>, <?php echo json_encode($user["username"]); ?>, <?php echo json_encode($user["full_name"]); ?>, <?php echo json_encode($user["role"]); ?>, <?php echo json_encode($user["email"]); ?>, <?php echo json_encode($user["mobile"]); ?>)'
-                                                    class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                    Edit</button>
-                                                <?php if (hasPermission('pages.permissions')): ?>
-                                                    <button class="btn btn-sm"
-                                                        style="background: #4f46e5; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;"
-                                                        onclick='openPermissionModal(<?php echo htmlspecialchars(json_encode($user), ENT_QUOTES); ?>)'>
-                                                        🔐 Rights
-                                                    </button>
-                                                    <?php
-                                                endif; ?>
-                                                <?php
-                                            endif; ?>
-                                            <?php
-                                            // Only hide delete for EXACT username 'admin' or yourself
-                                            if (hasPermission('actions.delete_record') && $user['id'] != $_SESSION['user_id'] && $user['username'] != 'admin'):
-                                                ?>
-                                                <button onclick="deleteUser(<?php echo $user['id']; ?>)" class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                    Delete</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
+                                    <div class="master-form-grid">
+                                        <!-- Account Info -->
+                                        <div
+                                            style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                            <h4
+                                                style="margin: 0 0 15px 0; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #3b82f6; display: inline-block; padding-bottom: 2px;">
+                                                🔐 Account Settings</h4>
+                                            <div class="form-group" style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Username *</label>
+                                                <input type="text" name="username" id="username"
+                                                    value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>"
+                                                    required
+                                                    style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                                <div id="globalUserWarning"
+                                                    style="display:none; color: #ef4444; font-size: 11px; margin-top: 5px; background: #fee2e2; padding: 5px; border-radius: 4px; border: 1px solid #fecaca;">
+                                                    ⚠️ This username is already taken globally. Please choose another.
+                                                </div>
+                                            </div>
+                                            <div class="form-group" style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Full Name *</label>
+                                                <input type="text" name="full_name" id="full_name"
+                                                    value="<?php echo isset($_POST['full_name']) ? htmlspecialchars($_POST['full_name']) : ''; ?>"
+                                                    required
+                                                    style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group" style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Role *</label>
+                                                <select name="role" id="role" required
+                                                    style="width: 100%; padding: 11px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
+                                                    <option value="admin">Admin</option>
+                                                    <option value="manager">Manager</option>
+                                                    <option value="security">Security</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Password <span
+                                                        id="pwd_req" style="display:none;">*</span></label>
+                                                <input type="password" name="password" id="user_password"
+                                                    placeholder="Leave blank to keep current"
+                                                    style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                        </div>
+
+                                        <!-- Contact & Media -->
+                                        <div
+                                            style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                            <h4
+                                                style="margin: 0 0 15px 0; color: #1e293b; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #10b981; display: inline-block; padding-bottom: 2px;">
+                                                📞 Contact & Photo</h4>
+                                            <div class="form-group" style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Email</label>
+                                                <input type="email" name="email" id="email"
+                                                    value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>"
+                                                    style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group" style="margin-bottom: 15px;">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Mobile</label>
+                                                <input type="tel" name="mobile" id="p_mobile" inputmode="numeric" pattern="[0-9]{10}"
+                                                    maxlength="10" minlength="10" title="Please enter a valid 10-digit mobile number"
+                                                    value="<?php echo isset($_POST['mobile']) ? htmlspecialchars($_POST['mobile']) : ''; ?>"
+                                                    style="width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600; display: block; margin-bottom: 5px;">Profile
+                                                    Photo</label>
+                                                <input type="file" name="user_photo" id="user_photo" accept="image/*"
+                                                    style="width: 100%; padding: 8px; border: 1.5px solid #d1d5db; border-radius: 8px; background: white;">
+                                                <small style="color: #64748b; font-size: 11px; margin-top: 4px; display: block;">JPG or
+                                                    PNG, max 2MB</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        style="display: flex; gap: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #f1f5f9; justify-content: flex-end;">
+                                        <button type="button" onclick="document.getElementById('userForm').style.display='none'"
+                                            class="btn btn-secondary"
+                                            style="padding: 12px 25px; border-radius: 10px; font-weight: 600; min-width: 120px;">Cancel</button>
+                                        <button type="submit" name="save_user" class="btn btn-primary"
+                                            style="padding: 12px 30px; border-radius: 10px; font-weight: 600; background: #3b82f6; border: none; min-width: 150px; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);">💾
+                                            Save Profile</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <?php if (isset($success_msg)): ?>
+                                <div class="alert alert-success">
+                                    <?php echo $success_msg; ?>
+                                </div>
                                 <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
+                        endif; ?>
 
-                <script>
-                    function newUser() {
-                        document.getElementById('user_id').value = '';
-                        document.getElementById('username').value = '';
-                        document.getElementById('username').readOnly = false;
-                        document.getElementById('full_name').value = '';
-                        document.getElementById('role').value = 'guard';
-                        document.getElementById('email').value = '';
-                        document.getElementById('p_mobile').value = '';
-                        document.getElementById('user_password').required = true;
-                        document.getElementById('pwd_req').style.display = 'inline';
-                        document.getElementById('userFormTitle').textContent = '👤 Add New User';
-                        document.getElementById('userForm').style.display = 'flex';
-                    }
-                    function editUser(id, username, fullName, role, email, mobile) {
-                        document.getElementById('user_id').value = id;
-                        document.getElementById('username').value = username;
-                        document.getElementById('username').readOnly = true; // Can't change username
-                        document.getElementById('full_name').value = fullName;
-                        if (role) {
-                            document.getElementById('role').value = role.toLowerCase().trim();
-                        }
-                        document.getElementById('email').value = email || '';
-                        document.getElementById('p_mobile').value = mobile || '';
-                        document.getElementById('user_password').required = false;
-                        document.getElementById('pwd_req').style.display = 'none';
-                        document.getElementById('userFormTitle').textContent = '👤 Edit User: ' + fullName;
-                        document.getElementById('userForm').style.display = 'flex';
-                    }
-                    <?php if (isset($_POST['save_user']) && isset($error_msg)): ?>
-                        document.addEventListener('DOMContentLoaded', function () {
-                            document.getElementById('userForm').style.display = 'flex';
-                            // If editing an existing user, we need to set the readonly state and title correctly
-                            <?php if (!empty($_POST['user_id'])): ?>
-                                document.getElementById('username').readOnly = true;
-                                document.getElementById('userFormTitle').textContent = '👤 Edit User: ' + <?php echo json_encode($_POST['full_name']); ?>;
-                                document.getElementById('user_password').required = false;
-                                document.getElementById('pwd_req').style.display = 'none';
-                                <?php
-                            else: ?>
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="userSearch" placeholder="🔍 Search Users (Name, Username, Role, Email...)"
+                                oninput="filterTable('userSearch', 'usersTable')" onsearch="filterTable('userSearch', 'usersTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                        </div>
+
+                        <div class="table-wrapper" id="usersTable">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Full Name</th>
+                                        <th>Role</th>
+                                        <th>Email</th>
+                                        <th>Mobile</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($user = mysqli_fetch_assoc($users)): ?>
+                                            <tr style="cursor: pointer;"
+                                                onclick="window.location.href='?page=user-detail&id=<?php echo $user['id']; ?>'"
+                                                title="Click to view details">
+                                                <td>
+                                                    <?php echo $user['username']; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $user['full_name']; ?>
+                                                </td>
+                                                <td><span class="badge badge-info">
+                                                        <?php echo strtoupper($user['role']); ?>
+                                                    </span></td>
+                                                <td>
+                                                    <?php echo $user['email'] ?: '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $user['mobile'] ?: '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <span class="badge badge-<?php echo $user['is_active'] ? 'success' : 'danger'; ?>">
+                                                        <?php echo $user['is_active'] ? 'Active' : 'Inactive'; ?>
+                                                    </span>
+                                                </td>
+                                                <td onclick="event.stopPropagation();">
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php
+                                                            // Only allow editing if user is NOT super admin, OR if super admin is editing themselves
+                                                            $is_super = (isset($user['super_admin']) && $user['super_admin'] == 1);
+                                                            // Allow editing if user is NOT super admin, OR if super admin is editing themselves, OR if logged in user is a super admin
+                                                            if (hasPermission('actions.edit_record') && (!$is_super || $user['id'] == $_SESSION['user_id'] || (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1))):
+                                                                ?>
+                                                                    <button
+                                                                        onclick='editUser(<?php echo $user["id"]; ?>, <?php echo json_encode($user["username"]); ?>, <?php echo json_encode($user["full_name"]); ?>, <?php echo json_encode($user["role"]); ?>, <?php echo json_encode($user["email"]); ?>, <?php echo json_encode($user["mobile"]); ?>)'
+                                                                        class="btn btn-sm"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                        Edit</button>
+                                                                    <?php if (hasPermission('pages.permissions')): ?>
+                                                                            <button class="btn btn-sm"
+                                                                                style="background: #4f46e5; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;"
+                                                                                onclick='openPermissionModal(<?php echo htmlspecialchars(json_encode($user), ENT_QUOTES); ?>)'>
+                                                                                🔐 Rights
+                                                                            </button>
+                                                                            <?php
+                                                                    endif; ?>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                            // Only hide delete for EXACT username 'admin' or yourself
+                                                            if (hasPermission('actions.delete_record') && $user['id'] != $_SESSION['user_id'] && $user['username'] != 'admin'):
+                                                                ?>
+                                                                    <button onclick="deleteUser(<?php echo $user['id']; ?>)" class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                        Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
+                                            <?php
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <script>
+                            function newUser() {
+                                document.getElementById('user_id').value = '';
+                                document.getElementById('username').value = '';
+                                document.getElementById('username').readOnly = false;
+                                document.getElementById('full_name').value = '';
+                                document.getElementById('role').value = 'guard';
+                                document.getElementById('email').value = '';
+                                document.getElementById('p_mobile').value = '';
                                 document.getElementById('user_password').required = true;
                                 document.getElementById('pwd_req').style.display = 'inline';
-                                <?php
-                            endif; ?>
-                        });
-                        <?php
-                    endif; ?>
-
-                    function deleteUser(id) {
-                        Swal.fire({
-                            title: 'Are you sure?',
-                            text: "You want to delete this user?",
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#ef4444',
-                            cancelButtonColor: '#6b7280',
-                            confirmButtonText: 'Yes, delete it!',
-                            cancelButtonText: 'Cancel'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                window.location.href = '?page=admin&master=users&t=' + Date.now() + '&delete_user=' + id;
+                                document.getElementById('userFormTitle').textContent = '👤 Add New User';
+                                document.getElementById('userForm').style.display = 'flex';
                             }
-                        });
-                    }
-                </script>
-            </div>
+                            function editUser(id, username, fullName, role, email, mobile) {
+                                document.getElementById('user_id').value = id;
+                                document.getElementById('username').value = username;
+                                document.getElementById('username').readOnly = true; // Can't change username
+                                document.getElementById('full_name').value = fullName;
+                                if (role) {
+                                    document.getElementById('role').value = role.toLowerCase().trim();
+                                }
+                                document.getElementById('email').value = email || '';
+                                document.getElementById('p_mobile').value = mobile || '';
+                                document.getElementById('user_password').required = false;
+                                document.getElementById('pwd_req').style.display = 'none';
+                                document.getElementById('userFormTitle').textContent = '👤 Edit User: ' + fullName;
+                                document.getElementById('userForm').style.display = 'flex';
+                            }
+                            <?php if (isset($_POST['save_user']) && isset($error_msg)): ?>
+                                    document.addEventListener('DOMContentLoaded', function () {
+                                        document.getElementById('userForm').style.display = 'flex';
+                                        // If editing an existing user, we need to set the readonly state and title correctly
+                                        <?php if (!empty($_POST['user_id'])): ?>
+                                                document.getElementById('username').readOnly = true;
+                                                document.getElementById('userFormTitle').textContent = '👤 Edit User: ' + <?php echo json_encode($_POST['full_name']); ?>;
+                                                document.getElementById('user_password').required = false;
+                                                document.getElementById('pwd_req').style.display = 'none';
+                                                <?php
+                                        else: ?>
+                                                document.getElementById('user_password').required = true;
+                                                document.getElementById('pwd_req').style.display = 'inline';
+                                                <?php
+                                        endif; ?>
+                                    });
+                                    <?php
+                            endif; ?>
 
-            <?php
+                            function deleteUser(id) {
+                                Swal.fire({
+                                    title: 'Are you sure?',
+                                    text: "You want to delete this user?",
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#ef4444',
+                                    cancelButtonColor: '#6b7280',
+                                    confirmButtonText: 'Yes, delete it!',
+                                    cancelButtonText: 'Cancel'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '?page=admin&master=users&t=' + Date.now() + '&delete_user=' + id;
+                                    }
+                                });
+                            }
+
+                            // Global Username Uniqueness Validation for Tenant Users
+                            document.getElementById('username')?.addEventListener('input', function () {
+                                const uname = this.value.trim();
+                                const warning = document.getElementById('globalUserWarning');
+                                if (!warning) return;
+
+                                const btn = this.closest('form').querySelector('button[type="submit"]');
+
+                                if (uname.length < 2) {
+                                    warning.style.display = 'none';
+                                    if (btn) btn.disabled = false;
+                                    return;
+                                }
+
+                                fetch('index.php?page=admin&check_username_uniqueness=1&username=' + encodeURIComponent(uname))
+                                    .then(res => res.json())
+                                    .then(data => {
+                                        if (!data.unique) {
+                                            warning.style.display = 'block';
+                                            if (btn) {
+                                                btn.disabled = true;
+                                                btn.style.opacity = '0.6';
+                                            }
+                                        } else {
+                                            warning.style.display = 'none';
+                                            if (btn) {
+                                                btn.disabled = false;
+                                                btn.style.opacity = '1';
+                                            }
+                                        }
+                                    });
+                            });
+                        </script>
+                    </div>
+
+                    <?php
             // ========== TRANSPORTERS MASTER ==========
         elseif ($master_page == 'transporters'):
 
@@ -2125,282 +2354,282 @@
 
             $transporters = mysqli_query($conn, "SELECT * FROM transporter_master WHERE is_active=1 ORDER BY transporter_name");
             ?>
-            <!-- Form Header with Gradient -->
-            <div
-                style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🚚</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Transporters Management</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage
-                            transporter
-                            and
-                            logistics company details</p>
+                    <!-- Form Header with Gradient -->
+                    <div
+                        style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🚚</div>
+                            <div>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Transporters Management</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage
+                                    transporter
+                                    and
+                                    logistics company details</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <div class="card" style="margin-bottom: 20px;">
-                <button
-                    onclick="document.getElementById('transForm').style.display='block'; document.getElementById('transForm').scrollIntoView({ behavior: 'smooth' });"
-                    class="btn btn-primary"
-                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
-                    ➕ Add New Transporter
-                </button>
+                    <div class="card" style="margin-bottom: 20px;">
+                        <button
+                            onclick="document.getElementById('transForm').style.display='block'; document.getElementById('transForm').scrollIntoView({ behavior: 'smooth' });"
+                            class="btn btn-primary"
+                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
+                            ➕ Add New Transporter
+                        </button>
 
-                <div id="transForm" style="display: none; margin-bottom: 20px;">
-                    <form method="POST">
-                        <input type="hidden" name="trans_id" id="trans_id">
+                        <div id="transForm" style="display: none; margin-bottom: 20px;">
+                            <form method="POST">
+                                <input type="hidden" name="trans_id" id="trans_id">
 
-                        <!-- Section: Basic Information -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #3b82f6; background: linear-gradient(to right, #eff6ff 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #3b82f6; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    1</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📋 Basic
-                                    Information</h3>
-                            </div>
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Transporter Name *</label>
-                                    <input type="text" name="transporter_name" id="transporter_name" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                <!-- Section: Basic Information -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #3b82f6; background: linear-gradient(to right, #eff6ff 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #3b82f6; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            1</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📋 Basic
+                                            Information</h3>
+                                    </div>
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Transporter Name *</label>
+                                            <input type="text" name="transporter_name" id="transporter_name" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Contact Person *</label>
+                                            <input type="text" name="contact_person" id="contact_person" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Contact Person *</label>
-                                    <input type="text" name="contact_person" id="contact_person" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+
+                                <!-- Section: Contact Details -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #10b981; background: linear-gradient(to right, #f0fdf4 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #10b981; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            2</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📞 Contact
+                                            Details
+                                        </h3>
+                                    </div>
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Mobile *</label>
+                                            <input type="tel" name="mobile" id="trans_mobile" pattern="[0-9]{10}" minlength="10"
+                                                maxlength="10" title="Please enter exactly 10 digits" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Email *</label>
+                                            <input type="email" name="email" id="trans_email" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+
+                                <!-- Section: Business Details -->
+                                <div class="card"
+                                    style="margin-bottom: 25px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #f59e0b; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            3</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">🏢
+                                            Business
+                                            Details</h3>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 600; color: #374151;">GST Number *</label>
+                                        <input type="text" name="gst_number" id="gst_number" maxlength="15" required
+                                            style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; margin-bottom: 15px;"
+                                            onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 600; color: #374151;">Address *</label>
+                                        <textarea name="address" id="trans_address" rows="3" required
+                                            style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; resize: vertical; font-family: inherit;"
+                                            onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"></textarea>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                    <button type="submit" name="save_transporter" class="btn btn-success"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
+                                        Save Transporter</button>
+                                    <button type="button" onclick="closeTransForm()" class="btn btn-secondary"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                                </div>
+                            </form>
                         </div>
 
-                        <!-- Section: Contact Details -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #10b981; background: linear-gradient(to right, #f0fdf4 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #10b981; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    2</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📞 Contact
-                                    Details
-                                </h3>
-                            </div>
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Mobile *</label>
-                                    <input type="tel" name="mobile" id="trans_mobile" pattern="[0-9]{10}" minlength="10"
-                                        maxlength="10" title="Please enter exactly 10 digits" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                        <?php if (isset($success_msg)): ?>
+                                <div class="alert alert-success">
+                                    <?php echo $success_msg; ?>
                                 </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Email *</label>
-                                    <input type="email" name="email" id="trans_email" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Section: Business Details -->
-                        <div class="card"
-                            style="margin-bottom: 25px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #f59e0b; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    3</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">🏢
-                                    Business
-                                    Details</h3>
-                            </div>
-                            <div class="form-group">
-                                <label style="font-weight: 600; color: #374151;">GST Number *</label>
-                                <input type="text" name="gst_number" id="gst_number" maxlength="15" required
-                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; margin-bottom: 15px;"
-                                    onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                            </div>
-                            <div class="form-group">
-                                <label style="font-weight: 600; color: #374151;">Address *</label>
-                                <textarea name="address" id="trans_address" rows="3" required
-                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; resize: vertical; font-family: inherit;"
-                                    onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"></textarea>
-                            </div>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div style="display: flex; gap: 10px; margin-top: 10px;">
-                            <button type="submit" name="save_transporter" class="btn btn-success"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
-                                Save Transporter</button>
-                            <button type="button" onclick="closeTransForm()" class="btn btn-secondary"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-
-                <?php if (isset($success_msg)): ?>
-                    <div class="alert alert-success">
-                        <?php echo $success_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
-                <?php if (isset($error_msg)): ?>
-                    <div class="alert alert-error">
-                        <?php echo $error_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
-
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="transSearch" placeholder="🔍 Search Transporters (Name, Person, Mobile, GST...)"
-                        oninput="filterTable('transSearch', 'transportersTable')"
-                        onsearch="filterTable('transSearch', 'transportersTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
-
-                <div class="table-wrapper" id="transportersTable">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Transporter Name</th>
-                                <th>Contact Person</th>
-                                <th>Mobile</th>
-                                <th>Email</th>
-                                <th>GST Number</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($trans = mysqli_fetch_assoc($transporters)): ?>
-                                <tr style="cursor: pointer;"
-                                    onclick="window.location.href='?page=transporter-detail&id=<?php echo $trans['id']; ?>'"
-                                    title="Click to view details">
-                                    <td><strong>
-                                            <?php echo $trans['transporter_name']; ?>
-                                        </strong></td>
-                                    <td>
-                                        <?php echo $trans['contact_person'] ?: '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $trans['mobile'] ?: '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $trans['email'] ?: '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $trans['gst_number'] ?: '-'; ?>
-                                    </td>
-                                    <td onclick="event.stopPropagation();">
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php if (hasPermission('actions.edit_record')): ?>
-                                                <button class="btn-edit-transporter btn btn-sm"
-                                                    data-id="<?php echo htmlspecialchars($trans['id'], ENT_QUOTES); ?>"
-                                                    data-name="<?php echo htmlspecialchars($trans['transporter_name'] ?? '', ENT_QUOTES); ?>"
-                                                    data-person="<?php echo htmlspecialchars($trans['contact_person'] ?? '', ENT_QUOTES); ?>"
-                                                    data-mobile="<?php echo htmlspecialchars($trans['mobile'] ?? '', ENT_QUOTES); ?>"
-                                                    data-email="<?php echo htmlspecialchars($trans['email'] ?? '', ENT_QUOTES); ?>"
-                                                    data-gst="<?php echo htmlspecialchars($trans['gst_number'] ?? '', ENT_QUOTES); ?>"
-                                                    data-address="<?php echo htmlspecialchars($trans['address'] ?? '', ENT_QUOTES); ?>"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                    Edit</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php if (hasPermission('actions.delete_record')): ?>
-                                                <button onclick="deleteTransporter(<?php echo $trans['id']; ?>)" class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                    Delete</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
                                 <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
+                        endif; ?>
+                        <?php if (isset($error_msg)): ?>
+                                <div class="alert alert-error">
+                                    <?php echo $error_msg; ?>
+                                </div>
+                                <?php
+                        endif; ?>
 
-                <script>
-                    // Use event delegation for edit buttons
-                    document.addEventListener('DOMContentLoaded', function () {
-                        document.querySelectorAll('.btn-edit-transporter').forEach(function (btn) {
-                            btn.addEventListener('click', function (e) {
-                                e.stopPropagation();
-                                const id = this.getAttribute('data-id');
-                                const name = this.getAttribute('data-name') || '';
-                                const person = this.getAttribute('data-person') || '';
-                                const mobile = this.getAttribute('data-mobile') || '';
-                                const email = this.getAttribute('data-email') || '';
-                                const gst = this.getAttribute('data-gst') || '';
-                                const address = this.getAttribute('data-address') || '';
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="transSearch" placeholder="🔍 Search Transporters (Name, Person, Mobile, GST...)"
+                                oninput="filterTable('transSearch', 'transportersTable')"
+                                onsearch="filterTable('transSearch', 'transportersTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                        </div>
 
+                        <div class="table-wrapper" id="transportersTable">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Transporter Name</th>
+                                        <th>Contact Person</th>
+                                        <th>Mobile</th>
+                                        <th>Email</th>
+                                        <th>GST Number</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($trans = mysqli_fetch_assoc($transporters)): ?>
+                                            <tr style="cursor: pointer;"
+                                                onclick="window.location.href='?page=transporter-detail&id=<?php echo $trans['id']; ?>'"
+                                                title="Click to view details">
+                                                <td><strong>
+                                                        <?php echo $trans['transporter_name']; ?>
+                                                    </strong></td>
+                                                <td>
+                                                    <?php echo $trans['contact_person'] ?: '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $trans['mobile'] ?: '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $trans['email'] ?: '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $trans['gst_number'] ?: '-'; ?>
+                                                </td>
+                                                <td onclick="event.stopPropagation();">
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                    <button class="btn-edit-transporter btn btn-sm"
+                                                                        data-id="<?php echo htmlspecialchars($trans['id'], ENT_QUOTES); ?>"
+                                                                        data-name="<?php echo htmlspecialchars($trans['transporter_name'] ?? '', ENT_QUOTES); ?>"
+                                                                        data-person="<?php echo htmlspecialchars($trans['contact_person'] ?? '', ENT_QUOTES); ?>"
+                                                                        data-mobile="<?php echo htmlspecialchars($trans['mobile'] ?? '', ENT_QUOTES); ?>"
+                                                                        data-email="<?php echo htmlspecialchars($trans['email'] ?? '', ENT_QUOTES); ?>"
+                                                                        data-gst="<?php echo htmlspecialchars($trans['gst_number'] ?? '', ENT_QUOTES); ?>"
+                                                                        data-address="<?php echo htmlspecialchars($trans['address'] ?? '', ENT_QUOTES); ?>"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                        Edit</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                    <button onclick="deleteTransporter(<?php echo $trans['id']; ?>)" class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                        Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
+                                            <?php
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <script>
+                            // Use event delegation for edit buttons
+                            document.addEventListener('DOMContentLoaded', function () {
+                                document.querySelectorAll('.btn-edit-transporter').forEach(function (btn) {
+                                    btn.addEventListener('click', function (e) {
+                                        e.stopPropagation();
+                                        const id = this.getAttribute('data-id');
+                                        const name = this.getAttribute('data-name') || '';
+                                        const person = this.getAttribute('data-person') || '';
+                                        const mobile = this.getAttribute('data-mobile') || '';
+                                        const email = this.getAttribute('data-email') || '';
+                                        const gst = this.getAttribute('data-gst') || '';
+                                        const address = this.getAttribute('data-address') || '';
+
+                                        document.getElementById('trans_id').value = id;
+                                        document.getElementById('transporter_name').value = name;
+                                        document.getElementById('contact_person').value = person;
+                                        document.getElementById('trans_mobile').value = mobile;
+                                        document.getElementById('trans_email').value = email;
+                                        document.getElementById('gst_number').value = gst;
+                                        document.getElementById('trans_address').value = address;
+                                        document.getElementById('transForm').style.display = 'block';
+                                        document.getElementById('transForm').scrollIntoView({ behavior: 'smooth' });
+                                    });
+                                });
+                            });
+
+                            function editTransporter(id, name, person, mobile, email, gst, address) {
                                 document.getElementById('trans_id').value = id;
                                 document.getElementById('transporter_name').value = name;
-                                document.getElementById('contact_person').value = person;
-                                document.getElementById('trans_mobile').value = mobile;
-                                document.getElementById('trans_email').value = email;
-                                document.getElementById('gst_number').value = gst;
-                                document.getElementById('trans_address').value = address;
+                                document.getElementById('contact_person').value = person || '';
+                                document.getElementById('trans_mobile').value = mobile || '';
+                                document.getElementById('trans_email').value = email || '';
+                                document.getElementById('gst_number').value = gst || '';
+                                document.getElementById('trans_address').value = address || '';
                                 document.getElementById('transForm').style.display = 'block';
                                 document.getElementById('transForm').scrollIntoView({ behavior: 'smooth' });
-                            });
-                        });
-                    });
-
-                    function editTransporter(id, name, person, mobile, email, gst, address) {
-                        document.getElementById('trans_id').value = id;
-                        document.getElementById('transporter_name').value = name;
-                        document.getElementById('contact_person').value = person || '';
-                        document.getElementById('trans_mobile').value = mobile || '';
-                        document.getElementById('trans_email').value = email || '';
-                        document.getElementById('gst_number').value = gst || '';
-                        document.getElementById('trans_address').value = address || '';
-                        document.getElementById('transForm').style.display = 'block';
-                        document.getElementById('transForm').scrollIntoView({ behavior: 'smooth' });
-                    }
-                    function closeTransForm() {
-                        document.getElementById('transForm').style.display = 'none';
-                        document.getElementById('trans_id').value = '';
-                        document.querySelector('#transForm form').reset();
-                    }
-                    function deleteTransporter(id) {
-                        Swal.fire({
-                            title: 'Are you sure?',
-                            text: "You want to delete this transporter?",
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#ef4444',
-                            cancelButtonColor: '#6b7280',
-                            confirmButtonText: 'Yes, delete it!',
-                            cancelButtonText: 'Cancel'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                window.location.href = '?page=admin&master=transporters&delete_trans=' + id;
                             }
-                        });
-                    }
-                </script>
-            </div>
+                            function closeTransForm() {
+                                document.getElementById('transForm').style.display = 'none';
+                                document.getElementById('trans_id').value = '';
+                                document.querySelector('#transForm form').reset();
+                            }
+                            function deleteTransporter(id) {
+                                Swal.fire({
+                                    title: 'Are you sure?',
+                                    text: "You want to delete this transporter?",
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#ef4444',
+                                    cancelButtonColor: '#6b7280',
+                                    confirmButtonText: 'Yes, delete it!',
+                                    cancelButtonText: 'Cancel'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '?page=admin&master=transporters&delete_trans=' + id;
+                                    }
+                                });
+                            }
+                        </script>
+                    </div>
 
-            <?php
+                    <?php
             // ========== DRIVERS MASTER ==========
         elseif ($master_page == 'drivers'):
 
@@ -2599,429 +2828,429 @@
                                            WHERE d.is_active=1 ORDER BY d.driver_name");
             $trans_list = mysqli_query($conn, "SELECT id, transporter_name FROM transporter_master WHERE is_active=1");
             ?>
-            <!-- Form Header with Gradient -->
-            <div
-                style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">👨‍✈️</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Drivers Management</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage driver
-                            information
-                            and licenses</p>
+                    <!-- Form Header with Gradient -->
+                    <div
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">👨‍✈️</div>
+                            <div>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Drivers Management</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage driver
+                                    information
+                                    and licenses</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <div class="card" style="margin-bottom: 20px;">
-                <button onclick="openDriverForm()" class="btn btn-primary"
-                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
-                    ➕ Add New Driver
-                </button>
+                    <div class="card" style="margin-bottom: 20px;">
+                        <button onclick="openDriverForm()" class="btn btn-primary"
+                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
+                            ➕ Add New Driver
+                        </button>
 
-                <div id="driverForm" style="display: none; margin-bottom: 20px;">
-                    <form method="POST" enctype="multipart/form-data" onsubmit="showAppLoader('Saving Driver Data...')">
-                        <input type="hidden" name="driver_id" id="driver_id">
+                        <div id="driverForm" style="display: none; margin-bottom: 20px;">
+                            <form method="POST" enctype="multipart/form-data" onsubmit="showAppLoader('Saving Driver Data...')">
+                                <input type="hidden" name="driver_id" id="driver_id">
 
-                        <!-- Section 1: Basic Information -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #10b981; background: linear-gradient(to right, #f0fdf4 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #10b981; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    1</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📋 Basic
-                                    Information
-                                </h3>
-                            </div>
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Driver Name *</label>
-                                    <input type="text" name="driver_name" id="driver_name" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Mobile *</label>
-                                    <input type="tel" name="mobile" id="driver_mobile" maxlength="10" inputmode="numeric"
-                                        pattern="[0-9]{10}" minlength="10" required title="Please enter exactly 10 digits"
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Transporter *</label>
-                                    <select name="transporter_id" id="driver_transporter_id" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        <option value="">-- Select Transporter --</option>
-                                        <?php
-                                        mysqli_data_seek($trans_list, 0);
-                                        while ($t = mysqli_fetch_assoc($trans_list)): ?>
-                                            <option value="<?php echo $t['id']; ?>">
-                                                <?php echo $t['transporter_name']; ?>
-                                            </option>
-                                            <?php
-                                        endwhile; ?>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Status *</label>
-                                    <select name="is_active" id="driver_is_active" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        <option value="1">Active</option>
-                                        <option value="0">Inactive</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Section 2: License Information -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #f59e0b; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    2</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">🪪 License
-                                    Information
-                                </h3>
-                            </div>
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">License Number *</label>
-                                    <input type="text" name="license_number" id="license_number" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">License Expiry *</label>
-                                    <input type="date" name="license_expiry" id="license_expiry" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                            </div>
-                            <div class="form-group" style="margin-top: 15px;">
-                                <label style="font-weight: 600; color: #374151;">License Photo *</label>
-                                <div
-                                    style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
-                                    <input type="file" name="license_photo" id="license_photo_file" accept="image/*">
-                                    <input type="file" name="license_photo_camera" id="license_photo_camera" accept="image/*"
-                                        capture="environment">
-                                </div>
-                                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                                    <label for="license_photo_camera" id="license_camera_label" class="btn"
-                                        style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3); cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
-                                        Camera</label>
-                                    <label for="license_photo_file" class="btn"
-                                        style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
-                                        Upload</label>
-                                </div>
-                                <div id="license_photo_preview" style="margin-top: 10px;"></div>
-                            </div>
-                        </div>
-
-                        <!-- Section 3: Photos -->
-                        <div class="card"
-                            style="margin-bottom: 25px; border-left: 4px solid #8b5cf6; background: linear-gradient(to right, #faf5ff 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #8b5cf6; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    3</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📸 Driver
-                                    Photo
-                                </h3>
-                            </div>
-                            <div class="form-group">
-                                <label style="font-weight: 600; color: #374151;">Driver Photo *</label>
-                                <div
-                                    style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
-                                    <input type="file" name="driver_photo" id="driver_photo_file" accept="image/*">
-                                    <input type="file" name="driver_photo_camera" id="driver_photo_camera" accept="image/*"
-                                        capture="user">
-                                </div>
-                                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                                    <label for="driver_photo_camera" id="driver_camera_label" class="btn"
-                                        style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3); cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
-                                        Camera</label>
-                                    <label for="driver_photo_file" class="btn"
-                                        style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
-                                        Upload</label>
-                                </div>
-                                <div id="driver_photo_preview" style="margin-top: 10px;"></div>
-                            </div>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div style="display: flex; gap: 10px; margin-top: 10px;">
-                            <button type="submit" name="save_driver" class="btn btn-success"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
-                                Save Driver</button>
-                            <button type="button" onclick="closeDriverForm()" class="btn btn-secondary"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-
-                <?php if (isset($success_msg)): ?>
-                    <div class="alert alert-success">
-                        <?php echo $success_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
-                <?php if (isset($error_msg)): ?>
-                    <div class="alert alert-error">
-                        <?php echo $error_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
-
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="driverSearch" placeholder="🔍 Search Drivers (Name, Mobile, License...)"
-                        oninput="filterTable('driverSearch', 'driversTable')"
-                        onsearch="filterTable('driverSearch', 'driversTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
-
-                <div class="table-wrapper" id="driversTable">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Driver Name</th>
-                                <th>Mobile</th>
-                                <th>License Number</th>
-                                <th>License Expiry</th>
-                                <th>Transporter</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($driver = mysqli_fetch_assoc($drivers)): ?>
-                                <tr style="cursor: pointer;"
-                                    onclick="window.location.href='?page=driver-detail&id=<?php echo $driver['id']; ?>'"
-                                    title="Click to view details">
-                                    <td><strong>
-                                            <?php echo $driver['driver_name']; ?>
-                                        </strong></td>
-                                    <td>
-                                        <?php echo $driver['mobile']; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $driver['license_number'] ?: '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $driver['license_expiry'] ? strtoupper(date('d-M-y', strtotime($driver['license_expiry']))) : '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $driver['transporter_name'] ?: '-'; ?>
-                                    </td>
-                                    <td onclick="event.stopPropagation();">
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php if (hasPermission('actions.edit_record')): ?>
-                                                <button
-                                                    onclick='editDriver(<?php echo $driver["id"]; ?>, <?php echo json_encode($driver["driver_name"]); ?>, <?php echo json_encode($driver["mobile"]); ?>, <?php echo json_encode($driver["license_number"]); ?>, <?php echo json_encode($driver["license_expiry"]); ?>, <?php echo $driver["transporter_id"] ?: "null"; ?>, <?php echo isset($driver["is_active"]) ? $driver["is_active"] : 1; ?>, <?php echo json_encode($driver["photo"]); ?>, <?php echo json_encode($driver["license_photo"]); ?>)'
-                                                    class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                    Edit</button>
+                                <!-- Section 1: Basic Information -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #10b981; background: linear-gradient(to right, #f0fdf4 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #10b981; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            1</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📋 Basic
+                                            Information
+                                        </h3>
+                                    </div>
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Driver Name *</label>
+                                            <input type="text" name="driver_name" id="driver_name" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Mobile *</label>
+                                            <input type="tel" name="mobile" id="driver_mobile" maxlength="10" inputmode="numeric"
+                                                pattern="[0-9]{10}" minlength="10" required title="Please enter exactly 10 digits"
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Transporter *</label>
+                                            <select name="transporter_id" id="driver_transporter_id" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                <option value="">-- Select Transporter --</option>
                                                 <?php
-                                            endif; ?>
-                                            <?php if (hasPermission('actions.delete_record')): ?>
-                                                <button onclick="deleteDriver(<?php echo $driver['id']; ?>)" class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                    Delete</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
+                                                mysqli_data_seek($trans_list, 0);
+                                                while ($t = mysqli_fetch_assoc($trans_list)): ?>
+                                                        <option value="<?php echo $t['id']; ?>">
+                                                            <?php echo $t['transporter_name']; ?>
+                                                        </option>
+                                                        <?php
+                                                endwhile; ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Status *</label>
+                                            <select name="is_active" id="driver_is_active" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                <option value="1">Active</option>
+                                                <option value="0">Inactive</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Section 2: License Information -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #f59e0b; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            2</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">🪪 License
+                                            Information
+                                        </h3>
+                                    </div>
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">License Number *</label>
+                                            <input type="text" name="license_number" id="license_number" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">License Expiry *</label>
+                                            <input type="date" name="license_expiry" id="license_expiry" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                    </div>
+                                    <div class="form-group" style="margin-top: 15px;">
+                                        <label style="font-weight: 600; color: #374151;">License Photo *</label>
+                                        <div
+                                            style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
+                                            <input type="file" name="license_photo" id="license_photo_file" accept="image/*">
+                                            <input type="file" name="license_photo_camera" id="license_photo_camera" accept="image/*"
+                                                capture="environment">
+                                        </div>
+                                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                            <label for="license_photo_camera" id="license_camera_label" class="btn"
+                                                style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3); cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
+                                                Camera</label>
+                                            <label for="license_photo_file" class="btn"
+                                                style="background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
+                                                Upload</label>
+                                        </div>
+                                        <div id="license_photo_preview" style="margin-top: 10px;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Section 3: Photos -->
+                                <div class="card"
+                                    style="margin-bottom: 25px; border-left: 4px solid #8b5cf6; background: linear-gradient(to right, #faf5ff 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #8b5cf6; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            3</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📸 Driver
+                                            Photo
+                                        </h3>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 600; color: #374151;">Driver Photo *</label>
+                                        <div
+                                            style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
+                                            <input type="file" name="driver_photo" id="driver_photo_file" accept="image/*">
+                                            <input type="file" name="driver_photo_camera" id="driver_photo_camera" accept="image/*"
+                                                capture="user">
+                                        </div>
+                                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                            <label for="driver_photo_camera" id="driver_camera_label" class="btn"
+                                                style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3); cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
+                                                Camera</label>
+                                            <label for="driver_photo_file" class="btn"
+                                                style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; padding: 10px 16px; font-size: 13px; flex: 1; border-radius: 8px; font-weight: 600; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
+                                                Upload</label>
+                                        </div>
+                                        <div id="driver_photo_preview" style="margin-top: 10px;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                    <button type="submit" name="save_driver" class="btn btn-success"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
+                                        Save Driver</button>
+                                    <button type="button" onclick="closeDriverForm()" class="btn btn-secondary"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <?php if (isset($success_msg)): ?>
+                                <div class="alert alert-success">
+                                    <?php echo $success_msg; ?>
+                                </div>
                                 <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <script>
-                    function editDriver(id, name, mobile, license, expiry, transId, isActive, photoUrl, licensePhoto) {
-                        document.getElementById('driver_id').value = id;
-                        document.getElementById('driver_name').value = name;
-                        document.getElementById('driver_mobile').value = mobile;
-                        document.getElementById('license_number').value = license || '';
-                        document.getElementById('license_expiry').value = expiry || '';
-                        document.getElementById('driver_transporter_id').value = transId || '';
-                        document.getElementById('driver_is_active').value = isActive || '1';
-                        document.getElementById('driver_photo_file').removeAttribute('required');
-                        document.getElementById('license_photo_file').removeAttribute('required');
+                        endif; ?>
+                        <?php if (isset($error_msg)): ?>
+                                <div class="alert alert-error">
+                                    <?php echo $error_msg; ?>
+                                </div>
+                                <?php
+                        endif; ?>
 
-                        // Show existing photo previews
-                        showAppExistingPreview(photoUrl, 'driver_photo_preview', 'EXISTING PHOTO:', '150px');
-                        showAppExistingPreview(licensePhoto, 'license_photo_preview', 'EXISTING LICENSE:', '150px');
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="driverSearch" placeholder="🔍 Search Drivers (Name, Mobile, License...)"
+                                oninput="filterTable('driverSearch', 'driversTable')"
+                                onsearch="filterTable('driverSearch', 'driversTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                        </div>
 
-                        document.getElementById('driverForm').style.display = 'block';
-                        document.getElementById('driverForm').scrollIntoView({ behavior: 'smooth' });
-                    }
-                    function closeDriverForm() {
-                        document.getElementById('driverForm').style.display = 'none';
-                        document.getElementById('driver_id').value = '';
-                        document.getElementById('driver_photo_file').setAttribute('required', 'required');
-                        document.getElementById('license_photo_file').setAttribute('required', 'required');
-                        document.getElementById('driver_photo_preview').innerHTML = '';
-                        document.getElementById('license_photo_preview').innerHTML = '';
-                        document.querySelector('#driverForm form').reset();
-                    }
+                        <div class="table-wrapper" id="driversTable">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Driver Name</th>
+                                        <th>Mobile</th>
+                                        <th>License Number</th>
+                                        <th>License Expiry</th>
+                                        <th>Transporter</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($driver = mysqli_fetch_assoc($drivers)): ?>
+                                            <tr style="cursor: pointer;"
+                                                onclick="window.location.href='?page=driver-detail&id=<?php echo $driver['id']; ?>'"
+                                                title="Click to view details">
+                                                <td><strong>
+                                                        <?php echo $driver['driver_name']; ?>
+                                                    </strong></td>
+                                                <td>
+                                                    <?php echo $driver['mobile']; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $driver['license_number'] ?: '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $driver['license_expiry'] ? strtoupper(date('d-M-y', strtotime($driver['license_expiry']))) : '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $driver['transporter_name'] ?: '-'; ?>
+                                                </td>
+                                                <td onclick="event.stopPropagation();">
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                    <button
+                                                                        onclick='editDriver(<?php echo $driver["id"]; ?>, <?php echo json_encode($driver["driver_name"]); ?>, <?php echo json_encode($driver["mobile"]); ?>, <?php echo json_encode($driver["license_number"]); ?>, <?php echo json_encode($driver["license_expiry"]); ?>, <?php echo $driver["transporter_id"] ?: "null"; ?>, <?php echo isset($driver["is_active"]) ? $driver["is_active"] : 1; ?>, <?php echo json_encode($driver["photo"]); ?>, <?php echo json_encode($driver["license_photo"]); ?>)'
+                                                                        class="btn btn-sm"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                        Edit</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                    <button onclick="deleteDriver(<?php echo $driver['id']; ?>)" class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                        Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
+                                            <?php
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <script>
+                            function editDriver(id, name, mobile, license, expiry, transId, isActive, photoUrl, licensePhoto) {
+                                document.getElementById('driver_id').value = id;
+                                document.getElementById('driver_name').value = name;
+                                document.getElementById('driver_mobile').value = mobile;
+                                document.getElementById('license_number').value = license || '';
+                                document.getElementById('license_expiry').value = expiry || '';
+                                document.getElementById('driver_transporter_id').value = transId || '';
+                                document.getElementById('driver_is_active').value = isActive || '1';
+                                document.getElementById('driver_photo_file').removeAttribute('required');
+                                document.getElementById('license_photo_file').removeAttribute('required');
 
-                    function openDriverForm() {
-                        closeDriverForm();
-                        document.getElementById('driverForm').style.display = 'block';
-                        document.getElementById('driverForm').scrollIntoView({ behavior: 'smooth' });
-                    }
+                                // Show existing photo previews
+                                showAppExistingPreview(photoUrl, 'driver_photo_preview', 'EXISTING PHOTO:', '150px');
+                                showAppExistingPreview(licensePhoto, 'license_photo_preview', 'EXISTING LICENSE:', '150px');
 
-                    // Handle driver photo uploads (Simplified RELIABLE WEBVIEW FIX)
-                    document.getElementById('driver_photo_camera')?.addEventListener('change', function (e) {
-                        const file = e.target.files[0];
-                        if (file) {
-                            // Swap names and remove required
-                            const mainInput = document.getElementById('driver_photo_file');
-                            e.target.name = "driver_photo";
-                            mainInput.name = "";
-                            mainInput.removeAttribute('required');
-
-                            // Preview
-                            showAppPreview(file, 'driver_photo_preview', '150px');
-
-                            // Label feedback
-                            document.getElementById('driver_camera_label').style.background = '#10b981';
-                            document.getElementById('driver_camera_label').innerHTML = '✅ Photo Captured';
-                        }
-                    });
-                    document.getElementById('driver_photo_file')?.addEventListener('change', function (e) {
-                        const file = e.target.files[0];
-                        if (file) {
-                            // Swap back
-                            e.target.name = "driver_photo";
-                            const cameraInput = document.getElementById('driver_photo_camera');
-                            if (cameraInput) cameraInput.name = "";
-
-                            // Preview
-                            showAppPreview(file, 'driver_photo_preview', '150px');
-                        }
-                    });
-
-
-                    // Handle license photo uploads
-                    document.getElementById('license_photo_camera')?.addEventListener('change', function (e) {
-                        const file = e.target.files[0];
-                        if (file) {
-                            // Swap names and remove required
-                            const mainInput = document.getElementById('license_photo_file');
-                            e.target.name = "license_photo";
-                            mainInput.name = "";
-                            mainInput.removeAttribute('required');
-
-                            // Preview
-                            showAppPreview(file, 'license_photo_preview', '200px');
-
-                            // Label feedback
-                            document.getElementById('license_camera_label').style.background = '#10b981';
-                            document.getElementById('license_camera_label').innerHTML = '✅ Photo Captured';
-                        }
-                    });
-                    document.getElementById('license_photo_file')?.addEventListener('change', function (e) {
-                        const file = e.target.files[0];
-                        if (file) {
-                            // Swap back
-                            e.target.name = "license_photo";
-                            const cameraInput = document.getElementById('license_photo_camera');
-                            if (cameraInput) cameraInput.name = "";
-
-                            // Preview
-                            showAppPreview(file, 'license_photo_preview', '200px');
-                        }
-                    });
-
-                    // Intercept camera label clicks on desktop to show webcam modal
-                    document.addEventListener('DOMContentLoaded', function () {
-                        const driverCameraLabel = document.getElementById('driver_camera_label');
-                        const licenseCameraLabel = document.getElementById('license_camera_label');
-
-                        if (driverCameraLabel) {
-                            driverCameraLabel.addEventListener('click', function (e) {
-                                if (!detectMobileForWebcam()) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (typeof openWebcamCapture === 'function') {
-                                        openWebcamCapture('driver_photo_file', 'updateDriverPhotoWebcam');
-                                    }
-                                }
-                            });
-                        }
-
-                        if (licenseCameraLabel) {
-                            licenseCameraLabel.addEventListener('click', function (e) {
-                                if (!detectMobileForWebcam()) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (typeof openWebcamCapture === 'function') {
-                                        openWebcamCapture('license_photo_file', 'updateLicensePhotoWebcam');
-                                    }
-                                }
-                            });
-                        }
-                    });
-
-                    // Preview wrappers for webcam modal
-                    function updateDriverPhotoWebcam(input) {
-                        if (input.files && input.files[0]) {
-                            // Ensure name is correct
-                            input.name = "driver_photo";
-                            const cameraInput = document.getElementById('driver_photo_camera');
-                            if (cameraInput) cameraInput.name = "";
-
-                            showAppPreview(input.files[0], 'driver_photo_preview', '150px');
-                        }
-                    }
-                    function updateLicensePhotoWebcam(input) {
-                        if (input.files && input.files[0]) {
-                            // Ensure name is correct
-                            input.name = "license_photo";
-                            const cameraInput = document.getElementById('license_photo_camera');
-                            if (cameraInput) cameraInput.name = "";
-
-                            showAppPreview(input.files[0], 'license_photo_preview', '200px');
-                        }
-                    }
-                    function deleteDriver(id) {
-                        Swal.fire({
-                            title: 'Are you sure?',
-                            text: "You want to delete this driver?",
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#ef4444',
-                            cancelButtonColor: '#6b7280',
-                            confirmButtonText: 'Yes, delete it!',
-                            cancelButtonText: 'Cancel'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                window.location.href = '?page=admin&master=drivers&delete_driver=' + id;
+                                document.getElementById('driverForm').style.display = 'block';
+                                document.getElementById('driverForm').scrollIntoView({ behavior: 'smooth' });
                             }
-                        });
-                    }
-                </script>
-            </div>
+                            function closeDriverForm() {
+                                document.getElementById('driverForm').style.display = 'none';
+                                document.getElementById('driver_id').value = '';
+                                document.getElementById('driver_photo_file').setAttribute('required', 'required');
+                                document.getElementById('license_photo_file').setAttribute('required', 'required');
+                                document.getElementById('driver_photo_preview').innerHTML = '';
+                                document.getElementById('license_photo_preview').innerHTML = '';
+                                document.querySelector('#driverForm form').reset();
+                            }
 
-            <?php
+                            function openDriverForm() {
+                                closeDriverForm();
+                                document.getElementById('driverForm').style.display = 'block';
+                                document.getElementById('driverForm').scrollIntoView({ behavior: 'smooth' });
+                            }
+
+                            // Handle driver photo uploads (Simplified RELIABLE WEBVIEW FIX)
+                            document.getElementById('driver_photo_camera')?.addEventListener('change', function (e) {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    // Swap names and remove required
+                                    const mainInput = document.getElementById('driver_photo_file');
+                                    e.target.name = "driver_photo";
+                                    mainInput.name = "";
+                                    mainInput.removeAttribute('required');
+
+                                    // Preview
+                                    showAppPreview(file, 'driver_photo_preview', '150px');
+
+                                    // Label feedback
+                                    document.getElementById('driver_camera_label').style.background = '#10b981';
+                                    document.getElementById('driver_camera_label').innerHTML = '✅ Photo Captured';
+                                }
+                            });
+                            document.getElementById('driver_photo_file')?.addEventListener('change', function (e) {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    // Swap back
+                                    e.target.name = "driver_photo";
+                                    const cameraInput = document.getElementById('driver_photo_camera');
+                                    if (cameraInput) cameraInput.name = "";
+
+                                    // Preview
+                                    showAppPreview(file, 'driver_photo_preview', '150px');
+                                }
+                            });
+
+
+                            // Handle license photo uploads
+                            document.getElementById('license_photo_camera')?.addEventListener('change', function (e) {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    // Swap names and remove required
+                                    const mainInput = document.getElementById('license_photo_file');
+                                    e.target.name = "license_photo";
+                                    mainInput.name = "";
+                                    mainInput.removeAttribute('required');
+
+                                    // Preview
+                                    showAppPreview(file, 'license_photo_preview', '200px');
+
+                                    // Label feedback
+                                    document.getElementById('license_camera_label').style.background = '#10b981';
+                                    document.getElementById('license_camera_label').innerHTML = '✅ Photo Captured';
+                                }
+                            });
+                            document.getElementById('license_photo_file')?.addEventListener('change', function (e) {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    // Swap back
+                                    e.target.name = "license_photo";
+                                    const cameraInput = document.getElementById('license_photo_camera');
+                                    if (cameraInput) cameraInput.name = "";
+
+                                    // Preview
+                                    showAppPreview(file, 'license_photo_preview', '200px');
+                                }
+                            });
+
+                            // Intercept camera label clicks on desktop to show webcam modal
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const driverCameraLabel = document.getElementById('driver_camera_label');
+                                const licenseCameraLabel = document.getElementById('license_camera_label');
+
+                                if (driverCameraLabel) {
+                                    driverCameraLabel.addEventListener('click', function (e) {
+                                        if (!detectMobileForWebcam()) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (typeof openWebcamCapture === 'function') {
+                                                openWebcamCapture('driver_photo_file', 'updateDriverPhotoWebcam');
+                                            }
+                                        }
+                                    });
+                                }
+
+                                if (licenseCameraLabel) {
+                                    licenseCameraLabel.addEventListener('click', function (e) {
+                                        if (!detectMobileForWebcam()) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (typeof openWebcamCapture === 'function') {
+                                                openWebcamCapture('license_photo_file', 'updateLicensePhotoWebcam');
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+
+                            // Preview wrappers for webcam modal
+                            function updateDriverPhotoWebcam(input) {
+                                if (input.files && input.files[0]) {
+                                    // Ensure name is correct
+                                    input.name = "driver_photo";
+                                    const cameraInput = document.getElementById('driver_photo_camera');
+                                    if (cameraInput) cameraInput.name = "";
+
+                                    showAppPreview(input.files[0], 'driver_photo_preview', '150px');
+                                }
+                            }
+                            function updateLicensePhotoWebcam(input) {
+                                if (input.files && input.files[0]) {
+                                    // Ensure name is correct
+                                    input.name = "license_photo";
+                                    const cameraInput = document.getElementById('license_photo_camera');
+                                    if (cameraInput) cameraInput.name = "";
+
+                                    showAppPreview(input.files[0], 'license_photo_preview', '200px');
+                                }
+                            }
+                            function deleteDriver(id) {
+                                Swal.fire({
+                                    title: 'Are you sure?',
+                                    text: "You want to delete this driver?",
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#ef4444',
+                                    cancelButtonColor: '#6b7280',
+                                    confirmButtonText: 'Yes, delete it!',
+                                    cancelButtonText: 'Cancel'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '?page=admin&master=drivers&delete_driver=' + id;
+                                    }
+                                });
+                            }
+                        </script>
+                    </div>
+
+                    <?php
             // ========== VEHICLES MASTER ==========
         elseif ($master_page == 'vehicles'):
 
@@ -3334,710 +3563,710 @@
             $drivers_list = mysqli_query($conn, "SELECT id, driver_name, mobile FROM driver_master WHERE is_active=1 ORDER BY driver_name");
             $trans_list = mysqli_query($conn, "SELECT id, transporter_name FROM transporter_master WHERE is_active=1 ORDER BY transporter_name");
             ?>
-            <!-- Form Header with Gradient -->
-            <div
-                style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🚛</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Vehicles Master</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage vehicle
-                            details,
-                            documents, and assigned drivers</p>
+                    <!-- Form Header with Gradient -->
+                    <div
+                        style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🚛</div>
+                            <div>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Vehicles Master</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage vehicle
+                                    details,
+                                    documents, and assigned drivers</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <div class="card" style="margin-bottom: 20px;">
-                <button onclick="openVehicleForm()" class="btn btn-primary"
-                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
-                    ➕ Add New Vehicle
-                </button>
+                    <div class="card" style="margin-bottom: 20px;">
+                        <button onclick="openVehicleForm()" class="btn btn-primary"
+                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);">
+                            ➕ Add New Vehicle
+                        </button>
 
-                <div id="vehicleForm" style="display: none; margin-bottom: 20px;">
-                    <form method="POST" enctype="multipart/form-data" onsubmit="showAppLoader('Saving Vehicle Data...')">
-                        <input type="hidden" name="vehicle_id" id="vehicle_id">
+                        <div id="vehicleForm" style="display: none; margin-bottom: 20px;">
+                            <form method="POST" enctype="multipart/form-data" onsubmit="showAppLoader('Saving Vehicle Data...')">
+                                <input type="hidden" name="vehicle_id" id="vehicle_id">
 
-                        <!-- Section 1: Vehicle Basic Information -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4:px solid #8b5cf6; background: linear-gradient(to right, #f3e8ff 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #8b5cf6; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    1</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">🚛 Vehicle
-                                    Basic
-                                    Information</h3>
-                            </div>
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Vehicle Number *</label>
-                                    <input type="text" name="vehicle_number" id="vehicle_number"
-                                        style="text-transform: uppercase; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';" required>
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Transporter *</label>
-                                    <select name="transporter_id" id="veh_transporter_id" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        <option value="">-- Tag Transporter --</option>
-                                        <?php
-                                        mysqli_data_seek($trans_list, 0);
-                                        while ($t = mysqli_fetch_assoc($trans_list)): ?>
-                                            <option value="<?php echo $t['id']; ?>">
-                                                <?php echo $t['transporter_name']; ?>
-                                            </option>
-                                            <?php
-                                        endwhile; ?>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Maker *</label>
-                                    <input type="text" name="maker" id="veh_maker" placeholder="e.g., TATA, Ashok Leyland"
-                                        required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Model *</label>
-                                    <input type="text" name="model" id="veh_model" placeholder="e.g., LPT 1613" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Fuel Type *</label>
-                                    <select name="fuel_type" id="fuel_type" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        <option value="">-- Select Fuel Type --</option>
-                                        <option>DIESEL</option>
-                                        <option>PETROL</option>
-                                        <option>CNG</option>
-                                        <option>ELECTRIC</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">RC Owner Name *</label>
-                                    <input type="text" name="rc_owner_name" id="rc_owner_name" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Section 2: Assigned Drivers -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #10b981; background: linear-gradient(to right, #f0fdf4 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #10b981; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    2</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">👨‍✈️
-                                    Assigned
-                                    Drivers
-                                </h3>
-                            </div>
-                            <div class="form-group">
-                                <label style="font-weight: 600; color: #374151; margin-bottom: 10px; display: block;">Select
-                                    Drivers</label>
-                                <div id="drivers_container"
-                                    style="border: 1px solid #d1d5db; border-radius: 8px; padding: 15px; background: white; min-height: 100px; max-height: 200px; overflow-y: auto;">
-                                    <?php
-                                    $drivers_list_array = [];
-                                    while ($drv = mysqli_fetch_assoc($drivers_list)) {
-                                        $drivers_list_array[] = $drv;
-                                    }
-                                    foreach ($drivers_list_array as $drv):
-                                        ?>
-                                        <label
-                                            style="display: flex; align-items: center; padding: 8px; margin: 5px 0; background: #f9fafb; border-radius: 6px; cursor: pointer; transition: all 0.2s;"
-                                            onmouseover="this.style.background='#e5e7eb'"
-                                            onmouseout="this.style.background='#f9fafb'">
-                                            <input type="checkbox" name="driver_ids[]" value="<?php echo $drv['id']; ?>"
-                                                style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
-                                            <span style="flex: 1;">
-                                                <strong>
-                                                    <?php echo $drv['driver_name']; ?>
-                                                </strong>
-                                                <small style="color: #666; margin-left: 10px;">(
-                                                    <?php echo $drv['mobile']; ?>)
-                                                </small>
-                                            </span>
-                                            <label
-                                                style="margin-left: 10px; font-size: 12px; color: #666; display: flex; align-items: center; margin-bottom: 0;">
-                                                <input type="radio" name="primary_driver" value="<?php echo $drv['id']; ?>"
-                                                    style="margin-right: 5px; width: 14px; height: 14px;" disabled>
-                                                Primary
-                                            </label>
-                                        </label>
-                                        <?php
-                                    endforeach; ?>
-                                </div>
-                                <small style="color: #666; margin-top: 5px; display: block;">✓ Select multiple
-                                    drivers,
-                                    mark
-                                    one
-                                    as primary</small>
-                            </div>
-                        </div>
-
-                        <!-- Section 3: Document Validity -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #f59e0b; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    3</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📅
-                                    Document
-                                    Validity
-                                </h3>
-                            </div>
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Registration Validity *</label>
-                                    <input type="date" name="registration_validity" id="registration_validity" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Fitness Validity *</label>
-                                    <input type="date" name="fitness_validity" id="fitness_validity" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Pollution Validity *</label>
-                                    <input type="date" name="pollution_validity" id="pollution_validity" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Insurance Validity *</label>
-                                    <input type="date" name="insurance_validity" id="insurance_validity" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Permit Validity</label>
-                                    <input type="date" name="permit_validity" id="permit_validity"
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Section 4: Document Photos -->
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #ec4899; background: linear-gradient(to right, #fdf2f8 0%, white 10%);">
-                            <div
-                                style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
-                                <div
-                                    style="background: #ec4899; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
-                                    4</div>
-                                <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📄 Upload
-                                    Document
-                                    Photos</h3>
-                            </div>
-                            <div class="master-form-grid">
-
-                                <!-- RC Photo -->
-                                <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
-                                    <label style="font-weight: 500; display: block; margin-bottom: 8px;">🆔 RC
-                                        Certificate</label>
+                                <!-- Section 1: Vehicle Basic Information -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4:px solid #8b5cf6; background: linear-gradient(to right, #f3e8ff 0%, white 10%);">
                                     <div
-                                        style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
-                                        <input type="file" name="rc_photo" id="rc_photo_file" accept="image/*">
-                                        <input type="file" name="rc_photo_camera" id="rc_photo_camera" accept="image/*"
-                                            capture="environment">
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #8b5cf6; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            1</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">🚛 Vehicle
+                                            Basic
+                                            Information</h3>
                                     </div>
-                                    <div style="display: flex; gap: 5px;">
-                                        <label for="rc_photo_camera" id="rc_camera_label" class="btn"
-                                            style="background: #3b82f6; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
-                                            Camera</label>
-                                        <label for="rc_photo_file" class="btn"
-                                            style="background: #6366f1; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
-                                            Gallery</label>
-                                    </div>
-                                    <span id="rc_photo_name"
-                                        style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
-                                </div>
-
-                                <!-- Insurance Photo -->
-                                <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
-                                    <label style="font-weight: 500; display: block; margin-bottom: 8px;">🛡️
-                                        Insurance</label>
-                                    <div
-                                        style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
-                                        <input type="file" name="insurance_photo" id="insurance_photo_file" accept="image/*">
-                                        <input type="file" name="insurance_photo_camera" id="insurance_photo_camera"
-                                            accept="image/*" capture="environment">
-                                    </div>
-                                    <div style="display: flex; gap: 5px;">
-                                        <label for="insurance_photo_camera" id="insurance_camera_label" class="btn"
-                                            style="background: #10b981; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
-                                            Camera</label>
-                                        <label for="insurance_photo_file" class="btn"
-                                            style="background: #059669; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
-                                            Gallery</label>
-                                    </div>
-                                    <span id="insurance_photo_name"
-                                        style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
-                                </div>
-
-                                <!-- Pollution Photo -->
-                                <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
-                                    <label style="font-weight: 500; display: block; margin-bottom: 8px;">🌿
-                                        Pollution
-                                        Certificate</label>
-                                    <div
-                                        style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
-                                        <input type="file" name="pollution_photo" id="pollution_photo_file" accept="image/*">
-                                        <input type="file" name="pollution_photo_camera" id="pollution_photo_camera"
-                                            accept="image/*" capture="environment">
-                                    </div>
-                                    <div style="display: flex; gap: 5px;">
-                                        <label for="pollution_photo_camera" id="pollution_camera_label" class="btn"
-                                            style="background: #f59e0b; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
-                                            Camera</label>
-                                        <label for="pollution_photo_file" class="btn"
-                                            style="background: #d97706; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
-                                            Gallery</label>
-                                    </div>
-                                    <span id="pollution_photo_name"
-                                        style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
-                                </div>
-
-                                <!-- Fitness Photo -->
-                                <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
-                                    <label style="font-weight: 500; display: block; margin-bottom: 8px;">✅ Fitness
-                                        Certificate</label>
-                                    <div
-                                        style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
-                                        <input type="file" name="fitness_photo" id="fitness_photo_file" accept="image/*">
-                                        <input type="file" name="fitness_photo_camera" id="fitness_photo_camera"
-                                            accept="image/*" capture="environment">
-                                    </div>
-                                    <div style="display: flex; gap: 5px;">
-                                        <label for="fitness_photo_camera" id="fitness_camera_label" class="btn"
-                                            style="background: #8b5cf6; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
-                                            Camera</label>
-                                        <label for="fitness_photo_file" class="btn"
-                                            style="background: #7c3aed; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
-                                            Gallery</label>
-                                    </div>
-                                    <span id="fitness_photo_name"
-                                        style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
-                                </div>
-
-                                <!-- Permit Photo -->
-                                <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
-                                    <label style="font-weight: 500; display: block; margin-bottom: 8px;">📋 Permit
-                                        Certificate</label>
-                                    <div
-                                        style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
-                                        <input type="file" name="permit_photo" id="permit_photo_file" accept="image/*">
-                                        <input type="file" name="permit_photo_camera" id="permit_photo_camera" accept="image/*"
-                                            capture="environment">
-                                    </div>
-                                    <div style="display: flex; gap: 5px;">
-                                        <label for="permit_photo_camera" id="permit_camera_label" class="btn"
-                                            style="background: #ec4899; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
-                                            Camera</label>
-                                        <label for="permit_photo_file" class="btn"
-                                            style="background: #db2777; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
-                                            Gallery</label>
-                                    </div>
-                                    <span id="permit_photo_name"
-                                        style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style="display: flex; gap: 10px;">
-                            <button type="submit" name="save_vehicle" class="btn btn-success">💾 Save</button>
-                            <button type="button" onclick="closeVehicleForm()" class="btn btn-secondary">Cancel</button>
-                        </div>
-                    </form>
-
-                    <script>
-                        // Handle driver checkbox and primary driver selection
-                        document.addEventListener('DOMContentLoaded', function () {
-                            const driverCheckboxes = document.querySelectorAll('input[name="driver_ids[]"]');
-                            const primaryRadios = document.querySelectorAll('input[name="primary_driver"]');
-
-                            driverCheckboxes.forEach(function (checkbox) {
-                                checkbox.addEventListener('change', function () {
-                                    const driverId = this.value;
-                                    const primaryRadio = document.querySelector('input[name="primary_driver"][value="' + driverId + '"]');
-
-                                    if (this.checked) {
-                                        // Enable primary radio when driver is selected
-                                        primaryRadio.disabled = false;
-                                        // Auto-select as primary if it's the first driver checked
-                                        const checkedDrivers = document.querySelectorAll('input[name="driver_ids[]"]:checked');
-                                        if (checkedDrivers.length === 1) {
-                                            primaryRadio.checked = true;
-                                        }
-                                    } else {
-                                        // Disable and uncheck primary radio when driver is unselected
-                                        primaryRadio.disabled = true;
-                                        primaryRadio.checked = false;
-                                        // If this was primary, select another one as primary
-                                        const checkedDrivers = document.querySelectorAll('input[name="driver_ids[]"]:checked');
-                                        if (checkedDrivers.length > 0 && !document.querySelector('input[name="primary_driver"]:checked')) {
-                                            const firstChecked = checkedDrivers[0];
-                                            document.querySelector('input[name="primary_driver"][value="' + firstChecked.value + '"]').checked = true;
-                                        }
-                                    }
-                                });
-                            });
-                        });
-                    </script>
-                </div>
-
-                <?php if (isset($success_msg)): ?>
-                    <div class="alert alert-success">
-                        <?php echo $success_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
-                <?php if (isset($error_msg)): ?>
-                    <div class="alert alert-error">
-                        <?php echo $error_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
-
-                <?php if (isset($keep_vehicle_form_open) && $keep_vehicle_form_open): ?>
-                    <script>
-                        // Keep form open and populate with submitted data
-                        document.addEventListener('DOMContentLoaded', function () {
-                            document.getElementById('vehicleForm').style.display = 'block';
-                            document.getElementById('vehicle_number').value = '<?php echo addslashes($_POST['vehicle_number']); ?>';
-                            document.getElementById('vehicle_driver_id').value = '<?php echo $_POST['driver_id']; ?>';
-                            document.getElementById('veh_maker').value = '<?php echo addslashes($_POST['maker']); ?>';
-                            document.getElementById('veh_model').value = '<?php echo addslashes($_POST['model']); ?>';
-                            document.getElementById('fuel_type').value = '<?php echo $_POST['fuel_type']; ?>';
-                            document.getElementById('registration_validity').value = '<?php echo $_POST['registration_validity']; ?>';
-                            document.getElementById('fitness_validity').value = '<?php echo $_POST['fitness_validity']; ?>';
-                            document.getElementById('pollution_validity').value = '<?php echo $_POST['pollution_validity']; ?>';
-                            document.getElementById('insurance_validity').value = '<?php echo $_POST['insurance_validity']; ?>';
-                            document.getElementById('rc_owner_name').value = '<?php echo addslashes($_POST['rc_owner_name']); ?>';
-                            // Scroll to form
-                            document.getElementById('vehicleForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        });
-                    </script>
-                    <?php
-                endif; ?>
-
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="vehicleSearch" placeholder="🔍 Search Vehicles (Number, Type, Transporter...)"
-                        oninput="filterTable('vehicleSearch', 'vehiclesTable')"
-                        onsearch="filterTable('vehicleSearch', 'vehiclesTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
-
-                <div class="table-wrapper" id="vehiclesTable">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Vehicle Number</th>
-                                <th>Transporter</th>
-                                <th>Primary Driver</th>
-                                <th>Maker/Model</th>
-                                <th>Fuel Type</th>
-                                <th>Fitness</th>
-                                <th>Pollution</th>
-                                <th>Insurance</th>
-                                <th>Permit</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($veh = mysqli_fetch_assoc($vehicles)): ?>
-                                <tr style="cursor: pointer;"
-                                    onclick="window.location.href='?page=vehicle-detail&id=<?php echo $veh['id']; ?>'"
-                                    title="Click to view details">
-                                    <td><strong>
-                                            <?php echo $veh['vehicle_number']; ?>
-                                        </strong></td>
-                                    <td>
-                                        <span style="font-weight: 600; color: #4f46e5;">
-                                            <?php echo $veh['transporter_name'] ?: '<span style="color:#94a3b8">Untagged</span>'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <?php echo $veh['driver_name'] ? $veh['driver_name'] . '<br><small>' . $veh['driver_mobile'] . '</small>' : '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $veh['maker'] ? $veh['maker'] . ' ' . $veh['model'] : '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php echo $veh['fuel_type'] ?: '-'; ?>
-                                    </td>
-                                    <td>
-                                        <?php
-                                        if ($veh['fitness_validity']) {
-                                            $is_expired = strtotime($veh['fitness_validity']) < time();
-                                            echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
-                                            echo date('d/m/Y', strtotime($veh['fitness_validity']));
-                                            echo '</span>';
-                                        } else {
-                                            echo '-';
-                                        }
-                                        ?>
-                                    </td>
-                                    <td>
-                                        <?php
-                                        if ($veh['pollution_validity']) {
-                                            $is_expired = strtotime($veh['pollution_validity']) < time();
-                                            echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
-                                            echo date('d/m/Y', strtotime($veh['pollution_validity']));
-                                            echo '</span>';
-                                        } else {
-                                            echo '-';
-                                        }
-                                        ?>
-                                    </td>
-                                    <td>
-                                        <?php
-                                        if ($veh['insurance_validity']) {
-                                            $is_expired = strtotime($veh['insurance_validity']) < time();
-                                            echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
-                                            echo date('d/m/Y', strtotime($veh['insurance_validity']));
-                                            echo '</span>';
-                                        } else {
-                                            echo '-';
-                                        }
-                                        ?>
-                                    </td>
-                                    <td>
-                                        <?php
-                                        if (isset($veh['permit_validity']) && $veh['permit_validity']) {
-                                            $is_expired = strtotime($veh['permit_validity']) < time();
-                                            echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
-                                            echo date('d/m/Y', strtotime($veh['permit_validity']));
-                                            echo '</span>';
-                                        } else {
-                                            echo '-';
-                                        }
-                                        ?>
-                                    </td>
-                                    <td onclick="event.stopPropagation();">
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php if (hasPermission('actions.edit_record')): ?>
-                                                <button
-                                                    onclick='editVehicle(<?php echo $veh["id"]; ?>, <?php echo json_encode($veh["vehicle_number"]); ?>, <?php echo json_encode($veh["maker"]); ?>, <?php echo json_encode($veh["model"]); ?>, <?php echo json_encode($veh["fuel_type"]); ?>, <?php echo json_encode($veh["registration_validity"]); ?>, <?php echo json_encode($veh["fitness_validity"]); ?>, <?php echo json_encode($veh["pollution_validity"]); ?>, <?php echo json_encode($veh["insurance_validity"]); ?>, <?php echo json_encode(isset($veh["permit_validity"]) ? $veh["permit_validity"] : ""); ?>, <?php echo json_encode($veh["rc_owner_name"]); ?>, <?php echo json_encode($veh["rc_photo"]); ?>, <?php echo json_encode($veh["insurance_photo"]); ?>, <?php echo json_encode($veh["pollution_photo"]); ?>, <?php echo json_encode($veh["fitness_photo"]); ?>, <?php echo json_encode($veh["permit_photo"]); ?>, <?php echo $veh["transporter_id"] ?: 0; ?>)'
-                                                    class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                    Edit</button>
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Vehicle Number *</label>
+                                            <input type="text" name="vehicle_number" id="vehicle_number"
+                                                style="text-transform: uppercase; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Transporter *</label>
+                                            <select name="transporter_id" id="veh_transporter_id" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                <option value="">-- Tag Transporter --</option>
                                                 <?php
-                                            endif; ?>
-                                            <?php if (hasPermission('actions.delete_record')): ?>
-                                                <button onclick="deleteVehicle(<?php echo $veh['id']; ?>)" class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                    Delete</button>
-                                                <?php
-                                            endif; ?>
+                                                mysqli_data_seek($trans_list, 0);
+                                                while ($t = mysqli_fetch_assoc($trans_list)): ?>
+                                                        <option value="<?php echo $t['id']; ?>">
+                                                            <?php echo $t['transporter_name']; ?>
+                                                        </option>
+                                                        <?php
+                                                endwhile; ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Maker *</label>
+                                            <input type="text" name="maker" id="veh_maker" placeholder="e.g., TATA, Ashok Leyland"
+                                                required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Model *</label>
+                                            <input type="text" name="model" id="veh_model" placeholder="e.g., LPT 1613" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Fuel Type *</label>
+                                            <select name="fuel_type" id="fuel_type" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                <option value="">-- Select Fuel Type --</option>
+                                                <option>DIESEL</option>
+                                                <option>PETROL</option>
+                                                <option>CNG</option>
+                                                <option>ELECTRIC</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">RC Owner Name *</label>
+                                            <input type="text" name="rc_owner_name" id="rc_owner_name" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Section 2: Assigned Drivers -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #10b981; background: linear-gradient(to right, #f0fdf4 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #10b981; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            2</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">👨‍✈️
+                                            Assigned
+                                            Drivers
+                                        </h3>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 600; color: #374151; margin-bottom: 10px; display: block;">Select
+                                            Drivers</label>
+                                        <div id="drivers_container"
+                                            style="border: 1px solid #d1d5db; border-radius: 8px; padding: 15px; background: white; min-height: 100px; max-height: 200px; overflow-y: auto;">
                                             <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
-                                <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
-
-                <script>
-                    function editVehicle(id, vehNo, maker, model, fuel, regDate, fitness, pollution, insurance, permitValidity, owner, rcPhoto, insurancePhoto, pollutionPhoto, fitnessPhoto, permitPhoto, transId) {
-                        document.getElementById('vehicle_id').value = id;
-                        document.getElementById('vehicle_number').value = vehNo;
-                        document.getElementById('vehicle_number').readOnly = true;
-                        document.getElementById('veh_transporter_id').value = transId || '';
-                        document.getElementById('veh_maker').value = maker || '';
-                        document.getElementById('veh_model').value = model || '';
-                        document.getElementById('fuel_type').value = fuel || '';
-                        document.getElementById('registration_validity').value = regDate || '';
-                        document.getElementById('fitness_validity').value = fitness || '';
-                        document.getElementById('pollution_validity').value = pollution || '';
-                        document.getElementById('insurance_validity').value = insurance || '';
-                        document.getElementById('permit_validity').value = permitValidity || '';
-                        document.getElementById('rc_owner_name').value = owner || '';
-
-                        // Show attached photo previews
-                        showAppExistingPreview(rcPhoto, 'rc_photo_name', 'EXISTING RC:');
-                        showAppExistingPreview(insurancePhoto, 'insurance_photo_name', 'EXISTING INSURANCE:');
-                        showAppExistingPreview(pollutionPhoto, 'pollution_photo_name', 'EXISTING POLLUTION:');
-                        showAppExistingPreview(fitnessPhoto, 'fitness_photo_name', 'EXISTING FITNESS:');
-                        showAppExistingPreview(permitPhoto, 'permit_photo_name', 'EXISTING PERMIT:');
-
-                        // Reset all driver selections
-                        document.querySelectorAll('input[name="driver_ids[]"]').forEach(cb => cb.checked = false);
-                        document.querySelectorAll('input[name="primary_driver"]').forEach(radio => {
-                            radio.checked = false;
-                            radio.disabled = true;
-                        });
-
-                        // Load assigned drivers via AJAX
-                        fetch('get_vehicle_drivers.php?vehicle_id=' + id)
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.success && data.drivers) {
-                                    data.drivers.forEach(driver => {
-                                        const checkbox = document.querySelector('input[name="driver_ids[]"][value="' + driver.driver_id + '"]');
-                                        const radio = document.querySelector('input[name="primary_driver"][value="' + driver.driver_id + '"]');
-                                        if (checkbox) {
-                                            checkbox.checked = true;
-                                            radio.disabled = false;
-                                            if (driver.is_primary == 1) {
-                                                radio.checked = true;
+                                            $drivers_list_array = [];
+                                            while ($drv = mysqli_fetch_assoc($drivers_list)) {
+                                                $drivers_list_array[] = $drv;
                                             }
+                                            foreach ($drivers_list_array as $drv):
+                                                ?>
+                                                    <label
+                                                        style="display: flex; align-items: center; padding: 8px; margin: 5px 0; background: #f9fafb; border-radius: 6px; cursor: pointer; transition: all 0.2s;"
+                                                        onmouseover="this.style.background='#e5e7eb'"
+                                                        onmouseout="this.style.background='#f9fafb'">
+                                                        <input type="checkbox" name="driver_ids[]" value="<?php echo $drv['id']; ?>"
+                                                            style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer;">
+                                                        <span style="flex: 1;">
+                                                            <strong>
+                                                                <?php echo $drv['driver_name']; ?>
+                                                            </strong>
+                                                            <small style="color: #666; margin-left: 10px;">(
+                                                                <?php echo $drv['mobile']; ?>)
+                                                            </small>
+                                                        </span>
+                                                        <label
+                                                            style="margin-left: 10px; font-size: 12px; color: #666; display: flex; align-items: center; margin-bottom: 0;">
+                                                            <input type="radio" name="primary_driver" value="<?php echo $drv['id']; ?>"
+                                                                style="margin-right: 5px; width: 14px; height: 14px;" disabled>
+                                                            Primary
+                                                        </label>
+                                                    </label>
+                                                    <?php
+                                            endforeach; ?>
+                                        </div>
+                                        <small style="color: #666; margin-top: 5px; display: block;">✓ Select multiple
+                                            drivers,
+                                            mark
+                                            one
+                                            as primary</small>
+                                    </div>
+                                </div>
+
+                                <!-- Section 3: Document Validity -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #f59e0b; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            3</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📅
+                                            Document
+                                            Validity
+                                        </h3>
+                                    </div>
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Registration Validity *</label>
+                                            <input type="date" name="registration_validity" id="registration_validity" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Fitness Validity *</label>
+                                            <input type="date" name="fitness_validity" id="fitness_validity" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Pollution Validity *</label>
+                                            <input type="date" name="pollution_validity" id="pollution_validity" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Insurance Validity *</label>
+                                            <input type="date" name="insurance_validity" id="insurance_validity" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Permit Validity</label>
+                                            <input type="date" name="permit_validity" id="permit_validity"
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Section 4: Document Photos -->
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #ec4899; background: linear-gradient(to right, #fdf2f8 0%, white 10%);">
+                                    <div
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                                        <div
+                                            style="background: #ec4899; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                            4</div>
+                                        <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📄 Upload
+                                            Document
+                                            Photos</h3>
+                                    </div>
+                                    <div class="master-form-grid">
+
+                                        <!-- RC Photo -->
+                                        <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
+                                            <label style="font-weight: 500; display: block; margin-bottom: 8px;">🆔 RC
+                                                Certificate</label>
+                                            <div
+                                                style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
+                                                <input type="file" name="rc_photo" id="rc_photo_file" accept="image/*">
+                                                <input type="file" name="rc_photo_camera" id="rc_photo_camera" accept="image/*"
+                                                    capture="environment">
+                                            </div>
+                                            <div style="display: flex; gap: 5px;">
+                                                <label for="rc_photo_camera" id="rc_camera_label" class="btn"
+                                                    style="background: #3b82f6; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
+                                                    Camera</label>
+                                                <label for="rc_photo_file" class="btn"
+                                                    style="background: #6366f1; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
+                                                    Gallery</label>
+                                            </div>
+                                            <span id="rc_photo_name"
+                                                style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
+                                        </div>
+
+                                        <!-- Insurance Photo -->
+                                        <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
+                                            <label style="font-weight: 500; display: block; margin-bottom: 8px;">🛡️
+                                                Insurance</label>
+                                            <div
+                                                style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
+                                                <input type="file" name="insurance_photo" id="insurance_photo_file" accept="image/*">
+                                                <input type="file" name="insurance_photo_camera" id="insurance_photo_camera"
+                                                    accept="image/*" capture="environment">
+                                            </div>
+                                            <div style="display: flex; gap: 5px;">
+                                                <label for="insurance_photo_camera" id="insurance_camera_label" class="btn"
+                                                    style="background: #10b981; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
+                                                    Camera</label>
+                                                <label for="insurance_photo_file" class="btn"
+                                                    style="background: #059669; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
+                                                    Gallery</label>
+                                            </div>
+                                            <span id="insurance_photo_name"
+                                                style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
+                                        </div>
+
+                                        <!-- Pollution Photo -->
+                                        <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
+                                            <label style="font-weight: 500; display: block; margin-bottom: 8px;">🌿
+                                                Pollution
+                                                Certificate</label>
+                                            <div
+                                                style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
+                                                <input type="file" name="pollution_photo" id="pollution_photo_file" accept="image/*">
+                                                <input type="file" name="pollution_photo_camera" id="pollution_photo_camera"
+                                                    accept="image/*" capture="environment">
+                                            </div>
+                                            <div style="display: flex; gap: 5px;">
+                                                <label for="pollution_photo_camera" id="pollution_camera_label" class="btn"
+                                                    style="background: #f59e0b; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
+                                                    Camera</label>
+                                                <label for="pollution_photo_file" class="btn"
+                                                    style="background: #d97706; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
+                                                    Gallery</label>
+                                            </div>
+                                            <span id="pollution_photo_name"
+                                                style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
+                                        </div>
+
+                                        <!-- Fitness Photo -->
+                                        <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
+                                            <label style="font-weight: 500; display: block; margin-bottom: 8px;">✅ Fitness
+                                                Certificate</label>
+                                            <div
+                                                style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
+                                                <input type="file" name="fitness_photo" id="fitness_photo_file" accept="image/*">
+                                                <input type="file" name="fitness_photo_camera" id="fitness_photo_camera"
+                                                    accept="image/*" capture="environment">
+                                            </div>
+                                            <div style="display: flex; gap: 5px;">
+                                                <label for="fitness_photo_camera" id="fitness_camera_label" class="btn"
+                                                    style="background: #8b5cf6; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
+                                                    Camera</label>
+                                                <label for="fitness_photo_file" class="btn"
+                                                    style="background: #7c3aed; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
+                                                    Gallery</label>
+                                            </div>
+                                            <span id="fitness_photo_name"
+                                                style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
+                                        </div>
+
+                                        <!-- Permit Photo -->
+                                        <div style="border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white;">
+                                            <label style="font-weight: 500; display: block; margin-bottom: 8px;">📋 Permit
+                                                Certificate</label>
+                                            <div
+                                                style="opacity: 0.1; position: absolute; z-index: -1; width: 1px; height: 1px; overflow: hidden;">
+                                                <input type="file" name="permit_photo" id="permit_photo_file" accept="image/*">
+                                                <input type="file" name="permit_photo_camera" id="permit_photo_camera" accept="image/*"
+                                                    capture="environment">
+                                            </div>
+                                            <div style="display: flex; gap: 5px;">
+                                                <label for="permit_photo_camera" id="permit_camera_label" class="btn"
+                                                    style="background: #ec4899; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📷
+                                                    Camera</label>
+                                                <label for="permit_photo_file" class="btn"
+                                                    style="background: #db2777; color: white; padding: 8px 12px; font-size: 12px; flex: 1; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-bottom: 0;">📁
+                                                    Gallery</label>
+                                            </div>
+                                            <span id="permit_photo_name"
+                                                style="font-size: 11px; color: #10b981; display: block; margin-top: 5px; font-weight: 600;"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" name="save_vehicle" class="btn btn-success">💾 Save</button>
+                                    <button type="button" onclick="closeVehicleForm()" class="btn btn-secondary">Cancel</button>
+                                </div>
+                            </form>
+
+                            <script>
+                                // Handle driver checkbox and primary driver selection
+                                document.addEventListener('DOMContentLoaded', function () {
+                                    const driverCheckboxes = document.querySelectorAll('input[name="driver_ids[]"]');
+                                    const primaryRadios = document.querySelectorAll('input[name="primary_driver"]');
+
+                                    driverCheckboxes.forEach(function (checkbox) {
+                                        checkbox.addEventListener('change', function () {
+                                            const driverId = this.value;
+                                            const primaryRadio = document.querySelector('input[name="primary_driver"][value="' + driverId + '"]');
+
+                                            if (this.checked) {
+                                                // Enable primary radio when driver is selected
+                                                primaryRadio.disabled = false;
+                                                // Auto-select as primary if it's the first driver checked
+                                                const checkedDrivers = document.querySelectorAll('input[name="driver_ids[]"]:checked');
+                                                if (checkedDrivers.length === 1) {
+                                                    primaryRadio.checked = true;
+                                                }
+                                            } else {
+                                                // Disable and uncheck primary radio when driver is unselected
+                                                primaryRadio.disabled = true;
+                                                primaryRadio.checked = false;
+                                                // If this was primary, select another one as primary
+                                                const checkedDrivers = document.querySelectorAll('input[name="driver_ids[]"]:checked');
+                                                if (checkedDrivers.length > 0 && !document.querySelector('input[name="primary_driver"]:checked')) {
+                                                    const firstChecked = checkedDrivers[0];
+                                                    document.querySelector('input[name="primary_driver"][value="' + firstChecked.value + '"]').checked = true;
+                                                }
+                                            }
+                                        });
+                                    });
+                                });
+                            </script>
+                        </div>
+
+                        <?php if (isset($success_msg)): ?>
+                                <div class="alert alert-success">
+                                    <?php echo $success_msg; ?>
+                                </div>
+                                <?php
+                        endif; ?>
+                        <?php if (isset($error_msg)): ?>
+                                <div class="alert alert-error">
+                                    <?php echo $error_msg; ?>
+                                </div>
+                                <?php
+                        endif; ?>
+
+                        <?php if (isset($keep_vehicle_form_open) && $keep_vehicle_form_open): ?>
+                                <script>
+                                    // Keep form open and populate with submitted data
+                                    document.addEventListener('DOMContentLoaded', function () {
+                                        document.getElementById('vehicleForm').style.display = 'block';
+                                        document.getElementById('vehicle_number').value = '<?php echo addslashes($_POST['vehicle_number']); ?>';
+                                        document.getElementById('vehicle_driver_id').value = '<?php echo $_POST['driver_id']; ?>';
+                                        document.getElementById('veh_maker').value = '<?php echo addslashes($_POST['maker']); ?>';
+                                        document.getElementById('veh_model').value = '<?php echo addslashes($_POST['model']); ?>';
+                                        document.getElementById('fuel_type').value = '<?php echo $_POST['fuel_type']; ?>';
+                                        document.getElementById('registration_validity').value = '<?php echo $_POST['registration_validity']; ?>';
+                                        document.getElementById('fitness_validity').value = '<?php echo $_POST['fitness_validity']; ?>';
+                                        document.getElementById('pollution_validity').value = '<?php echo $_POST['pollution_validity']; ?>';
+                                        document.getElementById('insurance_validity').value = '<?php echo $_POST['insurance_validity']; ?>';
+                                        document.getElementById('rc_owner_name').value = '<?php echo addslashes($_POST['rc_owner_name']); ?>';
+                                        // Scroll to form
+                                        document.getElementById('vehicleForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    });
+                                </script>
+                                <?php
+                        endif; ?>
+
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="vehicleSearch" placeholder="🔍 Search Vehicles (Number, Type, Transporter...)"
+                                oninput="filterTable('vehicleSearch', 'vehiclesTable')"
+                                onsearch="filterTable('vehicleSearch', 'vehiclesTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                        </div>
+
+                        <div class="table-wrapper" id="vehiclesTable">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Vehicle Number</th>
+                                        <th>Transporter</th>
+                                        <th>Primary Driver</th>
+                                        <th>Maker/Model</th>
+                                        <th>Fuel Type</th>
+                                        <th>Fitness</th>
+                                        <th>Pollution</th>
+                                        <th>Insurance</th>
+                                        <th>Permit</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($veh = mysqli_fetch_assoc($vehicles)): ?>
+                                            <tr style="cursor: pointer;"
+                                                onclick="window.location.href='?page=vehicle-detail&id=<?php echo $veh['id']; ?>'"
+                                                title="Click to view details">
+                                                <td><strong>
+                                                        <?php echo $veh['vehicle_number']; ?>
+                                                    </strong></td>
+                                                <td>
+                                                    <span style="font-weight: 600; color: #4f46e5;">
+                                                        <?php echo $veh['transporter_name'] ?: '<span style="color:#94a3b8">Untagged</span>'; ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <?php echo $veh['driver_name'] ? $veh['driver_name'] . '<br><small>' . $veh['driver_mobile'] . '</small>' : '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $veh['maker'] ? $veh['maker'] . ' ' . $veh['model'] : '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php echo $veh['fuel_type'] ?: '-'; ?>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                    if ($veh['fitness_validity']) {
+                                                        $is_expired = strtotime($veh['fitness_validity']) < time();
+                                                        echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
+                                                        echo date('d/m/Y', strtotime($veh['fitness_validity']));
+                                                        echo '</span>';
+                                                    } else {
+                                                        echo '-';
+                                                    }
+                                                    ?>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                    if ($veh['pollution_validity']) {
+                                                        $is_expired = strtotime($veh['pollution_validity']) < time();
+                                                        echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
+                                                        echo date('d/m/Y', strtotime($veh['pollution_validity']));
+                                                        echo '</span>';
+                                                    } else {
+                                                        echo '-';
+                                                    }
+                                                    ?>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                    if ($veh['insurance_validity']) {
+                                                        $is_expired = strtotime($veh['insurance_validity']) < time();
+                                                        echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
+                                                        echo date('d/m/Y', strtotime($veh['insurance_validity']));
+                                                        echo '</span>';
+                                                    } else {
+                                                        echo '-';
+                                                    }
+                                                    ?>
+                                                </td>
+                                                <td>
+                                                    <?php
+                                                    if (isset($veh['permit_validity']) && $veh['permit_validity']) {
+                                                        $is_expired = strtotime($veh['permit_validity']) < time();
+                                                        echo '<span class="badge badge-' . ($is_expired ? 'danger' : 'success') . '">';
+                                                        echo date('d/m/Y', strtotime($veh['permit_validity']));
+                                                        echo '</span>';
+                                                    } else {
+                                                        echo '-';
+                                                    }
+                                                    ?>
+                                                </td>
+                                                <td onclick="event.stopPropagation();">
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                    <button
+                                                                        onclick='editVehicle(<?php echo $veh["id"]; ?>, <?php echo json_encode($veh["vehicle_number"]); ?>, <?php echo json_encode($veh["maker"]); ?>, <?php echo json_encode($veh["model"]); ?>, <?php echo json_encode($veh["fuel_type"]); ?>, <?php echo json_encode($veh["registration_validity"]); ?>, <?php echo json_encode($veh["fitness_validity"]); ?>, <?php echo json_encode($veh["pollution_validity"]); ?>, <?php echo json_encode($veh["insurance_validity"]); ?>, <?php echo json_encode(isset($veh["permit_validity"]) ? $veh["permit_validity"] : ""); ?>, <?php echo json_encode($veh["rc_owner_name"]); ?>, <?php echo json_encode($veh["rc_photo"]); ?>, <?php echo json_encode($veh["insurance_photo"]); ?>, <?php echo json_encode($veh["pollution_photo"]); ?>, <?php echo json_encode($veh["fitness_photo"]); ?>, <?php echo json_encode($veh["permit_photo"]); ?>, <?php echo $veh["transporter_id"] ?: 0; ?>)'
+                                                                        class="btn btn-sm"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                        Edit</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                    <button onclick="deleteVehicle(<?php echo $veh['id']; ?>)" class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                        Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
+                                            <?php
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <script>
+                            function editVehicle(id, vehNo, maker, model, fuel, regDate, fitness, pollution, insurance, permitValidity, owner, rcPhoto, insurancePhoto, pollutionPhoto, fitnessPhoto, permitPhoto, transId) {
+                                document.getElementById('vehicle_id').value = id;
+                                document.getElementById('vehicle_number').value = vehNo;
+                                document.getElementById('vehicle_number').readOnly = true;
+                                document.getElementById('veh_transporter_id').value = transId || '';
+                                document.getElementById('veh_maker').value = maker || '';
+                                document.getElementById('veh_model').value = model || '';
+                                document.getElementById('fuel_type').value = fuel || '';
+                                document.getElementById('registration_validity').value = regDate || '';
+                                document.getElementById('fitness_validity').value = fitness || '';
+                                document.getElementById('pollution_validity').value = pollution || '';
+                                document.getElementById('insurance_validity').value = insurance || '';
+                                document.getElementById('permit_validity').value = permitValidity || '';
+                                document.getElementById('rc_owner_name').value = owner || '';
+
+                                // Show attached photo previews
+                                showAppExistingPreview(rcPhoto, 'rc_photo_name', 'EXISTING RC:');
+                                showAppExistingPreview(insurancePhoto, 'insurance_photo_name', 'EXISTING INSURANCE:');
+                                showAppExistingPreview(pollutionPhoto, 'pollution_photo_name', 'EXISTING POLLUTION:');
+                                showAppExistingPreview(fitnessPhoto, 'fitness_photo_name', 'EXISTING FITNESS:');
+                                showAppExistingPreview(permitPhoto, 'permit_photo_name', 'EXISTING PERMIT:');
+
+                                // Reset all driver selections
+                                document.querySelectorAll('input[name="driver_ids[]"]').forEach(cb => cb.checked = false);
+                                document.querySelectorAll('input[name="primary_driver"]').forEach(radio => {
+                                    radio.checked = false;
+                                    radio.disabled = true;
+                                });
+
+                                // Load assigned drivers via AJAX
+                                fetch('get_vehicle_drivers.php?vehicle_id=' + id)
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.success && data.drivers) {
+                                            data.drivers.forEach(driver => {
+                                                const checkbox = document.querySelector('input[name="driver_ids[]"][value="' + driver.driver_id + '"]');
+                                                const radio = document.querySelector('input[name="primary_driver"][value="' + driver.driver_id + '"]');
+                                                if (checkbox) {
+                                                    checkbox.checked = true;
+                                                    radio.disabled = false;
+                                                    if (driver.is_primary == 1) {
+                                                        radio.checked = true;
+                                                    }
+                                                }
+                                            });
                                         }
                                     });
-                                }
-                            });
 
-                        document.getElementById('vehicleForm').style.display = 'block';
-                        document.getElementById('vehicleForm').scrollIntoView({ behavior: 'smooth' });
-                    }
-                    function closeVehicleForm() {
-                        document.getElementById('vehicleForm').style.display = 'none';
-                        document.getElementById('vehicle_id').value = '';
-                        document.getElementById('vehicle_number').readOnly = false;
-                        document.querySelector('#vehicleForm form').reset();
-                        // Reset photo indications
-                        ['rc_photo_name', 'insurance_photo_name', 'pollution_photo_name', 'fitness_photo_name', 'permit_photo_name'].forEach(id => {
-                            document.getElementById(id).innerHTML = '';
-                        });
-                        // Reset driver selections
-                        document.querySelectorAll('input[name="driver_ids[]"]').forEach(cb => cb.checked = false);
-                        document.querySelectorAll('input[name="primary_driver"]').forEach(radio => {
-                            radio.checked = false;
-                            radio.disabled = true;
-                        });
-                    }
-                    function deleteVehicle(id) {
-                        Swal.fire({
-                            title: 'Are you sure?',
-                            text: "You want to delete this vehicle?",
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#ef4444',
-                            cancelButtonColor: '#6b7280',
-                            confirmButtonText: 'Yes, delete it!',
-                            cancelButtonText: 'Cancel'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                window.location.href = '?page=admin&master=vehicles&delete_vehicle=' + id;
+                                document.getElementById('vehicleForm').style.display = 'block';
+                                document.getElementById('vehicleForm').scrollIntoView({ behavior: 'smooth' });
                             }
-                        });
-                    }
-
-                    // Check if mobile device
-                    function isMobileDevice() {
-                        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                    }
-
-                    // Preview wrapper for document webcam modal
-                    function updateDocPreview(input) {
-                        const docType = input.id.replace('_file', '');
-                        if (input.files && input.files[0]) {
-                            // Try targeted preview container first, then fallback to name span
-                            let targetId = docType + '_preview';
-                            if (!document.getElementById(targetId)) targetId = docType + '_name';
-                            showAppPreview(input.files[0], targetId);
-                        }
-                    }
-
-                    function showAppPreview(file, targetId) {
-                        const reader = new FileReader();
-                        reader.onload = function (e) {
-                            const previewStyle = 'max-width: 120px; max-height: 120px; border-radius: 8px; border: 2px solid #10b981; margin-top: 5px;';
-                            document.getElementById(targetId).innerHTML = '<div style="font-size:10px; color:#10b981; font-weight:700;">NEW CAPTURE:</div><img src="' + e.target.result + '" style="' + previewStyle + '">';
-                        };
-                        reader.readAsDataURL(file);
-                    }
-
-                    // Intercept camera label clicks on desktop to show webcam modal
-                    document.addEventListener('DOMContentLoaded', function () {
-                        const docTypes = ['rc_photo', 'insurance_photo', 'pollution_photo', 'fitness_photo', 'permit_photo'];
-                        docTypes.forEach(function (docType) {
-                            const cameraLabel = document.getElementById(docType.replace('_photo', '_camera_label'));
-                            if (cameraLabel) {
-                                cameraLabel.addEventListener('click', function (e) {
-                                    if (!detectMobileForWebcam()) {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        if (typeof openWebcamCapture === 'function') {
-                                            openWebcamCapture(docType + '_file', 'updateDocPreview');
-                                        }
+                            function closeVehicleForm() {
+                                document.getElementById('vehicleForm').style.display = 'none';
+                                document.getElementById('vehicle_id').value = '';
+                                document.getElementById('vehicle_number').readOnly = false;
+                                document.querySelector('#vehicleForm form').reset();
+                                // Reset photo indications
+                                ['rc_photo_name', 'insurance_photo_name', 'pollution_photo_name', 'fitness_photo_name', 'permit_photo_name'].forEach(id => {
+                                    document.getElementById(id).innerHTML = '';
+                                });
+                                // Reset driver selections
+                                document.querySelectorAll('input[name="driver_ids[]"]').forEach(cb => cb.checked = false);
+                                document.querySelectorAll('input[name="primary_driver"]').forEach(radio => {
+                                    radio.checked = false;
+                                    radio.disabled = true;
+                                });
+                            }
+                            function deleteVehicle(id) {
+                                Swal.fire({
+                                    title: 'Are you sure?',
+                                    text: "You want to delete this vehicle?",
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#ef4444',
+                                    cancelButtonColor: '#6b7280',
+                                    confirmButtonText: 'Yes, delete it!',
+                                    cancelButtonText: 'Cancel'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '?page=admin&master=vehicles&delete_vehicle=' + id;
                                     }
                                 });
                             }
-                        });
-                    });
 
-                    // Handle document photo uploads from camera
-                    ['rc_photo', 'insurance_photo', 'pollution_photo', 'fitness_photo', 'permit_photo'].forEach(function (docType) {
-                        // Camera capture
-                        document.getElementById(docType + '_camera')?.addEventListener('change', function (e) {
-                            const file = e.target.files[0];
-                            if (file) {
-                                // RELIABLE WEBVIEW FIX: Swap names
-                                const mainInput = document.getElementById(docType + '_file');
-                                e.target.name = docType;
-                                mainInput.name = "";
-
-                                document.getElementById(docType + '_name').textContent = '✓ Photo captured';
-                                showAppPreview(file, docType + '_name');
+                            // Check if mobile device
+                            function isMobileDevice() {
+                                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
                             }
-                        });
 
-                        // File upload
-                        document.getElementById(docType + '_file')?.addEventListener('change', function (e) {
-                            const file = e.target.files[0];
-                            if (file) {
-                                // RELIABLE WEBVIEW FIX: Swap names back
-                                e.target.name = docType;
-                                const cameraInput = document.getElementById(docType + '_camera');
-                                if (cameraInput) cameraInput.name = "";
-
-                                document.getElementById(docType + '_name').style.color = '#10b981';
-                                showAppPreview(file, docType + '_name');
+                            // Preview wrapper for document webcam modal
+                            function updateDocPreview(input) {
+                                const docType = input.id.replace('_file', '');
+                                if (input.files && input.files[0]) {
+                                    // Try targeted preview container first, then fallback to name span
+                                    let targetId = docType + '_preview';
+                                    if (!document.getElementById(targetId)) targetId = docType + '_name';
+                                    showAppPreview(input.files[0], targetId);
+                                }
                             }
-                        });
-                    });
 
-                    function openVehicleForm() {
-                        closeVehicleForm();
-                        document.getElementById('vehicleForm').style.display = 'block';
-                        document.getElementById('vehicleForm').scrollIntoView({ behavior: 'smooth' });
-                    }
-                </script>
-            </div>
+                            function showAppPreview(file, targetId) {
+                                const reader = new FileReader();
+                                reader.onload = function (e) {
+                                    const previewStyle = 'max-width: 120px; max-height: 120px; border-radius: 8px; border: 2px solid #10b981; margin-top: 5px;';
+                                    document.getElementById(targetId).innerHTML = '<div style="font-size:10px; color:#10b981; font-weight:700;">NEW CAPTURE:</div><img src="' + e.target.result + '" style="' + previewStyle + '">';
+                                };
+                                reader.readAsDataURL(file);
+                            }
 
-            <?php
+                            // Intercept camera label clicks on desktop to show webcam modal
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const docTypes = ['rc_photo', 'insurance_photo', 'pollution_photo', 'fitness_photo', 'permit_photo'];
+                                docTypes.forEach(function (docType) {
+                                    const cameraLabel = document.getElementById(docType.replace('_photo', '_camera_label'));
+                                    if (cameraLabel) {
+                                        cameraLabel.addEventListener('click', function (e) {
+                                            if (!detectMobileForWebcam()) {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                if (typeof openWebcamCapture === 'function') {
+                                                    openWebcamCapture(docType + '_file', 'updateDocPreview');
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            });
+
+                            // Handle document photo uploads from camera
+                            ['rc_photo', 'insurance_photo', 'pollution_photo', 'fitness_photo', 'permit_photo'].forEach(function (docType) {
+                                // Camera capture
+                                document.getElementById(docType + '_camera')?.addEventListener('change', function (e) {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        // RELIABLE WEBVIEW FIX: Swap names
+                                        const mainInput = document.getElementById(docType + '_file');
+                                        e.target.name = docType;
+                                        mainInput.name = "";
+
+                                        document.getElementById(docType + '_name').textContent = '✓ Photo captured';
+                                        showAppPreview(file, docType + '_name');
+                                    }
+                                });
+
+                                // File upload
+                                document.getElementById(docType + '_file')?.addEventListener('change', function (e) {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                        // RELIABLE WEBVIEW FIX: Swap names back
+                                        e.target.name = docType;
+                                        const cameraInput = document.getElementById(docType + '_camera');
+                                        if (cameraInput) cameraInput.name = "";
+
+                                        document.getElementById(docType + '_name').style.color = '#10b981';
+                                        showAppPreview(file, docType + '_name');
+                                    }
+                                });
+                            });
+
+                            function openVehicleForm() {
+                                closeVehicleForm();
+                                document.getElementById('vehicleForm').style.display = 'block';
+                                document.getElementById('vehicleForm').scrollIntoView({ behavior: 'smooth' });
+                            }
+                        </script>
+                    </div>
+
+                    <?php
             // ========== EMPLOYEES MASTER ==========
         elseif ($master_page == 'employees'):
             // Ensure new columns exist
@@ -4065,304 +4294,304 @@
                 }
             }
             ?>
-            <!-- Header -->
-            <div
-                style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(79, 70, 229, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">👤</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Employees Management</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage employee
-                            details
-                            and
-                            their associated vehicle numbers</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                    <div style="display: flex; gap: 10px;">
-                        <button onclick="document.getElementById('empMasterModal').style.display='flex'; resetEmpForm();"
-                            class="btn btn-primary" style="padding: 12px 24px;">
-                            ➕ Add New Employee
-                        </button>
-                        <a href="?page=print-employee-qrs" target="_blank" class="btn btn-secondary"
-                            style="padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
-                            🖨️ Bulk Print QRs
-                        </a>
-                    </div>
-
-                    <form method="POST" enctype="multipart/form-data"
-                        style="display: flex; align-items: center; gap: 10px; background: #f1f5f9; padding: 10px; border-radius: 8px;">
-                        <span style="font-weight: 600; font-size: 14px; color: #475569;">Import CSV:</span>
-                        <input type="file" name="import_file" accept=".csv" required style="font-size: 13px;">
-                        <button type="submit" name="import_employees" class="btn btn-sm"
-                            style="background: #10b981; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer;">
-                            📂 Upload
-                        </button>
-                        <a href="download_sample_csv.php" download="sample_employees.csv"
-                            style="color: #6366f1; font-size: 12px; text-decoration: underline; white-space: nowrap;">
-                            ⬇ Sample CSV
-                        </a>
-                    </form>
-                </div>
-
-                <div id="empMasterModal" class="perm-modal-overlay" style="display: none;">
-                    <div class="perm-modal-content" style="max-width: 800px;">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #4f46e5; color: white;">
-                            <h3 id="formTitle" style="margin: 0;">Add New Employee</h3>
-                            <button onclick="document.getElementById('empMasterModal').style.display='none'; resetEmpForm();"
-                                style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
+                    <!-- Header -->
+                    <div
+                        style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(79, 70, 229, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">👤</div>
+                            <div>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Employees Management</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage employee
+                                    details
+                                    and
+                                    their associated vehicle numbers</p>
+                            </div>
                         </div>
-                        <div style="padding: 25px;">
+                    </div>
+
+                    <div class="card" style="margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                            <div style="display: flex; gap: 10px;">
+                                <button onclick="document.getElementById('empMasterModal').style.display='flex'; resetEmpForm();"
+                                    class="btn btn-primary" style="padding: 12px 24px;">
+                                    ➕ Add New Employee
+                                </button>
+                                <a href="?page=print-employee-qrs" target="_blank" class="btn btn-secondary"
+                                    style="padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                                    🖨️ Bulk Print QRs
+                                </a>
+                            </div>
+
                             <form method="POST" enctype="multipart/form-data"
-                                onsubmit="showAppLoader('Saving Employee Data...')">
-                                <input type="hidden" name="e_id" id="e_id">
-                                <div class="master-form-grid">
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Employee ID *</label>
-                                        <input type="text" name="employee_id" id="master_emp_id" required
-                                            onblur="checkDuplicateEmployeeID(this.value)"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Employee Name *</label>
-                                        <input type="text" name="employee_name" id="master_emp_name" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Mobile *</label>
-                                        <input type="tel" name="mobile" id="master_emp_mobile" pattern="[0-9]{10}"
-                                            minlength="10" maxlength="10" title="Please enter exactly 10 digits" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Email *</label>
-                                        <input type="email" name="employee_email" id="master_emp_email" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Department *</label>
-                                        <select name="department" id="master_emp_dept" required
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                            <option value="">-- Select Department --</option>
-                                            <?php foreach ($dept_options as $dept_name): ?>
-                                                <option value="<?php echo htmlspecialchars($dept_name); ?>">
-                                                    <?php echo htmlspecialchars($dept_name); ?>
-                                                </option>
-                                                <?php
-                                            endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Vehicle Number</label>
-                                        <input type="text" name="vehicle_number" id="master_emp_vehicle"
-                                            oninput="toggleVehicleDates(this.value)" onblur="checkDuplicateVehicle(this.value)"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; text-transform: uppercase;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Vehicle Type</label>
-                                        <select name="vehicle_type" id="master_emp_vehicle_type"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                            <option value="">-- Select Type --</option>
-                                            <option value="Car">Car</option>
-                                            <option value="Two Wheeler">Two Wheeler</option>
-                                            <option value="Truck">Truck</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Employee Photo</label>
-                                        <input type="file" name="employee_photo" accept="image/*"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 12px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">RC Expiry Date <span class="v-req"
-                                                style="display:none; color:red;">*</span></label>
-                                        <input type="date" name="rc_expiry" id="master_emp_rc"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">License Expiry Date <span class="v-req"
-                                                style="display:none; color:red;">*</span></label>
-                                        <input type="date" name="license_expiry" id="master_emp_license"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Pollution Expiry Date <span class="v-req"
-                                                style="display:none; color:red;">*</span></label>
-                                        <input type="date" name="pollution_expiry" id="master_emp_pollution"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label style="font-weight: 600;">Fitness Expiry (Optional)</label>
-                                        <input type="date" name="fitness_expiry" id="master_emp_fitness"
-                                            style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
-                                    </div>
-                                </div>
-                                <div style="display: flex; gap: 10px; margin-top: 25px;">
-                                    <button type="submit" name="save_employee" class="btn btn-primary"
-                                        style="flex: 2; padding: 12px;">Save Employee</button>
-                                    <button type="button"
-                                        onclick="document.getElementById('empMasterModal').style.display='none'; resetEmpForm();"
-                                        class="btn btn-secondary" style="flex: 1; padding: 12px;">Cancel</button>
-                                </div>
+                                style="display: flex; align-items: center; gap: 10px; background: #f1f5f9; padding: 10px; border-radius: 8px;">
+                                <span style="font-weight: 600; font-size: 14px; color: #475569;">Import CSV:</span>
+                                <input type="file" name="import_file" accept=".csv" required style="font-size: 13px;">
+                                <button type="submit" name="import_employees" class="btn btn-sm"
+                                    style="background: #10b981; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer;">
+                                    📂 Upload
+                                </button>
+                                <a href="download_sample_csv.php" download="sample_employees.csv"
+                                    style="color: #6366f1; font-size: 12px; text-decoration: underline; white-space: nowrap;">
+                                    ⬇ Sample CSV
+                                </a>
                             </form>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Employee Details View Modal -->
-                <div id="empDetailsModal" class="perm-modal-overlay" style="display: none;">
-                    <div class="perm-modal-content" style="max-width: 600px;">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #1e293b; color: white;">
-                            <h3 style="margin: 0;">📋 Employee Profile Details</h3>
-                            <button onclick="document.getElementById('empDetailsModal').style.display='none'"
-                                style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
+                        <div id="empMasterModal" class="perm-modal-overlay" style="display: none;">
+                            <div class="perm-modal-content" style="max-width: 800px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #4f46e5; color: white;">
+                                    <h3 id="formTitle" style="margin: 0;">Add New Employee</h3>
+                                    <button onclick="document.getElementById('empMasterModal').style.display='none'; resetEmpForm();"
+                                        style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
+                                </div>
+                                <div style="padding: 25px;">
+                                    <form method="POST" enctype="multipart/form-data"
+                                        onsubmit="showAppLoader('Saving Employee Data...')">
+                                        <input type="hidden" name="e_id" id="e_id">
+                                        <div class="master-form-grid">
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Employee ID *</label>
+                                                <input type="text" name="employee_id" id="master_emp_id" required
+                                                    onblur="checkDuplicateEmployeeID(this.value)"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Employee Name *</label>
+                                                <input type="text" name="employee_name" id="master_emp_name" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Mobile *</label>
+                                                <input type="tel" name="mobile" id="master_emp_mobile" pattern="[0-9]{10}"
+                                                    minlength="10" maxlength="10" title="Please enter exactly 10 digits" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Email *</label>
+                                                <input type="email" name="employee_email" id="master_emp_email" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Department *</label>
+                                                <select name="department" id="master_emp_dept" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                                    <option value="">-- Select Department --</option>
+                                                    <?php foreach ($dept_options as $dept_name): ?>
+                                                            <option value="<?php echo htmlspecialchars($dept_name); ?>">
+                                                                <?php echo htmlspecialchars($dept_name); ?>
+                                                            </option>
+                                                            <?php
+                                                    endforeach; ?>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Vehicle Number</label>
+                                                <input type="text" name="vehicle_number" id="master_emp_vehicle"
+                                                    oninput="toggleVehicleDates(this.value)" onblur="checkDuplicateVehicle(this.value)"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; text-transform: uppercase;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Vehicle Type</label>
+                                                <select name="vehicle_type" id="master_emp_vehicle_type"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                                    <option value="">-- Select Type --</option>
+                                                    <option value="Car">Car</option>
+                                                    <option value="Two Wheeler">Two Wheeler</option>
+                                                    <option value="Truck">Truck</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Employee Photo</label>
+                                                <input type="file" name="employee_photo" accept="image/*"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 12px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">RC Expiry Date <span class="v-req"
+                                                        style="display:none; color:red;">*</span></label>
+                                                <input type="date" name="rc_expiry" id="master_emp_rc"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">License Expiry Date <span class="v-req"
+                                                        style="display:none; color:red;">*</span></label>
+                                                <input type="date" name="license_expiry" id="master_emp_license"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Pollution Expiry Date <span class="v-req"
+                                                        style="display:none; color:red;">*</span></label>
+                                                <input type="date" name="pollution_expiry" id="master_emp_pollution"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                            <div class="form-group">
+                                                <label style="font-weight: 600;">Fitness Expiry (Optional)</label>
+                                                <input type="date" name="fitness_expiry" id="master_emp_fitness"
+                                                    style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; gap: 10px; margin-top: 25px;">
+                                            <button type="submit" name="save_employee" class="btn btn-primary"
+                                                style="flex: 2; padding: 12px;">Save Employee</button>
+                                            <button type="button"
+                                                onclick="document.getElementById('empMasterModal').style.display='none'; resetEmpForm();"
+                                                class="btn btn-secondary" style="flex: 1; padding: 12px;">Cancel</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
                         </div>
-                        <div id="empDetailsContent" style="padding: 25px; background: white;">
-                            <!-- Dynamic Content -->
+
+                        <!-- Employee Details View Modal -->
+                        <div id="empDetailsModal" class="perm-modal-overlay" style="display: none;">
+                            <div class="perm-modal-content" style="max-width: 600px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #1e293b; color: white;">
+                                    <h3 style="margin: 0;">📋 Employee Profile Details</h3>
+                                    <button onclick="document.getElementById('empDetailsModal').style.display='none'"
+                                        style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
+                                </div>
+                                <div id="empDetailsContent" style="padding: 25px; background: white;">
+                                    <!-- Dynamic Content -->
+                                </div>
+                                <div style="padding: 15px 25px; background: #f8fafc; text-align: right; border-top: 1px solid #e2e8f0;">
+                                    <button onclick="document.getElementById('empDetailsModal').style.display='none'"
+                                        class="btn btn-secondary" style="padding: 10px 20px;">Close View</button>
+                                </div>
+                            </div>
                         </div>
-                        <div style="padding: 15px 25px; background: #f8fafc; text-align: right; border-top: 1px solid #e2e8f0;">
-                            <button onclick="document.getElementById('empDetailsModal').style.display='none'"
-                                class="btn btn-secondary" style="padding: 10px 20px;">Close View</button>
+
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="empMasterSearch" placeholder="🔍 Search Employees (Name, ID, Department, Vehicle...)"
+                                oninput="filterTable('empMasterSearch', 'employeesTable')"
+                                onsearch="filterTable('empMasterSearch', 'employeesTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
                         </div>
-                    </div>
-                </div>
 
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="empMasterSearch" placeholder="🔍 Search Employees (Name, ID, Department, Vehicle...)"
-                        oninput="filterTable('empMasterSearch', 'employeesTable')"
-                        onsearch="filterTable('empMasterSearch', 'employeesTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
-
-                <div class="table-wrapper" id="employeesTable">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="background: #f1f5f9;">
-                            <tr style="text-align: left;">
-                                <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Photo</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Emp ID</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Name</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Vehicle</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Department</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">QR Code</th>
-                                <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($emp = mysqli_fetch_assoc($employees)): ?>
-                                <tr style="border-bottom: 1px solid #e2e8f0; cursor: pointer;" title="Click to view details"
-                                    onclick='viewEmployeeDetails(<?php echo json_encode($emp); ?>)'>
-                                    <td style="padding: 12px; text-align: center;">
-                                        <?php if (!empty($emp['photo'])): ?>
-                                            <img src="uploads/employees/<?php echo $emp['photo']; ?>"
-                                                style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; cursor: pointer;"
-                                                onclick="showPhotoModal('uploads/employees/<?php echo $emp['photo']; ?>', '<?php echo addslashes($emp['employee_name']); ?>')"
-                                                onerror="this.src='https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random'">
+                        <div class="table-wrapper" id="employeesTable">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead style="background: #f1f5f9;">
+                                    <tr style="text-align: left;">
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Photo</th>
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Emp ID</th>
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Name</th>
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Vehicle</th>
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Department</th>
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">QR Code</th>
+                                        <th style="padding: 12px; border-bottom: 2px solid #e2e8f0;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($emp = mysqli_fetch_assoc($employees)): ?>
+                                            <tr style="border-bottom: 1px solid #e2e8f0; cursor: pointer;" title="Click to view details"
+                                                onclick='viewEmployeeDetails(<?php echo json_encode($emp); ?>)'>
+                                                <td style="padding: 12px; text-align: center;">
+                                                    <?php if (!empty($emp['photo'])): ?>
+                                                            <img src="uploads/employees/<?php echo $emp['photo']; ?>"
+                                                                style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; cursor: pointer;"
+                                                                onclick="showPhotoModal('uploads/employees/<?php echo $emp['photo']; ?>', '<?php echo addslashes($emp['employee_name']); ?>')"
+                                                                onerror="this.src='https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random'">
+                                                            <?php
+                                                    else: ?>
+                                                            <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random"
+                                                                style="width: 40px; height: 40px; border-radius: 50%; opacity: 0.7;">
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    <?php echo htmlspecialchars($emp['employee_id']); ?>
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    <strong>
+                                                        <?php echo htmlspecialchars($emp['employee_name']); ?>
+                                                    </strong><br>
+                                                    <small style="color: #64748b;">
+                                                        <?php echo htmlspecialchars($emp['mobile']); ?>
+                                                    </small>
+                                                    <br>
+                                                    <small style="color: #64748b; font-size: 11px;">
+                                                        <?php echo htmlspecialchars($emp['email'] ?? ''); ?>
+                                                    </small>
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    <strong>
+                                                        <?php echo htmlspecialchars($emp['vehicle_number']); ?>
+                                                    </strong>
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    <?php echo htmlspecialchars($emp['department']); ?>
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    <?php
+                                                    $emp_qr_data = json_encode([
+                                                        'type' => 'employee',
+                                                        'id' => $emp['employee_id'],
+                                                        'name' => $emp['employee_name'],
+                                                        'vehicle' => $emp['vehicle_number']
+                                                    ]);
+                                                    ?>
+                                                    <button
+                                                        onclick='event.stopPropagation(); showEmployeeQR(<?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp_qr_data); ?>)'
+                                                        class="btn btn-sm"
+                                                        style="background: #8b5cf6; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none;">🖼️
+                                                        QR Code</button>
+                                                </td>
+                                                <td style="padding: 12px;">
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                    <button
+                                                                        onclick='event.stopPropagation(); editEmployeeMaster(<?php echo $emp["id"]; ?>, <?php echo json_encode($emp["employee_id"]); ?>, <?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["mobile"]); ?>, <?php echo json_encode($emp["email"] ?? ""); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp["vehicle_type"] ?? ""); ?>, <?php echo json_encode($emp["rc_expiry"] ?? ""); ?>, <?php echo json_encode($emp["license_expiry"] ?? ""); ?>, <?php echo json_encode($emp["pollution_expiry"] ?? ""); ?>, <?php echo json_encode($emp["fitness_expiry"] ?? ""); ?>)'
+                                                                        class="btn btn-sm"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none; font-weight: 600;">Edit
+                                                                        Profile</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                    <button onclick="event.stopPropagation(); deleteEmployee(<?php echo $emp['id']; ?>)"
+                                                                        class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none; margin-left: 5px;">Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
                                             <?php
-                                        else: ?>
-                                            <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($emp['employee_name']); ?>&background=random"
-                                                style="width: 40px; height: 40px; border-radius: 50%; opacity: 0.7;">
-                                            <?php
-                                        endif; ?>
-                                    </td>
-                                    <td style="padding: 12px;">
-                                        <?php echo htmlspecialchars($emp['employee_id']); ?>
-                                    </td>
-                                    <td style="padding: 12px;">
-                                        <strong>
-                                            <?php echo htmlspecialchars($emp['employee_name']); ?>
-                                        </strong><br>
-                                        <small style="color: #64748b;">
-                                            <?php echo htmlspecialchars($emp['mobile']); ?>
-                                        </small>
-                                        <br>
-                                        <small style="color: #64748b; font-size: 11px;">
-                                            <?php echo htmlspecialchars($emp['email'] ?? ''); ?>
-                                        </small>
-                                    </td>
-                                    <td style="padding: 12px;">
-                                        <strong>
-                                            <?php echo htmlspecialchars($emp['vehicle_number']); ?>
-                                        </strong>
-                                    </td>
-                                    <td style="padding: 12px;">
-                                        <?php echo htmlspecialchars($emp['department']); ?>
-                                    </td>
-                                    <td style="padding: 12px;">
-                                        <?php
-                                        $emp_qr_data = json_encode([
-                                            'type' => 'employee',
-                                            'id' => $emp['employee_id'],
-                                            'name' => $emp['employee_name'],
-                                            'vehicle' => $emp['vehicle_number']
-                                        ]);
-                                        ?>
-                                        <button
-                                            onclick='event.stopPropagation(); showEmployeeQR(<?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp_qr_data); ?>)'
-                                            class="btn btn-sm"
-                                            style="background: #8b5cf6; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none;">🖼️
-                                            QR Code</button>
-                                    </td>
-                                    <td style="padding: 12px;">
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php if (hasPermission('actions.edit_record')): ?>
-                                                <button
-                                                    onclick='event.stopPropagation(); editEmployeeMaster(<?php echo $emp["id"]; ?>, <?php echo json_encode($emp["employee_id"]); ?>, <?php echo json_encode($emp["employee_name"]); ?>, <?php echo json_encode($emp["mobile"]); ?>, <?php echo json_encode($emp["email"] ?? ""); ?>, <?php echo json_encode($emp["department"]); ?>, <?php echo json_encode($emp["vehicle_number"]); ?>, <?php echo json_encode($emp["vehicle_type"] ?? ""); ?>, <?php echo json_encode($emp["rc_expiry"] ?? ""); ?>, <?php echo json_encode($emp["license_expiry"] ?? ""); ?>, <?php echo json_encode($emp["pollution_expiry"] ?? ""); ?>, <?php echo json_encode($emp["fitness_expiry"] ?? ""); ?>)'
-                                                    class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none; font-weight: 600;">Edit
-                                                    Profile</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php if (hasPermission('actions.delete_record')): ?>
-                                                <button onclick="event.stopPropagation(); deleteEmployee(<?php echo $emp['id']; ?>)"
-                                                    class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: none; margin-left: 5px;">Delete</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
-                                <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
 
-                <script>
-                    function editEmployeeMaster(id, emp_id, name, mobile, email, dept, vehicle, type, rc, license, pollution, fitness) {
-                        document.getElementById('e_id').value = id;
-                        document.getElementById('master_emp_id').value = emp_id;
-                        document.getElementById('master_emp_name').value = name;
-                        document.getElementById('master_emp_mobile').value = mobile;
-                        document.getElementById('master_emp_email').value = email || '';
-                        document.getElementById('master_emp_dept').value = dept;
-                        document.getElementById('master_emp_vehicle').value = vehicle;
+                        <script>
+                            function editEmployeeMaster(id, emp_id, name, mobile, email, dept, vehicle, type, rc, license, pollution, fitness) {
+                                document.getElementById('e_id').value = id;
+                                document.getElementById('master_emp_id').value = emp_id;
+                                document.getElementById('master_emp_name').value = name;
+                                document.getElementById('master_emp_mobile').value = mobile;
+                                document.getElementById('master_emp_email').value = email || '';
+                                document.getElementById('master_emp_dept').value = dept;
+                                document.getElementById('master_emp_vehicle').value = vehicle;
 
-                        document.getElementById('master_emp_vehicle_type').value = type || '';
-                        document.getElementById('master_emp_rc').value = rc || '';
-                        document.getElementById('master_emp_license').value = license || '';
-                        document.getElementById('master_emp_pollution').value = pollution || '';
-                        document.getElementById('master_emp_fitness').value = fitness || '';
+                                document.getElementById('master_emp_vehicle_type').value = type || '';
+                                document.getElementById('master_emp_rc').value = rc || '';
+                                document.getElementById('master_emp_license').value = license || '';
+                                document.getElementById('master_emp_pollution').value = pollution || '';
+                                document.getElementById('master_emp_fitness').value = fitness || '';
 
-                        toggleVehicleDates(vehicle || ""); // Set mandatory requirements based on vehicle
+                                toggleVehicleDates(vehicle || ""); // Set mandatory requirements based on vehicle
 
-                        document.getElementById('formTitle').textContent = 'Edit Employee';
-                        document.getElementById('empMasterModal').style.display = 'flex';
-                    }
+                                document.getElementById('formTitle').textContent = 'Edit Employee';
+                                document.getElementById('empMasterModal').style.display = 'flex';
+                            }
 
-                    function viewEmployeeDetails(emp) {
-                        const photo = emp.photo ? 'uploads/employees/' + emp.photo : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp.employee_name);
-                        const content = `
+                            function viewEmployeeDetails(emp) {
+                                const photo = emp.photo ? 'uploads/employees/' + emp.photo : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(emp.employee_name);
+                                const content = `
                                     <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
                                         <img src="${photo}" style="width: 100px; height: 100px; border-radius: 12px; object-fit: cover; border: 3px solid #e2e8f0;">
                                         <div>
@@ -4402,178 +4631,178 @@
                                         </div>
                                     </div>
                                 `;
-                        document.getElementById('empDetailsContent').innerHTML = content;
-                        document.getElementById('empDetailsModal').style.display = 'flex';
-                    }
-
-                    function formatDateJS(dateStr) {
-                        if (!dateStr || dateStr === '0000-00-00' || dateStr === 'NULL')
-                            return 'N/A';
-                        const d = new Date(dateStr);
-                        if (isNaN(d.getTime()))
-                            return dateStr;
-                        const day = String(d.getDate()).padStart(2, '0');
-                        const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-                        const month = monthNames[d.getMonth()];
-                        const year = String(d.getFullYear()).slice(-2);
-                        return `${day}-${month}-${year}`;
-                    }
-
-                    function toggleVehicleDates(vehicleValue) {
-                        const isMandatory = vehicleValue.trim() !== "";
-                        const dateFields = ['master_emp_rc', 'master_emp_license', 'master_emp_pollution'];
-                        const starIcons = document.querySelectorAll('.v-req');
-
-                        dateFields.forEach(id => {
-                            const el = document.getElementById(id);
-                            if (el) {
-                                el.required = isMandatory;
+                                document.getElementById('empDetailsContent').innerHTML = content;
+                                document.getElementById('empDetailsModal').style.display = 'flex';
                             }
-                        });
 
-                        starIcons.forEach(icon => {
-                            icon.style.display = isMandatory ? 'inline' : 'none';
-                        });
-                    }
+                            function formatDateJS(dateStr) {
+                                if (!dateStr || dateStr === '0000-00-00' || dateStr === 'NULL')
+                                    return 'N/A';
+                                const d = new Date(dateStr);
+                                if (isNaN(d.getTime()))
+                                    return dateStr;
+                                const day = String(d.getDate()).padStart(2, '0');
+                                const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+                                const month = monthNames[d.getMonth()];
+                                const year = String(d.getFullYear()).slice(-2);
+                                return `${day}-${month}-${year}`;
+                            }
 
-                    function showPhotoModal(src, name) {
-                        event.stopPropagation();
-                        Swal.fire({
-                            title: name,
-                            imageUrl: src,
-                            imageAlt: name,
-                            imageWidth: 400,
-                            showCloseButton: true,
-                            showConfirmButton: false,
-                            background: '#f8fafc'
-                        });
-                    }
+                            function toggleVehicleDates(vehicleValue) {
+                                const isMandatory = vehicleValue.trim() !== "";
+                                const dateFields = ['master_emp_rc', 'master_emp_license', 'master_emp_pollution'];
+                                const starIcons = document.querySelectorAll('.v-req');
 
-                    function checkDuplicateVehicle(v) {
-                        if (!v) return;
-                        const idField = document.getElementById('e_id');
-                        const currentId = idField ? idField.value : 0;
-                        fetch(`?page=check-duplicate-vehicle&vehicle=${encodeURIComponent(v)}&id=${currentId}`)
-                            .then(r => r.json()).then(data => {
-                                if (data.exists) {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Duplicate Vehicle',
-                                        text: 'Vehicle number "' + v + '" is already assigned to ' + data.name + '.'
-                                    }).then(() => {
-                                        const vInput = document.getElementById('master_emp_vehicle');
-                                        if (vInput) {
-                                            vInput.value = '';
-                                            vInput.focus();
+                                dateFields.forEach(id => {
+                                    const el = document.getElementById(id);
+                                    if (el) {
+                                        el.required = isMandatory;
+                                    }
+                                });
+
+                                starIcons.forEach(icon => {
+                                    icon.style.display = isMandatory ? 'inline' : 'none';
+                                });
+                            }
+
+                            function showPhotoModal(src, name) {
+                                event.stopPropagation();
+                                Swal.fire({
+                                    title: name,
+                                    imageUrl: src,
+                                    imageAlt: name,
+                                    imageWidth: 400,
+                                    showCloseButton: true,
+                                    showConfirmButton: false,
+                                    background: '#f8fafc'
+                                });
+                            }
+
+                            function checkDuplicateVehicle(v) {
+                                if (!v) return;
+                                const idField = document.getElementById('e_id');
+                                const currentId = idField ? idField.value : 0;
+                                fetch(`?page=check-duplicate-vehicle&vehicle=${encodeURIComponent(v)}&id=${currentId}`)
+                                    .then(r => r.json()).then(data => {
+                                        if (data.exists) {
+                                            Swal.fire({
+                                                icon: 'error',
+                                                title: 'Duplicate Vehicle',
+                                                text: 'Vehicle number "' + v + '" is already assigned to ' + data.name + '.'
+                                            }).then(() => {
+                                                const vInput = document.getElementById('master_emp_vehicle');
+                                                if (vInput) {
+                                                    vInput.value = '';
+                                                    vInput.focus();
+                                                }
+                                            });
                                         }
                                     });
-                                }
-                            });
-                    }
-
-                    function checkDuplicateEmployeeID(empId) {
-                        if (!empId) return;
-                        const currentId = (document.getElementById('e_id') || { value: 0 }).value;
-                        fetch(`?page=check-duplicate-employee-id&emp_id=${encodeURIComponent(empId)}&id=${currentId}`)
-                            .then(r => r.json())
-                            .then(data => {
-                                if (data.exists) {
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'Duplicate ID Found',
-                                        text: 'Employee ID "' + empId + '" is already assigned to ' + data.name + '.',
-                                        confirmButtonColor: '#4f46e5'
-                                    }).then(() => {
-                                        const el = document.getElementById('master_emp_id');
-                                        if (el) { el.value = ''; el.focus(); }
-                                    });
-                                }
-                            });
-                    }
-
-                    function resetEmpForm() {
-                        document.getElementById('e_id').value = '';
-                        document.getElementById('master_emp_id').value = '';
-                        document.getElementById('master_emp_name').value = '';
-                        document.getElementById('master_emp_mobile').value = '';
-                        document.getElementById('master_emp_email').value = '';
-                        document.getElementById('master_emp_dept').value = '';
-                        document.getElementById('master_emp_vehicle').value = '';
-
-                        document.getElementById('master_emp_vehicle_type').value = '';
-                        document.getElementById('master_emp_rc').value = '';
-                        document.getElementById('master_emp_license').value = '';
-                        document.getElementById('master_emp_pollution').value = '';
-                        document.getElementById('master_emp_fitness').value = '';
-
-                        toggleVehicleDates(""); // Reset mandatory requirements
-
-                        document.getElementById('formTitle').textContent = 'Add New Employee';
-                    }
-
-                    function deleteEmployee(id) {
-                        Swal.fire({
-                            title: 'Are you sure?',
-                            text: "You want to delete this employee?",
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#ef4444',
-                            cancelButtonColor: '#6b7280',
-                            confirmButtonText: 'Yes, delete it!',
-                            cancelButtonText: 'Cancel'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                window.location.href = '?page=admin&master=employees&delete_employee=' + id;
                             }
-                        });
-                    }
 
-                    function showEmployeeQR(name, dept, vehicle, data) {
-                        document.getElementById('qrEmpName').textContent = name;
-                        document.getElementById('qrEmpDept').textContent = dept ? dept : 'No Department';
-                        document.getElementById('qrEmpVehicle').textContent = vehicle ? vehicle : 'No Vehicle';
+                            function checkDuplicateEmployeeID(empId) {
+                                if (!empId) return;
+                                const currentId = (document.getElementById('e_id') || { value: 0 }).value;
+                                fetch(`?page=check-duplicate-employee-id&emp_id=${encodeURIComponent(empId)}&id=${currentId}`)
+                                    .then(r => r.json())
+                                    .then(data => {
+                                        if (data.exists) {
+                                            Swal.fire({
+                                                icon: 'error',
+                                                title: 'Duplicate ID Found',
+                                                text: 'Employee ID "' + empId + '" is already assigned to ' + data.name + '.',
+                                                confirmButtonColor: '#4f46e5'
+                                            }).then(() => {
+                                                const el = document.getElementById('master_emp_id');
+                                                if (el) { el.value = ''; el.focus(); }
+                                            });
+                                        }
+                                    });
+                            }
 
-                        document.getElementById('qrcode').innerHTML = '';
-                        new QRCode(document.getElementById("qrcode"), {
-                            text: data,
-                            width: 200,
-                            height: 200,
-                            colorDark: "#000000",
-                            colorLight: "#ffffff",
-                            correctLevel: QRCode.CorrectLevel.H
-                        });
-                        document.getElementById('empQRModal').style.display = 'block';
-                    }
-                </script>
+                            function resetEmpForm() {
+                                document.getElementById('e_id').value = '';
+                                document.getElementById('master_emp_id').value = '';
+                                document.getElementById('master_emp_name').value = '';
+                                document.getElementById('master_emp_mobile').value = '';
+                                document.getElementById('master_emp_email').value = '';
+                                document.getElementById('master_emp_dept').value = '';
+                                document.getElementById('master_emp_vehicle').value = '';
 
-                <!-- Employee QR Modal -->
-                <div id="empQRModal"
-                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10003; overflow-y: auto;">
-                    <div
-                        style="position: relative; max-width: 400px; margin: 50px auto; background: white; border-radius: 16px; padding: 30px; text-align: center;">
-                        <h3 id="qrEmpName" style="margin-top: 0; margin-bottom: 5px; font-size: 22px;">Employee Name
-                        </h3>
-                        <p style="margin: 0 0 5px 0; color: #64748b; font-size: 14px;"><strong>Dept:</strong> <span
-                                id="qrEmpDept"></span></p>
-                        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;"><strong>Vehicle:</strong>
-                            <span id="qrEmpVehicle"></span>
-                        </p>
-                        <div id="qrcode" style="display: flex; justify-content: center; margin-bottom: 25px;"></div>
-                        <p style="color: #64748b; font-size: 13px; margin-bottom: 25px;">Scan this code at the gate
-                            for
-                            quick
-                            entry/exit</p>
-                        <div style="display: flex; gap: 10px;">
-                            <button onclick="window.print()" class="btn btn-primary" style="flex: 1;">🖨️
-                                Print</button>
-                            <button onclick="document.getElementById('empQRModal').style.display='none'"
-                                class="btn btn-secondary" style="flex: 1;">Close</button>
+                                document.getElementById('master_emp_vehicle_type').value = '';
+                                document.getElementById('master_emp_rc').value = '';
+                                document.getElementById('master_emp_license').value = '';
+                                document.getElementById('master_emp_pollution').value = '';
+                                document.getElementById('master_emp_fitness').value = '';
+
+                                toggleVehicleDates(""); // Reset mandatory requirements
+
+                                document.getElementById('formTitle').textContent = 'Add New Employee';
+                            }
+
+                            function deleteEmployee(id) {
+                                Swal.fire({
+                                    title: 'Are you sure?',
+                                    text: "You want to delete this employee?",
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#ef4444',
+                                    cancelButtonColor: '#6b7280',
+                                    confirmButtonText: 'Yes, delete it!',
+                                    cancelButtonText: 'Cancel'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '?page=admin&master=employees&delete_employee=' + id;
+                                    }
+                                });
+                            }
+
+                            function showEmployeeQR(name, dept, vehicle, data) {
+                                document.getElementById('qrEmpName').textContent = name;
+                                document.getElementById('qrEmpDept').textContent = dept ? dept : 'No Department';
+                                document.getElementById('qrEmpVehicle').textContent = vehicle ? vehicle : 'No Vehicle';
+
+                                document.getElementById('qrcode').innerHTML = '';
+                                new QRCode(document.getElementById("qrcode"), {
+                                    text: data,
+                                    width: 200,
+                                    height: 200,
+                                    colorDark: "#000000",
+                                    colorLight: "#ffffff",
+                                    correctLevel: QRCode.CorrectLevel.H
+                                });
+                                document.getElementById('empQRModal').style.display = 'block';
+                            }
+                        </script>
+
+                        <!-- Employee QR Modal -->
+                        <div id="empQRModal"
+                            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10003; overflow-y: auto;">
+                            <div
+                                style="position: relative; max-width: 400px; margin: 50px auto; background: white; border-radius: 16px; padding: 30px; text-align: center;">
+                                <h3 id="qrEmpName" style="margin-top: 0; margin-bottom: 5px; font-size: 22px;">Employee Name
+                                </h3>
+                                <p style="margin: 0 0 5px 0; color: #64748b; font-size: 14px;"><strong>Dept:</strong> <span
+                                        id="qrEmpDept"></span></p>
+                                <p style="margin: 0 0 20px 0; color: #64748b; font-size: 14px;"><strong>Vehicle:</strong>
+                                    <span id="qrEmpVehicle"></span>
+                                </p>
+                                <div id="qrcode" style="display: flex; justify-content: center; margin-bottom: 25px;"></div>
+                                <p style="color: #64748b; font-size: 13px; margin-bottom: 25px;">Scan this code at the gate
+                                    for
+                                    quick
+                                    entry/exit</p>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="window.print()" class="btn btn-primary" style="flex: 1;">🖨️
+                                        Print</button>
+                                    <button onclick="document.getElementById('empQRModal').style.display='none'"
+                                        class="btn btn-secondary" style="flex: 1;">Close</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <?php
+                    <?php
             // ========== PATROL LOCATIONS MASTER ==========
         elseif ($master_page == 'patrol-locations'):
 
@@ -4651,148 +4880,148 @@
 
             $locations = mysqli_query($conn, "SELECT * FROM patrol_locations ORDER BY location_name");
             ?>
-            <!-- Header -->
-            <div
-                style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(79, 70, 229, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">📍</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Patrol QR Management</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Pre-create and
-                            manage
-                            QR
-                            locations for guard patrols</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-bottom: 20px;">
-                <button
-                    onclick="document.getElementById('patrolLocForm').style.display='block'; document.getElementById('patrolLocForm').scrollIntoView({ behavior: 'smooth' });"
-                    class="btn btn-primary" style="margin-bottom: 20px; padding: 12px 24px;">
-                    ➕ Add New Location
-                </button>
-
-                <div id="patrolLocForm" style="display: none; margin-bottom: 20px;">
-                    <form method="POST">
-                        <input type="hidden" name="p_id" id="p_id">
-                        <div class="card" style="border-left: 4px solid #4f46e5; background: #f8fafc; margin-bottom: 20px;">
-                            <div class="master-form-grid">
-                                <div class="form-group"
-                                    style="grid-column: span 2; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
-                                    <h4 id="form_title" style="margin:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
-                                </div>
-                                <div class="form-group" id="loc_id_group" style="display:none;">
-                                    <label style="font-weight: 600;">Location ID (Auto-generated)</label>
-                                    <?php
-                                    $new_auto_id = "PAT-" . date('His') . rand(10, 99);
-                                    ?>
-                                    <input type="text" name="location_id" id="p_location_id" value="<?php echo $new_auto_id; ?>"
-                                        style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; background: #f1f5f9; width: 100%;"
-                                        readonly>
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600;">Location Name *</label>
-                                    <input type="text" name="location_name" id="p_location_name" required
-                                        style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; width: 100%;">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600;">Area / Site / Building</label>
-                                    <input type="text" name="area_site_building" id="p_area"
-                                        placeholder="e.g. Warehouse A, Main Gate"
-                                        style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; width: 100%;">
-                                </div>
-                                <input type="hidden" name="qr_code_data" id="p_qr_data">
+                    <!-- Header -->
+                    <div
+                        style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(79, 70, 229, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">📍</div>
+                            <div>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Patrol QR Management</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Pre-create and
+                                    manage
+                                    QR
+                                    locations for guard patrols</p>
                             </div>
                         </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button type="submit" name="save_patrol_location" class="btn btn-success">💾 Save
-                                Location</button>
-                            <button type="button" onclick="closePatrolLocForm()" class="btn btn-secondary">Cancel</button>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 20px;">
+                        <button
+                            onclick="document.getElementById('patrolLocForm').style.display='block'; document.getElementById('patrolLocForm').scrollIntoView({ behavior: 'smooth' });"
+                            class="btn btn-primary" style="margin-bottom: 20px; padding: 12px 24px;">
+                            ➕ Add New Location
+                        </button>
+
+                        <div id="patrolLocForm" style="display: none; margin-bottom: 20px;">
+                            <form method="POST">
+                                <input type="hidden" name="p_id" id="p_id">
+                                <div class="card" style="border-left: 4px solid #4f46e5; background: #f8fafc; margin-bottom: 20px;">
+                                    <div class="master-form-grid">
+                                        <div class="form-group"
+                                            style="grid-column: span 2; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+                                            <h4 id="form_title" style="margin:0; color: #4f46e5;">➕ Add New Patrol Location</h4>
+                                        </div>
+                                        <div class="form-group" id="loc_id_group" style="display:none;">
+                                            <label style="font-weight: 600;">Location ID (Auto-generated)</label>
+                                            <?php
+                                            $new_auto_id = "PAT-" . date('His') . rand(10, 99);
+                                            ?>
+                                            <input type="text" name="location_id" id="p_location_id" value="<?php echo $new_auto_id; ?>"
+                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; background: #f1f5f9; width: 100%;"
+                                                readonly>
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600;">Location Name *</label>
+                                            <input type="text" name="location_name" id="p_location_name" required
+                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; width: 100%;">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600;">Area / Site / Building</label>
+                                            <input type="text" name="area_site_building" id="p_area"
+                                                placeholder="e.g. Warehouse A, Main Gate"
+                                                style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; width: 100%;">
+                                        </div>
+                                        <input type="hidden" name="qr_code_data" id="p_qr_data">
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" name="save_patrol_location" class="btn btn-success">💾 Save
+                                        Location</button>
+                                    <button type="button" onclick="closePatrolLocForm()" class="btn btn-secondary">Cancel</button>
+                                </div>
+                            </form>
                         </div>
-                    </form>
-                </div>
 
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="patrolSearch" placeholder="🔍 Search Patrol Locations (Name, ID, Area...)"
-                        oninput="filterTable('patrolSearch', 'patrolLocTable')"
-                        onsearch="filterTable('patrolSearch', 'patrolLocTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="patrolSearch" placeholder="🔍 Search Patrol Locations (Name, ID, Area...)"
+                                oninput="filterTable('patrolSearch', 'patrolLocTable')"
+                                onsearch="filterTable('patrolSearch', 'patrolLocTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                        </div>
 
-                <div class="table-wrapper">
-                    <table id="patrolLocTable">
-                        <thead>
-                            <tr>
-                                <th>Location ID</th>
-                                <th>Name</th>
-                                <th>Area/Building</th>
-                                <th>QR Preview</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($loc = mysqli_fetch_assoc($locations)): ?>
-                                <tr>
-                                    <td><code><?php echo htmlspecialchars($loc['location_id']); ?></code></td>
-                                    <td><strong>
-                                            <?php echo htmlspecialchars($loc['location_name']); ?>
-                                        </strong></td>
-                                    <td>
-                                        <?php echo htmlspecialchars($loc['area_site_building']); ?>
-                                    </td>
-                                    <td>
-                                        <div id="qr_<?php echo $loc['id']; ?>" class="patrol-qr-container"
-                                            style="background: white; padding: 5px; border-radius: 4px; display: inline-block;">
-                                        </div>
-                                        <script>
-                                            new QRCode(document.getElementById("qr_<?php echo $loc['id']; ?>"), {
-                                                text: "<?php echo addslashes($loc['qr_code_data']); ?>",
-                                                width: 80,
-                                                height: 80
-                                            });
-                                        </script>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 5px; min-width: 180px;">
-                                            <button
-                                                onclick="printPatrolQR(<?php echo $loc['id']; ?>, '<?php echo addslashes($loc['location_name']); ?>', '<?php echo addslashes($loc['area_site_building']); ?>', '<?php echo addslashes($loc['qr_code_data']); ?>')"
-                                                class="btn btn-sm" style="background: #10b981; color: white;">🖨️
-                                                Print</button>
-                                            <?php if (hasPermission('actions.view_buttons')): ?>
-                                                <?php if (hasPermission('actions.edit_record')): ?>
-                                                    <button
-                                                        onclick='editPatrolLoc(<?php echo $loc["id"]; ?>, <?php echo json_encode($loc["location_id"]); ?>, <?php echo json_encode($loc["location_name"]); ?>, <?php echo json_encode($loc["area_site_building"]); ?>, <?php echo json_encode($loc["qr_code_data"]); ?>)'
-                                                        class="btn btn-sm" style="background: #4f46e5; color: white;">✏️
-                                                        Edit</button>
-                                                    <?php
-                                                endif; ?>
-                                                <?php if (hasPermission('actions.delete_record')): ?>
-                                                    <button onclick="deletePatrolLoc(<?php echo $loc['id']; ?>)" class="btn btn-sm"
-                                                        style="background: #ef4444; color: white;">🗑️
-                                                        Delete</button>
-                                                    <?php
-                                                endif; ?>
-                                                <?php
-                                            endif; ?>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                        <div class="table-wrapper">
+                            <table id="patrolLocTable">
+                                <thead>
+                                    <tr>
+                                        <th>Location ID</th>
+                                        <th>Name</th>
+                                        <th>Area/Building</th>
+                                        <th>QR Preview</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($loc = mysqli_fetch_assoc($locations)): ?>
+                                            <tr>
+                                                <td><code><?php echo htmlspecialchars($loc['location_id']); ?></code></td>
+                                                <td><strong>
+                                                        <?php echo htmlspecialchars($loc['location_name']); ?>
+                                                    </strong></td>
+                                                <td>
+                                                    <?php echo htmlspecialchars($loc['area_site_building']); ?>
+                                                </td>
+                                                <td>
+                                                    <div id="qr_<?php echo $loc['id']; ?>" class="patrol-qr-container"
+                                                        style="background: white; padding: 5px; border-radius: 4px; display: inline-block;">
+                                                    </div>
+                                                    <script>
+                                                        new QRCode(document.getElementById("qr_<?php echo $loc['id']; ?>"), {
+                                                            text: "<?php echo addslashes($loc['qr_code_data']); ?>",
+                                                            width: 80,
+                                                            height: 80
+                                                        });
+                                                    </script>
+                                                </td>
+                                                <td>
+                                                    <div style="display: flex; gap: 5px; min-width: 180px;">
+                                                        <button
+                                                            onclick="printPatrolQR(<?php echo $loc['id']; ?>, '<?php echo addslashes($loc['location_name']); ?>', '<?php echo addslashes($loc['area_site_building']); ?>', '<?php echo addslashes($loc['qr_code_data']); ?>')"
+                                                            class="btn btn-sm" style="background: #10b981; color: white;">🖨️
+                                                            Print</button>
+                                                        <?php if (hasPermission('actions.view_buttons')): ?>
+                                                                <?php if (hasPermission('actions.edit_record')): ?>
+                                                                        <button
+                                                                            onclick='editPatrolLoc(<?php echo $loc["id"]; ?>, <?php echo json_encode($loc["location_id"]); ?>, <?php echo json_encode($loc["location_name"]); ?>, <?php echo json_encode($loc["area_site_building"]); ?>, <?php echo json_encode($loc["qr_code_data"]); ?>)'
+                                                                            class="btn btn-sm" style="background: #4f46e5; color: white;">✏️
+                                                                            Edit</button>
+                                                                        <?php
+                                                                endif; ?>
+                                                                <?php if (hasPermission('actions.delete_record')): ?>
+                                                                        <button onclick="deletePatrolLoc(<?php echo $loc['id']; ?>)" class="btn btn-sm"
+                                                                            style="background: #ef4444; color: white;">🗑️
+                                                                            Delete</button>
+                                                                        <?php
+                                                                endif; ?>
+                                                                <?php
+                                                        endif; ?>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            <?php
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
-            <script>
-                function printPatrolQR(id, name, area, qrData) {
-                    const printWindow = window.open('', '_blank');
-                    printWindow.document.write(`
+                    <script>
+                        function printPatrolQR(id, name, area, qrData) {
+                            const printWindow = window.open('', '_blank');
+                            printWindow.document.write(`
                                         < html >
                                                                 <head>
                                                                     <title>Print Patrol QR - ${name}</title>
@@ -4830,45 +5059,45 @@
                                                                 </body>
                                                             </html >
                                                         `);
-                    printWindow.document.close();
-                }
-
-                function editPatrolLoc(id, loc_id, name, area, qr) {
-                    document.getElementById('p_id').value = id;
-                    document.getElementById('p_location_id').value = loc_id;
-                    document.getElementById('p_location_name').value = name;
-                    document.getElementById('p_area').value = area;
-                    document.getElementById('p_qr_data').value = qr;
-                    document.getElementById('loc_id_group').style.display = 'block';
-                    document.getElementById('form_title').innerHTML = '✏️ Edit Patrol Location';
-                    document.getElementById('patrolLocForm').style.display = 'block';
-                    document.getElementById('patrolLocForm').scrollIntoView({ behavior: 'smooth' });
-                }
-                function closePatrolLocForm() {
-                    document.getElementById('patrolLocForm').style.display = 'none';
-                    document.getElementById('p_id').value = '';
-                    document.getElementById('loc_id_group').style.display = 'none';
-                    document.getElementById('form_title').innerHTML = '➕ Add New Patrol Location';
-                    document.querySelector('#patrolLocForm form').reset();
-                }
-                function deletePatrolLoc(id) {
-                    Swal.fire({
-                        title: 'Are you sure?',
-                        text: "You won't be able to revert this!",
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonColor: '#d33',
-                        cancelButtonColor: '#3085d6',
-                        confirmButtonText: 'Yes, delete it!'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            window.location.href = '?page=admin&master=patrol-locations&delete_patrol_location=' + id + '&t=' + Date.now();
+                            printWindow.document.close();
                         }
-                    });
-                }
-            </script>
 
-            <?php
+                        function editPatrolLoc(id, loc_id, name, area, qr) {
+                            document.getElementById('p_id').value = id;
+                            document.getElementById('p_location_id').value = loc_id;
+                            document.getElementById('p_location_name').value = name;
+                            document.getElementById('p_area').value = area;
+                            document.getElementById('p_qr_data').value = qr;
+                            document.getElementById('loc_id_group').style.display = 'block';
+                            document.getElementById('form_title').innerHTML = '✏️ Edit Patrol Location';
+                            document.getElementById('patrolLocForm').style.display = 'block';
+                            document.getElementById('patrolLocForm').scrollIntoView({ behavior: 'smooth' });
+                        }
+                        function closePatrolLocForm() {
+                            document.getElementById('patrolLocForm').style.display = 'none';
+                            document.getElementById('p_id').value = '';
+                            document.getElementById('loc_id_group').style.display = 'none';
+                            document.getElementById('form_title').innerHTML = '➕ Add New Patrol Location';
+                            document.querySelector('#patrolLocForm form').reset();
+                        }
+                        function deletePatrolLoc(id) {
+                            Swal.fire({
+                                title: 'Are you sure?',
+                                text: "You won't be able to revert this!",
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#3085d6',
+                                confirmButtonText: 'Yes, delete it!'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    window.location.href = '?page=admin&master=patrol-locations&delete_patrol_location=' + id + '&t=' + Date.now();
+                                }
+                            });
+                        }
+                    </script>
+
+                    <?php
             // ========== PURPOSES MASTER ==========
         elseif ($master_page == 'purposes'):
 
@@ -4937,173 +5166,173 @@
 
             $purposes = mysqli_query($conn, "SELECT * FROM purpose_master WHERE is_active=1 ORDER BY purpose_name");
             ?>
-            <!-- Form Header with Gradient -->
-            <div
-                style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(245, 158, 11, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🎯</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Purpose Types</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage purpose
-                            categories
-                            for gate movements</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-bottom: 20px;">
-                <button onclick="openNewPurposeForm()" class="btn btn-primary"
-                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);">
-                    ➕ Add New Purpose
-                </button>
-
-                <div id="purposeForm" style="display: none; margin-bottom: 20px;">
-                    <form method="POST"
-                        onsubmit="const btn=this.querySelector('button[type=submit]'); btn.innerHTML='⏳ Saving...'; setTimeout(() => btn.disabled=true, 10);">
-                        <input type="hidden" name="purpose_id" id="purpose_id">
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Purpose Name *</label>
-                                    <input type="text" name="purpose_name" id="purpose_name" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Purpose Type *</label>
-                                    <select name="purpose_type" id="purpose_type" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        <option value="">-- Select --</option>
-                                        <option value="delivery">Delivery</option>
-                                        <option value="pickup">Pickup</option>
-                                        <option value="service">Service</option>
-                                        <option value="visit">Visit</option>
-                                        <option value="return">Return</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
+                    <!-- Form Header with Gradient -->
+                    <div
+                        style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(245, 158, 11, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🎯</div>
+                            <div>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Purpose Types</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage purpose
+                                    categories
+                                    for gate movements</p>
                             </div>
                         </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button type="submit" name="save_purpose" class="btn btn-success"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
-                                Save Purpose</button>
-                            <button type="button" onclick="closePurposeForm()" class="btn btn-secondary"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-
-                <?php if (isset($success_msg)): ?>
-                    <div class="alert alert-success">
-                        <?php echo $success_msg; ?>
                     </div>
-                    <?php
-                endif; ?>
 
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="purposeSearch" placeholder="🔍 Search Purposes (Name, Type...)"
-                        oninput="filterTable('purposeSearch', 'purposesTable')"
-                        onsearch="filterTable('purposeSearch', 'purposesTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
+                    <div class="card" style="margin-bottom: 20px;">
+                        <button onclick="openNewPurposeForm()" class="btn btn-primary"
+                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);">
+                            ➕ Add New Purpose
+                        </button>
 
-                <div class="table-wrapper">
-                    <table id="purposesTable">
-                        <thead>
-                            <tr>
-                                <th>Purpose Name</th>
-                                <th>Type</th>
-                                <th>Created</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($purpose = mysqli_fetch_assoc($purposes)): ?>
-                                <tr>
-                                    <td><strong>
-                                            <?php echo $purpose['purpose_name']; ?>
-                                        </strong></td>
-                                    <td>
-                                        <span class="badge badge-info">
-                                            <?php echo strtoupper($purpose['purpose_type']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <?php echo strtoupper(date('d-M-y', strtotime($purpose['created_at']))); ?>
-                                    </td>
-                                    <td>
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php if (hasPermission('actions.edit_record')): ?>
-                                                <button
-                                                    onclick='editPurpose(<?php echo $purpose["id"]; ?>, <?php echo json_encode($purpose["purpose_name"]); ?>, <?php echo json_encode($purpose["purpose_type"]); ?>)'
-                                                    class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                    Edit</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php if (hasPermission('actions.delete_record')): ?>
-                                                <button onclick="deletePurpose(<?php echo $purpose['id']; ?>)" class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                    Delete</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
+                        <div id="purposeForm" style="display: none; margin-bottom: 20px;">
+                            <form method="POST"
+                                onsubmit="const btn=this.querySelector('button[type=submit]'); btn.innerHTML='⏳ Saving...'; setTimeout(() => btn.disabled=true, 10);">
+                                <input type="hidden" name="purpose_id" id="purpose_id">
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Purpose Name *</label>
+                                            <input type="text" name="purpose_name" id="purpose_name" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Purpose Type *</label>
+                                            <select name="purpose_type" id="purpose_type" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                <option value="">-- Select --</option>
+                                                <option value="delivery">Delivery</option>
+                                                <option value="pickup">Pickup</option>
+                                                <option value="service">Service</option>
+                                                <option value="visit">Visit</option>
+                                                <option value="return">Return</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" name="save_purpose" class="btn btn-success"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
+                                        Save Purpose</button>
+                                    <button type="button" onclick="closePurposeForm()" class="btn btn-secondary"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <?php if (isset($success_msg)): ?>
+                                <div class="alert alert-success">
+                                    <?php echo $success_msg; ?>
+                                </div>
                                 <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
+                        endif; ?>
 
-                    <script>
-                        function openNewPurposeForm() {
-                            document.getElementById('purpose_id').value = '';
-                            document.querySelector('#purposeForm form').reset();
-                            document.getElementById('purposeForm').style.display = 'block';
-                            document.getElementById('purposeForm').scrollIntoView({ behavior: 'smooth' });
-                        }
-                        function editPurpose(id, name, type) {
-                            document.getElementById('purpose_id').value = id;
-                            document.getElementById('purpose_name').value = name;
-                            document.getElementById('purpose_type').value = type;
-                            document.getElementById('purposeForm').style.display = 'block';
-                            document.getElementById('purposeForm').scrollIntoView({ behavior: 'smooth' });
-                        }
-                        function closePurposeForm() {
-                            document.getElementById('purposeForm').style.display = 'none';
-                            document.getElementById('purpose_id').value = '';
-                            document.querySelector('#purposeForm form').reset();
-                        }
-                        function deletePurpose(id) {
-                            Swal.fire({
-                                title: 'Are you sure?',
-                                text: "You want to delete this purpose?",
-                                icon: 'warning',
-                                showCancelButton: true,
-                                confirmButtonColor: '#ef4444',
-                                cancelButtonColor: '#6b7280',
-                                confirmButtonText: 'Yes, delete it!',
-                                cancelButtonText: 'Cancel'
-                            }).then((result) => {
-                                if (result.isConfirmed) {
-                                    window.location.href = '?page=admin&master=purposes&delete_purpose=' + id;
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="purposeSearch" placeholder="🔍 Search Purposes (Name, Type...)"
+                                oninput="filterTable('purposeSearch', 'purposesTable')"
+                                onsearch="filterTable('purposeSearch', 'purposesTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table id="purposesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Purpose Name</th>
+                                        <th>Type</th>
+                                        <th>Created</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($purpose = mysqli_fetch_assoc($purposes)): ?>
+                                            <tr>
+                                                <td><strong>
+                                                        <?php echo $purpose['purpose_name']; ?>
+                                                    </strong></td>
+                                                <td>
+                                                    <span class="badge badge-info">
+                                                        <?php echo strtoupper($purpose['purpose_type']); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <?php echo strtoupper(date('d-M-y', strtotime($purpose['created_at']))); ?>
+                                                </td>
+                                                <td>
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                    <button
+                                                                        onclick='editPurpose(<?php echo $purpose["id"]; ?>, <?php echo json_encode($purpose["purpose_name"]); ?>, <?php echo json_encode($purpose["purpose_type"]); ?>)'
+                                                                        class="btn btn-sm"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                        Edit</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                    <button onclick="deletePurpose(<?php echo $purpose['id']; ?>)" class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                        Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
+                                            <?php
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+
+                            <script>
+                                function openNewPurposeForm() {
+                                    document.getElementById('purpose_id').value = '';
+                                    document.querySelector('#purposeForm form').reset();
+                                    document.getElementById('purposeForm').style.display = 'block';
+                                    document.getElementById('purposeForm').scrollIntoView({ behavior: 'smooth' });
                                 }
-                            });
-                        }
-                    </script>
-                </div>
+                                function editPurpose(id, name, type) {
+                                    document.getElementById('purpose_id').value = id;
+                                    document.getElementById('purpose_name').value = name;
+                                    document.getElementById('purpose_type').value = type;
+                                    document.getElementById('purposeForm').style.display = 'block';
+                                    document.getElementById('purposeForm').scrollIntoView({ behavior: 'smooth' });
+                                }
+                                function closePurposeForm() {
+                                    document.getElementById('purposeForm').style.display = 'none';
+                                    document.getElementById('purpose_id').value = '';
+                                    document.querySelector('#purposeForm form').reset();
+                                }
+                                function deletePurpose(id) {
+                                    Swal.fire({
+                                        title: 'Are you sure?',
+                                        text: "You want to delete this purpose?",
+                                        icon: 'warning',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#ef4444',
+                                        cancelButtonColor: '#6b7280',
+                                        confirmButtonText: 'Yes, delete it!',
+                                        cancelButtonText: 'Cancel'
+                                    }).then((result) => {
+                                        if (result.isConfirmed) {
+                                            window.location.href = '?page=admin&master=purposes&delete_purpose=' + id;
+                                        }
+                                    });
+                                }
+                            </script>
+                        </div>
 
-                <?php
+                        <?php
             // ========== DEPARTMENTS MASTER ==========
         elseif ($master_page == 'departments'):
 
@@ -5182,152 +5411,152 @@
 
             $departments = mysqli_query($conn, "SELECT * FROM department_master ORDER BY department_name");
             ?>
-                <!-- Form Header with Gradient -->
-                <div
-                    style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(14, 165, 233, 0.25);">
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🏢</div>
-                        <div>
-                            <h2
-                                style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                                Departments Management</h2>
-                            <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage
-                                department
-                                list
-                                for
-                                the organization</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-bottom: 20px;">
-                    <button
-                        onclick="document.getElementById('deptForm').style.display='block'; document.getElementById('deptForm').scrollIntoView({ behavior: 'smooth' });"
-                        class="btn btn-primary"
-                        style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(14, 165, 233, 0.3);">
-                        ➕ Add New Department
-                    </button>
-
-                    <div id="deptForm" style="display: none; margin-bottom: 20px;">
-                        <form method="POST">
-                            <input type="hidden" name="department_id" id="department_id">
-                            <div class="card"
-                                style="margin-bottom: 20px; border-left: 4px solid #0ea5e9; background: linear-gradient(to right, #f0f9ff 0%, white 10%);">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Department Name *</label>
-                                    <input type="text" name="department_name" id="department_name" required
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#0ea5e9'; this.style.boxShadow='0 0 0 3px rgba(14, 165, 233, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                        <!-- Form Header with Gradient -->
+                        <div
+                            style="background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(14, 165, 233, 0.25);">
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🏢</div>
+                                <div>
+                                    <h2
+                                        style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                        Departments Management</h2>
+                                    <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage
+                                        department
+                                        list
+                                        for
+                                        the organization</p>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button type="submit" name="save_department" class="btn btn-success"
-                                    style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
-                                    Save Department</button>
-                                <button type="button" onclick="closeDeptForm()" class="btn btn-secondary"
-                                    style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                        </div>
+
+                        <div class="card" style="margin-bottom: 20px;">
+                            <button
+                                onclick="document.getElementById('deptForm').style.display='block'; document.getElementById('deptForm').scrollIntoView({ behavior: 'smooth' });"
+                                class="btn btn-primary"
+                                style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(14, 165, 233, 0.3);">
+                                ➕ Add New Department
+                            </button>
+
+                            <div id="deptForm" style="display: none; margin-bottom: 20px;">
+                                <form method="POST">
+                                    <input type="hidden" name="department_id" id="department_id">
+                                    <div class="card"
+                                        style="margin-bottom: 20px; border-left: 4px solid #0ea5e9; background: linear-gradient(to right, #f0f9ff 0%, white 10%);">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Department Name *</label>
+                                            <input type="text" name="department_name" id="department_name" required
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#0ea5e9'; this.style.boxShadow='0 0 0 3px rgba(14, 165, 233, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button type="submit" name="save_department" class="btn btn-success"
+                                            style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
+                                            Save Department</button>
+                                        <button type="button" onclick="closeDeptForm()" class="btn btn-secondary"
+                                            style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                                    </div>
+                                </form>
                             </div>
-                        </form>
-                    </div>
 
-                    <?php if (isset($success_msg)): ?>
-                        <div class="alert alert-success">
-                            <?php echo $success_msg; ?>
-                        </div>
-                        <?php
-                    endif; ?>
-                    <?php if (isset($error_msg)): ?>
-                        <div class="alert alert-error">
-                            <?php echo $error_msg; ?>
-                        </div>
-                        <?php
-                    endif; ?>
+                            <?php if (isset($success_msg)): ?>
+                                    <div class="alert alert-success">
+                                        <?php echo $success_msg; ?>
+                                    </div>
+                                    <?php
+                            endif; ?>
+                            <?php if (isset($error_msg)): ?>
+                                    <div class="alert alert-error">
+                                        <?php echo $error_msg; ?>
+                                    </div>
+                                    <?php
+                            endif; ?>
 
-                    <div class="search-container" style="margin-bottom: 20px;">
-                        <input type="text" id="deptSearch" placeholder="🔍 Search Departments (Name...)"
-                            oninput="filterTable('deptSearch', 'departmentsTable')"
-                            onsearch="filterTable('deptSearch', 'departmentsTable')"
-                            style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                            onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                    </div>
+                            <div class="search-container" style="margin-bottom: 20px;">
+                                <input type="text" id="deptSearch" placeholder="🔍 Search Departments (Name...)"
+                                    oninput="filterTable('deptSearch', 'departmentsTable')"
+                                    onsearch="filterTable('deptSearch', 'departmentsTable')"
+                                    style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                    onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                            </div>
 
-                    <table id="departmentsTable">
-                        <thead>
-                            <tr>
-                                <th>Department Name</th>
-                                <th>Created At</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
-                                <tr>
-                                    <td><strong>
-                                            <?php echo htmlspecialchars($dept['department_name']); ?>
-                                        </strong></td>
-                                    <td>
-                                        <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
-                                    </td>
-                                    <td>
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php if (hasPermission('actions.edit_record')): ?>
-                                                <button
-                                                    onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
-                                                    class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                    Edit</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php if (hasPermission('actions.delete_record')): ?>
-                                                <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                    Delete</button>
-                                                <?php
-                                            endif; ?>
+                            <table id="departmentsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Department Name</th>
+                                        <th>Created At</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($dept = mysqli_fetch_assoc($departments)): ?>
+                                            <tr>
+                                                <td><strong>
+                                                        <?php echo htmlspecialchars($dept['department_name']); ?>
+                                                    </strong></td>
+                                                <td>
+                                                    <?php echo strtoupper(date('d-M-y', strtotime($dept['created_at']))); ?>
+                                                </td>
+                                                <td>
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                    <button
+                                                                        onclick='editDepartment(<?php echo $dept["id"]; ?>, <?php echo json_encode($dept["department_name"]); ?>)'
+                                                                        class="btn btn-sm"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                        Edit</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                    <button onclick="deleteDepartment(<?php echo $dept['id']; ?>)" class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                        Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
                                             <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
-                                <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
-                </div>
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
 
-                <script>
-                    function editDepartment(id, name) {
-                        document.getElementById('department_id').value = id;
-                        document.getElementById('department_name').value = name;
-                        document.getElementById('deptForm').style.display = 'block';
-                        document.getElementById('deptForm').scrollIntoView({ behavior: 'smooth' });
-                    }
-                    function closeDeptForm() {
-                        document.getElementById('deptForm').style.display = 'none';
-                        document.getElementById('department_id').value = '';
-                        document.querySelector('#deptForm form').reset();
-                    }
-                    function deleteDepartment(id) {
-                        Swal.fire({
-                            title: 'Are you sure?',
-                            text: "You want to delete this department?",
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#ef4444',
-                            cancelButtonColor: '#6b7280',
-                            confirmButtonText: 'Yes, delete it!',
-                            cancelButtonText: 'Cancel'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                window.location.href = '?page=admin&master=departments&delete_department=' + id;
+                        <script>
+                            function editDepartment(id, name) {
+                                document.getElementById('department_id').value = id;
+                                document.getElementById('department_name').value = name;
+                                document.getElementById('deptForm').style.display = 'block';
+                                document.getElementById('deptForm').scrollIntoView({ behavior: 'smooth' });
                             }
-                        });
-                    }
-                </script>
-            </div>
+                            function closeDeptForm() {
+                                document.getElementById('deptForm').style.display = 'none';
+                                document.getElementById('department_id').value = '';
+                                document.querySelector('#deptForm form').reset();
+                            }
+                            function deleteDepartment(id) {
+                                Swal.fire({
+                                    title: 'Are you sure?',
+                                    text: "You want to delete this department?",
+                                    icon: 'warning',
+                                    showCancelButton: true,
+                                    confirmButtonColor: '#ef4444',
+                                    cancelButtonColor: '#6b7280',
+                                    confirmButtonText: 'Yes, delete it!',
+                                    cancelButtonText: 'Cancel'
+                                }).then((result) => {
+                                    if (result.isConfirmed) {
+                                        window.location.href = '?page=admin&master=departments&delete_department=' + id;
+                                    }
+                                });
+                            }
+                        </script>
+                    </div>
 
-            <?php
+                    <?php
             // ========== MATERIALS MASTER ==========
         elseif ($master_page == 'materials'):
 
@@ -5495,211 +5724,211 @@
             $show_form = isset($error_msg) ? 'block' : 'none';
             ?>
 
-            <!-- Form Header with Gradient -->
-            <div
-                style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(6, 182, 212, 0.25);">
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🧱</div>
-                    <div>
-                        <h2
-                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                            Materials Master</h2>
-                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage raw
-                            materials
-                            and
-                            product inventory</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-bottom: 20px;">
-                <button
-                    onclick="resetMaterialForm(); document.getElementById('materialForm').style.display='block'; document.getElementById('materialForm').scrollIntoView({ behavior: 'smooth' });"
-                    class="btn btn-primary"
-                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(6, 182, 212, 0.3);">
-                    ➕ Add New Material
-                </button>
-                <form method="post" enctype="multipart/form-data" style="display:inline;">
-                    <input type="file" name="import_file" id="import_file_material" style="display:none;"
-                        onchange="this.form.submit()" accept=".csv">
-                    <button type="button" onclick="document.getElementById('import_file_material').click()"
-                        class="btn btn-secondary"
-                        style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px;">
-                        📥 Import CSV
-                    </button>
-                    <input type="hidden" name="import_materials" value="1">
-                </form>
-                <a href="?page=admin&master=materials&download_template=materials" class="btn btn-secondary"
-                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px; text-decoration: none; display: inline-block;">
-                    📄 Template
-                </a>
-
-                <div id="materialForm" style="display: <?php echo $show_form; ?>; margin-bottom: 20px;">
-                    <form method="POST">
-                        <input type="hidden" name="material_id" id="material_id" value="<?php echo $form_id; ?>">
-                        <div class="card"
-                            style="margin-bottom: 20px; border-left: 4px solid #06b6d4; background: linear-gradient(to right, #ecfeff 0%, white 10%);">
-                            <div class="master-form-grid">
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Material Code *</label>
-                                    <input type="text" name="material_code" id="material_code" required
-                                        value="<?php echo $form_code; ?>"
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Material Description</label>
-                                    <input type="text" name="material_description" id="material_description"
-                                        value="<?php echo $form_desc; ?>"
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <div class="form-group">
-                                    <label style="font-weight: 600; color: #374151;">Category</label>
-                                    <input type="text" name="material_category" id="material_category"
-                                        value="<?php echo $form_cat; ?>" placeholder="e.g. Raw Material, Packaging"
-                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                        onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
-                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                </div>
-                                <!-- Removed Supplier Fields -->
+                    <!-- Form Header with Gradient -->
+                    <div
+                        style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(6, 182, 212, 0.25);">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🧱</div>
+                            <div>
+                                <h2
+                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    Materials Master</h2>
+                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage raw
+                                    materials
+                                    and
+                                    product inventory</p>
                             </div>
                         </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button type="submit" name="save_material" class="btn btn-success"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
-                                Save Material</button>
-                            <button type="button" onclick="closeMaterialForm()" class="btn btn-secondary"
-                                style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 20px;">
+                        <button
+                            onclick="resetMaterialForm(); document.getElementById('materialForm').style.display='block'; document.getElementById('materialForm').scrollIntoView({ behavior: 'smooth' });"
+                            class="btn btn-primary"
+                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(6, 182, 212, 0.3);">
+                            ➕ Add New Material
+                        </button>
+                        <form method="post" enctype="multipart/form-data" style="display:inline;">
+                            <input type="file" name="import_file" id="import_file_material" style="display:none;"
+                                onchange="this.form.submit()" accept=".csv">
+                            <button type="button" onclick="document.getElementById('import_file_material').click()"
+                                class="btn btn-secondary"
+                                style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px;">
+                                📥 Import CSV
+                            </button>
+                            <input type="hidden" name="import_materials" value="1">
+                        </form>
+                        <a href="?page=admin&master=materials&download_template=materials" class="btn btn-secondary"
+                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px; text-decoration: none; display: inline-block;">
+                            📄 Template
+                        </a>
+
+                        <div id="materialForm" style="display: <?php echo $show_form; ?>; margin-bottom: 20px;">
+                            <form method="POST">
+                                <input type="hidden" name="material_id" id="material_id" value="<?php echo $form_id; ?>">
+                                <div class="card"
+                                    style="margin-bottom: 20px; border-left: 4px solid #06b6d4; background: linear-gradient(to right, #ecfeff 0%, white 10%);">
+                                    <div class="master-form-grid">
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Material Code *</label>
+                                            <input type="text" name="material_code" id="material_code" required
+                                                value="<?php echo $form_code; ?>"
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Material Description</label>
+                                            <input type="text" name="material_description" id="material_description"
+                                                value="<?php echo $form_desc; ?>"
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <div class="form-group">
+                                            <label style="font-weight: 600; color: #374151;">Category</label>
+                                            <input type="text" name="material_category" id="material_category"
+                                                value="<?php echo $form_cat; ?>" placeholder="e.g. Raw Material, Packaging"
+                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
+                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                        </div>
+                                        <!-- Removed Supplier Fields -->
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button type="submit" name="save_material" class="btn btn-success"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
+                                        Save Material</button>
+                                    <button type="button" onclick="closeMaterialForm()" class="btn btn-secondary"
+                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                                </div>
+                            </form>
                         </div>
-                    </form>
-                </div>
 
-                <?php if (isset($success_msg)): ?>
-                    <div class="alert alert-success">
-                        <?php echo $success_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
-                <?php if (isset($error_msg)): ?>
-                    <div class="alert alert-error">
-                        <?php echo $error_msg; ?>
-                    </div>
-                    <?php
-                endif; ?>
+                        <?php if (isset($success_msg)): ?>
+                                <div class="alert alert-success">
+                                    <?php echo $success_msg; ?>
+                                </div>
+                                <?php
+                        endif; ?>
+                        <?php if (isset($error_msg)): ?>
+                                <div class="alert alert-error">
+                                    <?php echo $error_msg; ?>
+                                </div>
+                                <?php
+                        endif; ?>
 
-                <div class="search-container" style="margin-bottom: 20px;">
-                    <input type="text" id="materialSearch" placeholder="🔍 Search Materials (Code, Description, Category...)"
-                        oninput="filterTable('materialSearch', 'materialsTable')"
-                        onsearch="filterTable('materialSearch', 'materialsTable')"
-                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                </div>
+                        <div class="search-container" style="margin-bottom: 20px;">
+                            <input type="text" id="materialSearch" placeholder="🔍 Search Materials (Code, Description, Category...)"
+                                oninput="filterTable('materialSearch', 'materialsTable')"
+                                onsearch="filterTable('materialSearch', 'materialsTable')"
+                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                        </div>
 
-                <div class="table-wrapper">
-                    <table id="materialsTable">
-                        <thead>
-                            <tr>
-                                <th>Code</th>
-                                <th>Description</th>
-                                <th>Category</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($item = mysqli_fetch_assoc($materials)): ?>
-                                <tr>
-                                    <td><strong>
-                                            <?php echo htmlspecialchars($item['material_code']); ?>
-                                        </strong></td>
-                                    <td>
-                                        <?php echo htmlspecialchars($item['material_description']); ?>
-                                    </td>
-                                    <td><span class="badge badge-info">
-                                            <?php echo htmlspecialchars($item['material_category']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <?php if (hasPermission('actions.view_buttons')): ?>
-                                            <?php if (hasPermission('actions.edit_record')): ?>
-                                                <button onclick='editMaterial(<?php echo $item["id"]; ?>, 
+                        <div class="table-wrapper">
+                            <table id="materialsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Description</th>
+                                        <th>Category</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($item = mysqli_fetch_assoc($materials)): ?>
+                                            <tr>
+                                                <td><strong>
+                                                        <?php echo htmlspecialchars($item['material_code']); ?>
+                                                    </strong></td>
+                                                <td>
+                                                    <?php echo htmlspecialchars($item['material_description']); ?>
+                                                </td>
+                                                <td><span class="badge badge-info">
+                                                        <?php echo htmlspecialchars($item['material_category']); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <?php if (hasPermission('actions.view_buttons')): ?>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                    <button onclick='editMaterial(<?php echo $item["id"]; ?>, 
                                                     <?php echo json_encode($item["material_code"]); ?>, 
                                                     <?php echo json_encode($item["material_description"]); ?>, 
                                                     <?php echo json_encode($item["material_category"]); ?>)'
-                                                    class="btn btn-sm"
-                                                    style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                    Edit</button>
-                                                <?php
-                                            endif; ?>
-                                            <?php if (hasPermission('actions.delete_record')): ?>
-                                                <button onclick="deleteMaterial(<?php echo $item['id']; ?>)" class="btn btn-sm"
-                                                    style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                    Delete</button>
-                                                <?php
-                                            endif; ?>
+                                                                        class="btn btn-sm"
+                                                                        style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                        Edit</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                    <button onclick="deleteMaterial(<?php echo $item['id']; ?>)" class="btn btn-sm"
+                                                                        style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                        Delete</button>
+                                                                    <?php
+                                                            endif; ?>
+                                                            <?php
+                                                    endif; ?>
+                                                </td>
+                                            </tr>
                                             <?php
-                                        endif; ?>
-                                    </td>
-                                </tr>
-                                <?php
-                            endwhile; ?>
-                        </tbody>
-                    </table>
+                                    endwhile; ?>
+                                </tbody>
+                            </table>
 
-                    <script>
-                        function resetMaterialForm() {
-                            document.getElementById('materialForm').style.display = 'block';
-                            document.getElementById('material_id').value = '';
-                            document.getElementById('material_code').readOnly = false;
-                            document.getElementById('material_code').value = '';
-                            document.getElementById('material_description').value = '';
-                            document.getElementById('material_category').value = '';
-                        }
-                        function editMaterial(id, code, desc, cat) {
-                            document.getElementById('material_id').value = id;
-                            document.getElementById('material_code').value = code;
-                            // Use the reset function or manually clear valid states first?
-                            // Just set values.
-                            // document.getElementById('material_code').readOnly = true; // User can edit code if creating new supplier entry from existing, but logic is Update vs Insert.
-                            // To keep it simple: if ID exists -> UPDATE. So changing Code on Update changes the code for that ID.
-                            // Duplicate check handles conflicts.
-                            document.getElementById('material_code').readOnly = true;
-                            document.getElementById('material_description').value = desc || '';
-                            document.getElementById('material_category').value = cat || '';
-
-                            document.getElementById('materialForm').style.display = 'block';
-                            document.getElementById('materialForm').scrollIntoView({ behavior: 'smooth' });
-                        }
-                        function closeMaterialForm() {
-                            document.getElementById('materialForm').style.display = 'none';
-                            document.getElementById('material_id').value = '';
-                            document.getElementById('material_code').readOnly = false;
-                            document.querySelector('#materialForm form').reset();
-                        }
-                        function calculateTotal(fieldIdx, qtyValue) {
-                            // Start from next field
-                        }
-                        function deleteMaterial(id) {
-                            Swal.fire({
-                                title: 'Are you sure?',
-                                text: "You want to delete this material?",
-                                icon: 'warning',
-                                showCancelButton: true,
-                                confirmButtonColor: '#ef4444',
-                                cancelButtonColor: '#6b7280',
-                                confirmButtonText: 'Yes, delete it!',
-                                cancelButtonText: 'Cancel'
-                            }).then((result) => {
-                                if (result.isConfirmed) {
-                                    window.location.href = '?page=admin&master=materials&delete_material=' + id;
+                            <script>
+                                function resetMaterialForm() {
+                                    document.getElementById('materialForm').style.display = 'block';
+                                    document.getElementById('material_id').value = '';
+                                    document.getElementById('material_code').readOnly = false;
+                                    document.getElementById('material_code').value = '';
+                                    document.getElementById('material_description').value = '';
+                                    document.getElementById('material_category').value = '';
                                 }
-                            });
-                        }
-                    </script>
-                    <?php
+                                function editMaterial(id, code, desc, cat) {
+                                    document.getElementById('material_id').value = id;
+                                    document.getElementById('material_code').value = code;
+                                    // Use the reset function or manually clear valid states first?
+                                    // Just set values.
+                                    // document.getElementById('material_code').readOnly = true; // User can edit code if creating new supplier entry from existing, but logic is Update vs Insert.
+                                    // To keep it simple: if ID exists -> UPDATE. So changing Code on Update changes the code for that ID.
+                                    // Duplicate check handles conflicts.
+                                    document.getElementById('material_code').readOnly = true;
+                                    document.getElementById('material_description').value = desc || '';
+                                    document.getElementById('material_category').value = cat || '';
+
+                                    document.getElementById('materialForm').style.display = 'block';
+                                    document.getElementById('materialForm').scrollIntoView({ behavior: 'smooth' });
+                                }
+                                function closeMaterialForm() {
+                                    document.getElementById('materialForm').style.display = 'none';
+                                    document.getElementById('material_id').value = '';
+                                    document.getElementById('material_code').readOnly = false;
+                                    document.querySelector('#materialForm form').reset();
+                                }
+                                function calculateTotal(fieldIdx, qtyValue) {
+                                    // Start from next field
+                                }
+                                function deleteMaterial(id) {
+                                    Swal.fire({
+                                        title: 'Are you sure?',
+                                        text: "You want to delete this material?",
+                                        icon: 'warning',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#ef4444',
+                                        cancelButtonColor: '#6b7280',
+                                        confirmButtonText: 'Yes, delete it!',
+                                        cancelButtonText: 'Cancel'
+                                    }).then((result) => {
+                                        if (result.isConfirmed) {
+                                            window.location.href = '?page=admin&master=materials&delete_material=' + id;
+                                        }
+                                    });
+                                }
+                            </script>
+                            <?php
         elseif ($master_page == 'suppliers'):
             // ========== SUPPLIERS MASTER ==========
     
@@ -5846,188 +6075,188 @@
             $show_form = isset($error_msg) ? 'block' : 'none';
             ?>
 
-                    <!-- Form Header with Gradient -->
-                    <div
-                        style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(6, 182, 212, 0.25);">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🏭</div>
-                            <div>
-                                <h2
-                                    style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                                    Suppliers Master</h2>
-                                <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage
-                                    supplier
-                                    records
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card" style="margin-bottom: 20px;">
-                        <button
-                            onclick="resetSupplierForm(); document.getElementById('supplierForm').style.display='block'; document.getElementById('supplierForm').scrollIntoView({ behavior: 'smooth' });"
-                            class="btn btn-primary"
-                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(6, 182, 212, 0.3);">
-                            ➕ Add New Supplier
-                        </button>
-                        <form method="post" enctype="multipart/form-data" style="display:inline;">
-                            <input type="file" name="import_file" id="import_file_supplier" style="display:none;"
-                                onchange="this.form.submit()" accept=".csv">
-                            <button type="button" onclick="document.getElementById('import_file_supplier').click()"
-                                class="btn btn-secondary"
-                                style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px;">
-                                📥 Import CSV
-                            </button>
-                            <input type="hidden" name="import_suppliers" value="1">
-                        </form>
-                        <a href="?page=admin&master=suppliers&download_template=suppliers" class="btn btn-secondary"
-                            style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px; text-decoration: none; display: inline-block;">
-                            📄 Template
-                        </a>
-
-
-                        <div id="supplierForm" style="display: <?php echo $show_form; ?>; margin-bottom: 20px;">
-                            <form method="POST">
-                                <input type="hidden" name="supplier_id" id="supplier_id" value="<?php echo $form_id; ?>">
-                                <div class="card"
-                                    style="margin-bottom: 20px; border-left: 4px solid #06b6d4; background: linear-gradient(to right, #ecfeff 0%, white 10%);">
-                                    <div class="master-form-grid">
-                                        <div class="form-group">
-                                            <label style="font-weight: 600; color: #374151;">Supplier Name *</label>
-                                            <input type="text" name="supplier" id="supplier" required
-                                                value="<?php echo $form_supp; ?>"
-                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                                onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
-                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        </div>
-                                        <div class="form-group">
-                                            <label style="font-weight: 600; color: #374151;">Supplier Code *</label>
-                                            <input type="text" name="supp_code" id="supp_code" required
-                                                value="<?php echo $form_supp_code; ?>"
-                                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
-                                                onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
-                                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                            <small style="color: #666; display: block; margin-top: 5px;">Must be
-                                                unique.</small>
-                                        </div>
+                            <!-- Form Header with Gradient -->
+                            <div
+                                style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(6, 182, 212, 0.25);">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🏭</div>
+                                    <div>
+                                        <h2
+                                            style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                            Suppliers Master</h2>
+                                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage
+                                            supplier
+                                            records
+                                        </p>
                                     </div>
                                 </div>
-                                <div style="display: flex; gap: 10px;">
-                                    <button type="submit" name="save_supplier" class="btn btn-success"
-                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
-                                        Save Supplier</button>
-                                    <button type="button" onclick="closeSupplierForm()" class="btn btn-secondary"
-                                        style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                            </div>
+
+                            <div class="card" style="margin-bottom: 20px;">
+                                <button
+                                    onclick="resetSupplierForm(); document.getElementById('supplierForm').style.display='block'; document.getElementById('supplierForm').scrollIntoView({ behavior: 'smooth' });"
+                                    class="btn btn-primary"
+                                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(6, 182, 212, 0.3);">
+                                    ➕ Add New Supplier
+                                </button>
+                                <form method="post" enctype="multipart/form-data" style="display:inline;">
+                                    <input type="file" name="import_file" id="import_file_supplier" style="display:none;"
+                                        onchange="this.form.submit()" accept=".csv">
+                                    <button type="button" onclick="document.getElementById('import_file_supplier').click()"
+                                        class="btn btn-secondary"
+                                        style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px;">
+                                        📥 Import CSV
+                                    </button>
+                                    <input type="hidden" name="import_suppliers" value="1">
+                                </form>
+                                <a href="?page=admin&master=suppliers&download_template=suppliers" class="btn btn-secondary"
+                                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; margin-left: 10px; text-decoration: none; display: inline-block;">
+                                    📄 Template
+                                </a>
+
+
+                                <div id="supplierForm" style="display: <?php echo $show_form; ?>; margin-bottom: 20px;">
+                                    <form method="POST">
+                                        <input type="hidden" name="supplier_id" id="supplier_id" value="<?php echo $form_id; ?>">
+                                        <div class="card"
+                                            style="margin-bottom: 20px; border-left: 4px solid #06b6d4; background: linear-gradient(to right, #ecfeff 0%, white 10%);">
+                                            <div class="master-form-grid">
+                                                <div class="form-group">
+                                                    <label style="font-weight: 600; color: #374151;">Supplier Name *</label>
+                                                    <input type="text" name="supplier" id="supplier" required
+                                                        value="<?php echo $form_supp; ?>"
+                                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                        onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
+                                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label style="font-weight: 600; color: #374151;">Supplier Code *</label>
+                                                    <input type="text" name="supp_code" id="supp_code" required
+                                                        value="<?php echo $form_supp_code; ?>"
+                                                        style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                                        onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
+                                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                                    <small style="color: #666; display: block; margin-top: 5px;">Must be
+                                                        unique.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; gap: 10px;">
+                                            <button type="submit" name="save_supplier" class="btn btn-success"
+                                                style="padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">💾
+                                                Save Supplier</button>
+                                            <button type="button" onclick="closeSupplierForm()" class="btn btn-secondary"
+                                                style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                                        </div>
+                                    </form>
                                 </div>
-                            </form>
-                        </div>
 
-                        <?php if (isset($success_msg)): ?>
-                            <div class="alert alert-success">
-                                <?php echo $success_msg; ?>
-                            </div>
-                            <?php
-                        endif; ?>
-                        <?php if (isset($error_msg)): ?>
-                            <div class="alert alert-error">
-                                <?php echo $error_msg; ?>
-                            </div>
-                            <?php
-                        endif; ?>
+                                <?php if (isset($success_msg)): ?>
+                                        <div class="alert alert-success">
+                                            <?php echo $success_msg; ?>
+                                        </div>
+                                        <?php
+                                endif; ?>
+                                <?php if (isset($error_msg)): ?>
+                                        <div class="alert alert-error">
+                                            <?php echo $error_msg; ?>
+                                        </div>
+                                        <?php
+                                endif; ?>
 
-                        <div class="search-container" style="margin-bottom: 20px;">
-                            <input type="text" id="supplierSearch" placeholder="🔍 Search Suppliers (Name, Code...)"
-                                oninput="filterTable('supplierSearch', 'suppliersTable')"
-                                onsearch="filterTable('supplierSearch', 'suppliersTable')"
-                                style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
-                                onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
-                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
-                        </div>
+                                <div class="search-container" style="margin-bottom: 20px;">
+                                    <input type="text" id="supplierSearch" placeholder="🔍 Search Suppliers (Name, Code...)"
+                                        oninput="filterTable('supplierSearch', 'suppliersTable')"
+                                        onsearch="filterTable('supplierSearch', 'suppliersTable')"
+                                        style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; outline: none;"
+                                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 4px rgba(59, 130, 246, 0.1)';"
+                                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)';">
+                                </div>
 
-                        <div class="table-wrapper">
-                            <table id="suppliersTable">
-                                <thead>
-                                    <tr>
-                                        <th>Supplier Name</th>
-                                        <th>Supplier Code</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($item = mysqli_fetch_assoc($suppliers)): ?>
-                                        <tr>
-                                            <td><strong>
-                                                    <?php echo htmlspecialchars($item['supplier']); ?>
-                                                </strong></td>
-                                            <td><code><?php echo htmlspecialchars($item['supp_code']); ?></code></td>
-                                            <td>
-                                                <?php if (hasPermission('actions.view_buttons')): ?>
-                                                    <?php if (hasPermission('actions.edit_record')): ?>
-                                                        <button onclick='editSupplier(<?php echo $item["id"]; ?>, 
+                                <div class="table-wrapper">
+                                    <table id="suppliersTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Supplier Name</th>
+                                                <th>Supplier Code</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php while ($item = mysqli_fetch_assoc($suppliers)): ?>
+                                                    <tr>
+                                                        <td><strong>
+                                                                <?php echo htmlspecialchars($item['supplier']); ?>
+                                                            </strong></td>
+                                                        <td><code><?php echo htmlspecialchars($item['supp_code']); ?></code></td>
+                                                        <td>
+                                                            <?php if (hasPermission('actions.view_buttons')): ?>
+                                                                    <?php if (hasPermission('actions.edit_record')): ?>
+                                                                            <button onclick='editSupplier(<?php echo $item["id"]; ?>, 
                                                     <?php echo json_encode($item["supplier"]); ?>, 
                                                     <?php echo json_encode($item["supp_code"]); ?>)' class="btn btn-sm"
-                                                            style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
-                                                            Edit</button>
-                                                        <?php
-                                                    endif; ?>
-                                                    <?php if (hasPermission('actions.delete_record')): ?>
-                                                        <button onclick="deleteSupplier(<?php echo $item['id']; ?>)" class="btn btn-sm"
-                                                            style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
-                                                            Delete</button>
-                                                        <?php
-                                                    endif; ?>
+                                                                                style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
+                                                                                Edit</button>
+                                                                            <?php
+                                                                    endif; ?>
+                                                                    <?php if (hasPermission('actions.delete_record')): ?>
+                                                                            <button onclick="deleteSupplier(<?php echo $item['id']; ?>)" class="btn btn-sm"
+                                                                                style="background: #ef4444; color: white; padding: 5px 10px; font-size: 12px;">🗑️
+                                                                                Delete</button>
+                                                                            <?php
+                                                                    endif; ?>
+                                                                    <?php
+                                                            endif; ?>
+                                                        </td>
+                                                    </tr>
                                                     <?php
-                                                endif; ?>
-                                            </td>
-                                        </tr>
-                                        <?php
-                                    endwhile; ?>
-                                </tbody>
-                            </table>
+                                            endwhile; ?>
+                                        </tbody>
+                                    </table>
 
-                            <script>
-                                function resetSupplierForm() {
-                                    document.getElementById('supplierForm').style.display = 'block';
-                                    document.getElementById('supplier_id').value = '';
-                                    document.getElementById('supp_code').readOnly = false;
-                                    document.getElementById('supplier').value = '';
-                                    document.getElementById('supp_code').value = '';
-                                }
-                                function editSupplier(id, supp, code) {
-                                    document.getElementById('supplier_id').value = id;
-                                    document.getElementById('supplier').value = supp;
-                                    document.getElementById('supp_code').value = code;
-                                    // On edit, do we allow code change? Usually yes, but with check.
-                                    // For consistency with material, maybe just uniqueness check on save.
-                                    // Let's keep it editable but we rely on DB unique constraint.
-
-                                    document.getElementById('supplierForm').style.display = 'block';
-                                    document.getElementById('supplierForm').scrollIntoView({ behavior: 'smooth' });
-                                }
-                                function closeSupplierForm() {
-                                    document.getElementById('supplierForm').style.display = 'none';
-                                    document.getElementById('supplier_id').value = '';
-                                    document.querySelector('#supplierForm form').reset();
-                                }
-                                function deleteSupplier(id) {
-                                    Swal.fire({
-                                        title: 'Are you sure?',
-                                        text: "You want to delete this supplier?",
-                                        icon: 'warning',
-                                        showCancelButton: true,
-                                        confirmButtonColor: '#ef4444',
-                                        cancelButtonColor: '#6b7280',
-                                        confirmButtonText: 'Yes, delete it!',
-                                        cancelButtonText: 'Cancel'
-                                    }).then((result) => {
-                                        if (result.isConfirmed) {
-                                            window.location.href = '?page=admin&master=suppliers&delete_supplier=' + id;
+                                    <script>
+                                        function resetSupplierForm() {
+                                            document.getElementById('supplierForm').style.display = 'block';
+                                            document.getElementById('supplier_id').value = '';
+                                            document.getElementById('supp_code').readOnly = false;
+                                            document.getElementById('supplier').value = '';
+                                            document.getElementById('supp_code').value = '';
                                         }
-                                    });
-                                }
-                            </script>
+                                        function editSupplier(id, supp, code) {
+                                            document.getElementById('supplier_id').value = id;
+                                            document.getElementById('supplier').value = supp;
+                                            document.getElementById('supp_code').value = code;
+                                            // On edit, do we allow code change? Usually yes, but with check.
+                                            // For consistency with material, maybe just uniqueness check on save.
+                                            // Let's keep it editable but we rely on DB unique constraint.
 
-                            <?php
+                                            document.getElementById('supplierForm').style.display = 'block';
+                                            document.getElementById('supplierForm').scrollIntoView({ behavior: 'smooth' });
+                                        }
+                                        function closeSupplierForm() {
+                                            document.getElementById('supplierForm').style.display = 'none';
+                                            document.getElementById('supplier_id').value = '';
+                                            document.querySelector('#supplierForm form').reset();
+                                        }
+                                        function deleteSupplier(id) {
+                                            Swal.fire({
+                                                title: 'Are you sure?',
+                                                text: "You want to delete this supplier?",
+                                                icon: 'warning',
+                                                showCancelButton: true,
+                                                confirmButtonColor: '#ef4444',
+                                                cancelButtonColor: '#6b7280',
+                                                confirmButtonText: 'Yes, delete it!',
+                                                cancelButtonText: 'Cancel'
+                                            }).then((result) => {
+                                                if (result.isConfirmed) {
+                                                    window.location.href = '?page=admin&master=suppliers&delete_supplier=' + id;
+                                                }
+                                            });
+                                        }
+                                    </script>
+
+                                    <?php
             // ========== AUDIT LOGS ==========
         elseif ($master_page == 'audit_logs' || $master_page == 'logs'):
             // Filtering parameters
@@ -6054,304 +6283,304 @@
             $audit_query = "SELECT * FROM audit_logs $where ORDER BY created_at DESC LIMIT 1000";
             $audit_logs = mysqli_query($conn, $audit_query);
             ?>
-                            <div
-                                style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
-                                <div
-                                    style="display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
-                                    <div style="display: flex; align-items: center; gap: 15px;">
-                                        <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">📜</div>
-                                        <div>
-                                            <h2
-                                                style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                                                System Audit Logs</h2>
-                                            <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.7); font-size: 13px;">
-                                                Overview of all past activities and administrative changes</p>
+                                    <div
+                                        style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
+                                        <div
+                                            style="display: flex; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
+                                            <div style="display: flex; align-items: center; gap: 15px;">
+                                                <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">📜</div>
+                                                <div>
+                                                    <h2
+                                                        style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                                        System Audit Logs</h2>
+                                                    <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.7); font-size: 13px;">
+                                                        Overview of all past activities and administrative changes</p>
+                                                </div>
+                                            </div>
+                                            <button onclick="document.getElementById('auditFilterModal').style.display='flex'"
+                                                class="btn"
+                                                style="background: #4b5563; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                                🔍 Search & Filter
+                                            </button>
                                         </div>
                                     </div>
-                                    <button onclick="document.getElementById('auditFilterModal').style.display='flex'"
-                                        class="btn"
-                                        style="background: #4b5563; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                                        🔍 Search & Filter
-                                    </button>
+
+                                    <!-- Active Filter Indicator -->
+                                    <?php if ($search || $f_module || $f_type || $date_from || $date_to): ?>
+                                            <div
+                                                style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+                                                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                                    <span
+                                                        style="font-size: 13px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 5px;">
+                                                        <span style="font-size: 16px;">🔍</span> Active Filters:
+                                                    </span>
+                                                    <?php if ($search): ?>
+                                                            <span
+                                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                                                Search: "<?php echo htmlspecialchars($search); ?>"
+                                                            </span>
+                                                    <?php endif; ?>
+                                                    <?php if ($f_module): ?>
+                                                            <span
+                                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                                                Module: <?php echo htmlspecialchars($f_module); ?>
+                                                            </span>
+                                                    <?php endif; ?>
+                                                    <?php if ($f_type): ?>
+                                                            <span
+                                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                                                Activity: <?php echo htmlspecialchars($f_type); ?>
+                                                            </span>
+                                                    <?php endif; ?>
+                                                    <?php if ($date_from || $date_to): ?>
+                                                            <span
+                                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                                                Date: <?php echo $date_from ?: '...'; ?> to <?php echo $date_to ?: 'now'; ?>
+                                                            </span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <a href="?page=admin&master=audit_logs"
+                                                    style="text-decoration: none; font-size: 11px; font-weight: 700; color: #ef4444; background: #fee2e2; padding: 6px 15px; border-radius: 8px; border: 1px solid #fecaca; transition: all 0.2s; white-space: nowrap;">
+                                                    ✕ Clear All
+                                                </a>
+                                            </div>
+                                    <?php endif; ?>
+
+                                    <div class="card" style="margin-bottom: 20px;">
+                                        <div class="table-wrapper" id="auditLogsTable">
+                                            <table style="width: 100%; border-collapse: collapse;">
+                                                <thead style="background: #f1f5f9;">
+                                                    <tr style="text-align: left;">
+                                                        <th
+                                                            style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
+                                                            TIME</th>
+                                                        <th
+                                                            style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
+                                                            USER</th>
+                                                        <th
+                                                            style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
+                                                            ACTIVITY</th>
+                                                        <th
+                                                            style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
+                                                            PAGE NAME</th>
+                                                        <th
+                                                            style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
+                                                            IP ADDRESS</th>
+                                                        <th
+                                                            style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
+                                                            DETAILS</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php while ($log = mysqli_fetch_assoc($audit_logs)): ?>
+                                                            <tr style="border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s;"
+                                                                onmouseover="this.style.background='#f8fafc'"
+                                                                onmouseout="this.style.background='white'"
+                                                                onclick='showAuditDetail(<?php echo htmlspecialchars(json_encode($log), ENT_QUOTES); ?>)'>
+                                                                <td
+                                                                    style="padding: 12px; font-size: 13px; color: #64748b; white-space: nowrap;">
+                                                                    <?php echo strtoupper(date('d-M-y H:i:s', strtotime($log['created_at']))); ?>
+                                                                </td>
+                                                                <td style="padding: 12px; font-size: 14px;">
+                                                                    <strong><?php echo htmlspecialchars($log['username']); ?></strong>
+                                                                </td>
+                                                                <td style="padding: 12px;">
+                                                                    <?php
+                                                                    $badge_class = 'badge-info';
+                                                                    if (stripos($log['activity_type'], 'LOGIN') !== false)
+                                                                        $badge_class = 'badge-success';
+                                                                    if (stripos($log['activity_type'], 'FAILED') !== false)
+                                                                        $badge_class = 'badge-danger';
+                                                                    if (stripos($log['activity_type'], 'DELETE') !== false)
+                                                                        $badge_class = 'badge-danger';
+                                                                    if (stripos($log['activity_type'], 'UPDATE') !== false)
+                                                                        $badge_class = 'badge-warning';
+                                                                    if (stripos($log['activity_type'], 'CREATED') !== false)
+                                                                        $badge_class = 'badge-success';
+                                                                    ?>
+                                                                    <span class="badge <?php echo $badge_class; ?>"
+                                                                        style="font-size: 10px;"><?php echo htmlspecialchars($log['activity_type']); ?></span>
+                                                                </td>
+                                                                <td style="padding: 12px; font-size: 13px; color: #4b5563;">
+                                                                    <?php echo htmlspecialchars($log['module']); ?>
+                                                                </td>
+                                                                <td
+                                                                    style="padding: 12px; font-size: 12px; color: #94a3b8; font-family: monospace;">
+                                                                    <?php echo htmlspecialchars($log['ip_address']); ?>
+                                                                </td>
+                                                                <td style="padding: 12px; font-size: 13px; color: #1e293b;">
+                                                                    <?php
+                                                                    $details = $log['details'];
+                                                                    echo htmlspecialchars(strlen($details) > 60 ? substr($details, 0, 60) . '...' : $details);
+                                                                    ?>
+                                                                </td>
+                                                            </tr>
+                                                            <?php
+                                                    endwhile; ?>
+                                                    <?php if (mysqli_num_rows($audit_logs) == 0): ?>
+                                                            <tr>
+                                                                <td colspan="6" style="padding: 40px; text-align: center; color: #94a3b8;">No
+                                                                    audit records found yet</td>
+                                                            </tr>
+                                                            <?php
+                                                    endif; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <?php
+        endif; // End master_page conditions
+        ?>
+
+                            <script>
+                                // Auto-scroll to master table on page load based on master parameter
+                                document.addEventListener('DOMContentLoaded', function () {
+                                    const urlParams = new URLSearchParams(window.location.search);
+                                    const masterPage = urlParams.get('master');
+
+                                    if (masterPage) {
+                                        const scrollMap = {
+                                            'dashboard': 'overviewSection',
+                                            'settings': 'settingsSection',
+                                            'users': 'usersTable',
+                                            'transporters': 'transportersTable',
+                                            'drivers': 'driversTable',
+                                            'vehicles': 'vehiclesTable',
+                                            'purposes': 'purposesTable',
+                                            'materials': 'materialsTable',
+                                            'suppliers': 'suppliersTable',
+                                            'audit_logs': 'auditLogsTable'
+                                        };
+
+                                        const elementId = scrollMap[masterPage];
+                                        if (elementId) {
+                                            // Wait a bit for content to render, then scroll
+                                            setTimeout(function () {
+                                                const targetElement = document.getElementById(elementId);
+                                                if (targetElement) {
+                                                    // Scroll with offset to account for any fixed headers
+                                                    const offset = 80;
+                                                    const elementPosition = targetElement.getBoundingClientRect().top;
+                                                    const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+                                                    window.scrollTo({
+                                                        top: offsetPosition,
+                                                        behavior: 'smooth'
+                                                    });
+                                                }
+                                            }, 500);
+                                        }
+                                    }
+                                });
+                            </script>
+
+                        </div>
+                        <?php
+endif; ?>
+                <?php if ($page == 'user-permissions'): ?>
+
+                        <?php // Ensure Admin Access (Allow if role is admin/manager OR user is super_admin)
+                            $is_super_admin = (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1);
+                            $user_role = strtolower($_SESSION['role'] ?? '');
+                            if (!$is_super_admin && ($user_role != 'admin' && $user_role != 'manager') && !hasPermission('masters.users')) {
+                                echo "
+            <script>window.location.href = '?page=dashboard';</script>";
+                                exit;
+                            }
+
+                            // Fetch Users
+                            $users_res = mysqli_query($conn, "SELECT id, username, full_name, role, permissions, super_admin FROM user_master ORDER BY
+            full_name");
+                            ?>
+                        <div class="container">
+                            <?php if (isset($success_msg)): ?>
+                                    <div class="alert alert-success">
+                                        <?php echo $success_msg; ?>
+                                    </div>
+                                    <?php
+                            endif; ?>
+                            <?php if (isset($error_msg)): ?>
+                                    <div class="alert alert-error">
+                                        <?php echo $error_msg; ?>
+                                    </div>
+                                    <?php
+                            endif; ?>
+
+                            <a href="?page=admin" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back to
+                                Admin</a>
+
+                            <div
+                                style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div style="font-size: 40px;">🔐</div>
+                                    <div>
+                                        <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">User
+                                            Permissions
+                                        </h1>
+                                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9);">Manage access rights for
+                                            system
+                                            users</p>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Active Filter Indicator -->
-                            <?php if ($search || $f_module || $f_type || $date_from || $date_to): ?>
-                                <div
-                                    style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
-                                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                        <span
-                                            style="font-size: 13px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 5px;">
-                                            <span style="font-size: 16px;">🔍</span> Active Filters:
-                                        </span>
-                                        <?php if ($search): ?>
-                                            <span
-                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                                Search: "<?php echo htmlspecialchars($search); ?>"
-                                            </span>
-                                        <?php endif; ?>
-                                        <?php if ($f_module): ?>
-                                            <span
-                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                                Module: <?php echo htmlspecialchars($f_module); ?>
-                                            </span>
-                                        <?php endif; ?>
-                                        <?php if ($f_type): ?>
-                                            <span
-                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                                Activity: <?php echo htmlspecialchars($f_type); ?>
-                                            </span>
-                                        <?php endif; ?>
-                                        <?php if ($date_from || $date_to): ?>
-                                            <span
-                                                style="background: #ffffff; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; color: #1e293b; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                                Date: <?php echo $date_from ?: '...'; ?> to <?php echo $date_to ?: 'now'; ?>
-                                            </span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <a href="?page=admin&master=audit_logs"
-                                        style="text-decoration: none; font-size: 11px; font-weight: 700; color: #ef4444; background: #fee2e2; padding: 6px 15px; border-radius: 8px; border: 1px solid #fecaca; transition: all 0.2s; white-space: nowrap;">
-                                        ✕ Clear All
-                                    </a>
-                                </div>
-                            <?php endif; ?>
-
-                            <div class="card" style="margin-bottom: 20px;">
-                                <div class="table-wrapper" id="auditLogsTable">
-                                    <table style="width: 100%; border-collapse: collapse;">
-                                        <thead style="background: #f1f5f9;">
-                                            <tr style="text-align: left;">
-                                                <th
-                                                    style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
-                                                    TIME</th>
-                                                <th
-                                                    style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
-                                                    USER</th>
-                                                <th
-                                                    style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
-                                                    ACTIVITY</th>
-                                                <th
-                                                    style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
-                                                    PAGE NAME</th>
-                                                <th
-                                                    style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
-                                                    IP ADDRESS</th>
-                                                <th
-                                                    style="padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #475569;">
-                                                    DETAILS</th>
+                            <div class="card">
+                                <div class="table-wrapper">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Username</th>
+                                                <th>Role</th>
+                                                <th>Permissions Configured</th>
+                                                <th>Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php while ($log = mysqli_fetch_assoc($audit_logs)): ?>
-                                                <tr style="border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s;"
-                                                    onmouseover="this.style.background='#f8fafc'"
-                                                    onmouseout="this.style.background='white'"
-                                                    onclick='showAuditDetail(<?php echo htmlspecialchars(json_encode($log), ENT_QUOTES); ?>)'>
-                                                    <td
-                                                        style="padding: 12px; font-size: 13px; color: #64748b; white-space: nowrap;">
-                                                        <?php echo strtoupper(date('d-M-y H:i:s', strtotime($log['created_at']))); ?>
-                                                    </td>
-                                                    <td style="padding: 12px; font-size: 14px;">
-                                                        <strong><?php echo htmlspecialchars($log['username']); ?></strong>
-                                                    </td>
-                                                    <td style="padding: 12px;">
-                                                        <?php
-                                                        $badge_class = 'badge-info';
-                                                        if (stripos($log['activity_type'], 'LOGIN') !== false)
-                                                            $badge_class = 'badge-success';
-                                                        if (stripos($log['activity_type'], 'FAILED') !== false)
-                                                            $badge_class = 'badge-danger';
-                                                        if (stripos($log['activity_type'], 'DELETE') !== false)
-                                                            $badge_class = 'badge-danger';
-                                                        if (stripos($log['activity_type'], 'UPDATE') !== false)
-                                                            $badge_class = 'badge-warning';
-                                                        if (stripos($log['activity_type'], 'CREATED') !== false)
-                                                            $badge_class = 'badge-success';
-                                                        ?>
-                                                        <span class="badge <?php echo $badge_class; ?>"
-                                                            style="font-size: 10px;"><?php echo htmlspecialchars($log['activity_type']); ?></span>
-                                                    </td>
-                                                    <td style="padding: 12px; font-size: 13px; color: #4b5563;">
-                                                        <?php echo htmlspecialchars($log['module']); ?>
-                                                    </td>
-                                                    <td
-                                                        style="padding: 12px; font-size: 12px; color: #94a3b8; font-family: monospace;">
-                                                        <?php echo htmlspecialchars($log['ip_address']); ?>
-                                                    </td>
-                                                    <td style="padding: 12px; font-size: 13px; color: #1e293b;">
-                                                        <?php
-                                                        $details = $log['details'];
-                                                        echo htmlspecialchars(strlen($details) > 60 ? substr($details, 0, 60) . '...' : $details);
-                                                        ?>
-                                                    </td>
-                                                </tr>
-                                                <?php
+                                            <?php while ($u = mysqli_fetch_assoc($users_res)):
+                                                $perms = json_decode($u['permissions'] ?? '{}', true);
+                                                $has_perms = !empty($perms);
+                                                ?>
+                                                    <tr>
+                                                        <td><strong>
+                                                                <?php echo htmlspecialchars($u['full_name']); ?>
+                                                            </strong></td>
+                                                        <td>
+                                                            <?php echo htmlspecialchars($u['username']); ?>
+                                                        </td>
+                                                        <td><span class="badge">
+                                                                <?php echo ucfirst($u['role']); ?>
+                                                            </span></td>
+                                                        <td>
+                                                            <?php if ($has_perms): ?>
+                                                                    <span class="badge badge-success">Yes</span>
+                                                                    <?php
+                                                            else: ?>
+                                                                    <span class="badge badge-secondary">Default (Role Based)</span>
+                                                                    <?php
+                                                            endif; ?>
+                                                        </td>
+                                                        <td>
+                                                            <?php if ($_SESSION['super_admin'] == 1 || $u['super_admin'] != 1 || $u['id'] == $_SESSION['user_id']): ?>
+                                                                    <button class="btn btn-primary btn-sm"
+                                                                        onclick='openPermissionModal(<?php echo htmlspecialchars(json_encode($u), ENT_QUOTES); ?>)'>
+                                                                        ⚙️ Manage Rights
+                                                                    </button>
+                                                                    <?php
+                                                            endif; ?>
+                                                        </td>
+                                                    </tr>
+                                                    <?php
                                             endwhile; ?>
-                                            <?php if (mysqli_num_rows($audit_logs) == 0): ?>
-                                                <tr>
-                                                    <td colspan="6" style="padding: 40px; text-align: center; color: #94a3b8;">No
-                                                        audit records found yet</td>
-                                                </tr>
-                                                <?php
-                                            endif; ?>
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
-
-                            <?php
-        endif; // End master_page conditions
-        ?>
-
-                        <script>
-                            // Auto-scroll to master table on page load based on master parameter
-                            document.addEventListener('DOMContentLoaded', function () {
-                                const urlParams = new URLSearchParams(window.location.search);
-                                const masterPage = urlParams.get('master');
-
-                                if (masterPage) {
-                                    const scrollMap = {
-                                        'dashboard': 'overviewSection',
-                                        'settings': 'settingsSection',
-                                        'users': 'usersTable',
-                                        'transporters': 'transportersTable',
-                                        'drivers': 'driversTable',
-                                        'vehicles': 'vehiclesTable',
-                                        'purposes': 'purposesTable',
-                                        'materials': 'materialsTable',
-                                        'suppliers': 'suppliersTable',
-                                        'audit_logs': 'auditLogsTable'
-                                    };
-
-                                    const elementId = scrollMap[masterPage];
-                                    if (elementId) {
-                                        // Wait a bit for content to render, then scroll
-                                        setTimeout(function () {
-                                            const targetElement = document.getElementById(elementId);
-                                            if (targetElement) {
-                                                // Scroll with offset to account for any fixed headers
-                                                const offset = 80;
-                                                const elementPosition = targetElement.getBoundingClientRect().top;
-                                                const offsetPosition = elementPosition + window.pageYOffset - offset;
-
-                                                window.scrollTo({
-                                                    top: offsetPosition,
-                                                    behavior: 'smooth'
-                                                });
-                                            }
-                                        }, 500);
-                                    }
-                                }
-                            });
-                        </script>
-
-                    </div>
-                    <?php
-endif; ?>
-                <?php if ($page == 'user-permissions'): ?>
-
-                    <?php // Ensure Admin Access (Allow if role is admin/manager OR user is super_admin)
-                        $is_super_admin = (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1);
-                        $user_role = strtolower($_SESSION['role'] ?? '');
-                        if (!$is_super_admin && ($user_role != 'admin' && $user_role != 'manager') && !hasPermission('masters.users')) {
-                            echo "
-            <script>window.location.href = '?page=dashboard';</script>";
-                            exit;
-                        }
-
-                        // Fetch Users
-                        $users_res = mysqli_query($conn, "SELECT id, username, full_name, role, permissions, super_admin FROM user_master ORDER BY
-            full_name");
-                        ?>
-                    <div class="container">
-                        <?php if (isset($success_msg)): ?>
-                            <div class="alert alert-success">
-                                <?php echo $success_msg; ?>
-                            </div>
-                            <?php
-                        endif; ?>
-                        <?php if (isset($error_msg)): ?>
-                            <div class="alert alert-error">
-                                <?php echo $error_msg; ?>
-                            </div>
-                            <?php
-                        endif; ?>
-
-                        <a href="?page=admin" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back to
-                            Admin</a>
-
-                        <div
-                            style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);">
-                            <div style="display: flex; align-items: center; gap: 15px;">
-                                <div style="font-size: 40px;">🔐</div>
-                                <div>
-                                    <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">User
-                                        Permissions
-                                    </h1>
-                                    <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9);">Manage access rights for
-                                        system
-                                        users</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Username</th>
-                                            <th>Role</th>
-                                            <th>Permissions Configured</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php while ($u = mysqli_fetch_assoc($users_res)):
-                                            $perms = json_decode($u['permissions'] ?? '{}', true);
-                                            $has_perms = !empty($perms);
-                                            ?>
-                                            <tr>
-                                                <td><strong>
-                                                        <?php echo htmlspecialchars($u['full_name']); ?>
-                                                    </strong></td>
-                                                <td>
-                                                    <?php echo htmlspecialchars($u['username']); ?>
-                                                </td>
-                                                <td><span class="badge">
-                                                        <?php echo ucfirst($u['role']); ?>
-                                                    </span></td>
-                                                <td>
-                                                    <?php if ($has_perms): ?>
-                                                        <span class="badge badge-success">Yes</span>
-                                                        <?php
-                                                    else: ?>
-                                                        <span class="badge badge-secondary">Default (Role Based)</span>
-                                                        <?php
-                                                    endif; ?>
-                                                </td>
-                                                <td>
-                                                    <?php if ($_SESSION['super_admin'] == 1 || $u['super_admin'] != 1 || $u['id'] == $_SESSION['user_id']): ?>
-                                                        <button class="btn btn-primary btn-sm"
-                                                            onclick='openPermissionModal(<?php echo htmlspecialchars(json_encode($u), ENT_QUOTES); ?>)'>
-                                                            ⚙️ Manage Rights
-                                                        </button>
-                                                        <?php
-                                                    endif; ?>
-                                                </td>
-                                            </tr>
-                                            <?php
-                                        endwhile; ?>
-                                    </tbody>
-                                </table>
-                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <?php
+                <?php
                 endif; ?>
 
         <!-- GLOBAL MODALS (Available to all admin/permission pages) -->
@@ -6552,14 +6781,14 @@ endif; ?>
                                     class="slider"></span></label>
                         </div>
                         <?php if (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1): ?>
-                            <div class="action-row">
-                                <div class="action-info">
-                                    <h4>Delete Records</h4>
-                                    <p style="color:#ef4444;">Permanent removal</p>
-                                </div><label class="switch"><input type="checkbox" name="perm_action_delete"
-                                        id="a_delete"><span class="slider"></span></label>
-                            </div>
-                            <?php
+                                <div class="action-row">
+                                    <div class="action-info">
+                                        <h4>Delete Records</h4>
+                                        <p style="color:#ef4444;">Permanent removal</p>
+                                    </div><label class="switch"><input type="checkbox" name="perm_action_delete"
+                                            id="a_delete"><span class="slider"></span></label>
+                                </div>
+                                <?php
                         endif; ?>
                     </div>
 
@@ -6614,10 +6843,10 @@ endif; ?>
                             if ($m_res) {
                                 while ($m = mysqli_fetch_assoc($m_res)):
                                     ?>
-                                    <option value="<?php echo htmlspecialchars($m['module']); ?>" <?php echo (isset($f_module) && $f_module == $m['module']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($m['module']); ?>
-                                    </option>
-                                    <?php
+                                            <option value="<?php echo htmlspecialchars($m['module']); ?>" <?php echo (isset($f_module) && $f_module == $m['module']) ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($m['module']); ?>
+                                            </option>
+                                            <?php
                                 endwhile;
                             }
                             ?>
@@ -6633,10 +6862,10 @@ endif; ?>
                             if ($t_res) {
                                 while ($t = mysqli_fetch_assoc($t_res)):
                                     ?>
-                                    <option value="<?php echo htmlspecialchars($t['activity_type']); ?>" <?php echo (isset($f_type) && $f_type == $t['activity_type']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($t['activity_type']); ?>
-                                    </option>
-                                    <?php
+                                            <option value="<?php echo htmlspecialchars($t['activity_type']); ?>" <?php echo (isset($f_type) && $f_type == $t['activity_type']) ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($t['activity_type']); ?>
+                                            </option>
+                                            <?php
                                 endwhile;
                             }
                             ?>

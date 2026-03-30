@@ -3,6 +3,35 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- ==========================================================
+-- MASTER CONTROL: Tenants Table (Managed in Admin DB)
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS `tenants` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `customer_name` varchar(200) NOT NULL,
+  `slug` varchar(50) NOT NULL,
+  `db_host` varchar(255) DEFAULT 'localhost',
+  `db_name` varchar(100) NOT NULL,
+  `db_user` varchar(255) DEFAULT '',
+  `db_pass` varchar(255) DEFAULT '',
+  `admin_username` varchar(100) NOT NULL,
+  `admin_password_hash` varchar(255) NOT NULL,
+  `contact_person` varchar(100) DEFAULT NULL,
+  `mobile` varchar(20) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `gst_no` varchar(50) DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ==========================================================
+-- TENANT TABLES: Individual Instance Schema
+-- ==========================================================
+
 
 CREATE TABLE IF NOT EXISTS `app_settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

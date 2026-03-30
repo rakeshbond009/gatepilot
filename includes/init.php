@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.29.1734');
+    define('APP_VERSION', '26.03.30.1359');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -16,30 +16,56 @@ require_once __DIR__ . '/functions.php';
 session_start();
 
 // ========== MULTI-TENANT GLOBAL HANDLERS (AJAX & STATE) ==========
-// 1. Real-time password uniqueness check (Clean AJAX Response)
-if (isset($_GET['check_pass_uniqueness'])) {
+
+
+// 1.5 Real-time username uniqueness check
+if (isset($_GET['check_username_uniqueness'])) {
     while (ob_get_level())
-        ob_end_clean(); // Kill any buffers
+        ob_end_clean();
     header('Content-Type: application/json');
-    $pass = trim($_GET['pass'] ?? '');
-    if (strlen($pass) < 2) {
+    $uname = trim($_GET['username'] ?? '');
+    if (strlen($uname) < 2) {
         echo json_encode(["unique" => true, "owner" => false]);
         exit;
     }
-    $master_conn = getMasterDatabaseConnection();
-    $all_pw_q = mysqli_query($master_conn, "SELECT slug, admin_password_hash FROM tenants WHERE admin_password_hash IS NOT NULL AND admin_password_hash != ''");
-    $found = false;
-    while ($row = mysqli_fetch_assoc($all_pw_q)) {
-        if (password_verify($pass, $row['admin_password_hash'])) {
-            $found = strtoupper($row['slug']);
-            break;
-        }
+    $master_conn = @getMasterDatabaseConnection();
+    if (!$master_conn) {
+        echo json_encode(["unique" => true, "owner" => false, "error" => "Master connection failed"]);
+        exit;
     }
-    echo json_encode(["unique" => ($found === false), "owner" => $found]);
+    $esc_uname = mysqli_real_escape_string($master_conn, $uname);
+    // Use @ to avoid PHP warnings if column is missing, handle error properly
+    $check_q = @mysqli_query($master_conn, "SELECT slug FROM tenants WHERE admin_username = '$esc_uname' LIMIT 1");
+    if ($check_q && $row = mysqli_fetch_assoc($check_q)) {
+        echo json_encode(["unique" => false, "owner" => strtoupper($row['slug'])]);
+    } else {
+        // If query failed (e.g. column missing), return as unique but maybe log it
+        echo json_encode(["unique" => true, "owner" => false, "debug" => mysqli_error($master_conn)]);
+    }
     exit;
 }
 
-// 2. Clear Tenant Form Data (State Managed - Clean Session Only, Allow page to continue with trigger)
+// 2. Real-time slug (company code) uniqueness check
+if (isset($_GET['check_slug_uniqueness'])) {
+    while (ob_get_level())
+        ob_end_clean();
+    header('Content-Type: application/json');
+    $slug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $_GET['slug'] ?? ''));
+    if (empty($slug)) {
+        echo json_encode(["unique" => true]);
+        exit;
+    }
+    $master_conn = getMasterDatabaseConnection();
+    $check_q = mysqli_query($master_conn, "SELECT customer_name FROM tenants WHERE slug = '" . mysqli_real_escape_string($master_conn, $slug) . "' LIMIT 1");
+    if ($row = mysqli_fetch_assoc($check_q)) {
+        echo json_encode(["unique" => false, "owner" => $row['customer_name']]);
+    } else {
+        echo json_encode(["unique" => true]);
+    }
+    exit;
+}
+
+// 3. Clear Tenant Form Data (State Managed - Clean Session Only, Allow page to continue with trigger)
 if (isset($_GET['clear_form'])) {
     unset($_SESSION['tenant_form_data']);
     unset($_SESSION['tenant_error']);
@@ -2204,4 +2230,4 @@ if ($page == 'check-duplicate-employee-id') {
     }
     exit;
 }
-?>
+?>

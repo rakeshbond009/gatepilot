@@ -2,7 +2,21 @@
 
 This project includes a professional Version Control system using Git and GitHub, designed to work seamlessly with Hostinger's standard deployment.
 
----
+# Exclude sensitive configuration
+.env
+db.php
+# Exclude Cloud Service JSON Keys (Like Firebase/Google Cloud)
+*.json
+includes/*.json
+credentials/*.json
+# Exclude uploads and user data
+uploads/photos/
+uploads/qrcodes/
+includes/sessions/
+# Server/System files
+error_log
+*.log
+.DS_Store
 
 ## 🏗 Phase 1: Initial Local Git Setup (First Time Only)
 

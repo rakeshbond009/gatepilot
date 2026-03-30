@@ -218,10 +218,45 @@ function auditDiff(array $old_row, array $post, array $skip = [], array $labels 
 }
 
 /**
+ * CENTRAL PERMISSION REGISTRY
+ * Defines all available pages, master categories, and actions.
+ * If $is_tenant_admin is true, it excludes Super-Admin specialized pages.
+ */
+function getAppDefaultPermissions($is_tenant_admin = true) {
+    $perms = [
+        'pages' => [
+            'dashboard' => true, 'inward' => true, 'outward' => true, 'reports' => true,
+            'loading' => true, 'unloading' => true, 'masters' => true, 'management' => true,
+            'tickets' => true, 'permissions' => true, 'guard_patrol' => true, 'inside' => true,
+            'history' => true, 'register' => true, 'register_types' => true, 'audit_logs' => true,
+            'employee_scan' => true, 'app_issues' => true
+        ],
+        'masters' => [
+            'transporters' => true, 'drivers' => true, 'vehicles' => true, 'purposes' => true,
+            'employees' => true, 'departments' => true, 'patrol' => true, 'materials' => true,
+            'suppliers' => true, 'users' => true, 'settings' => true
+        ],
+        'actions' => [
+            'edit_record' => true, 'delete_record' => true, 'view_buttons' => true
+        ]
+    ];
+
+    // SECURE: Enforce exclusions for non-Super Admins
+    if ($is_tenant_admin) {
+        $excl = ['multi-tenancy', 'cloud_config', 'db_manager'];
+        foreach ($excl as $e) {
+            unset($perms['pages'][$e]);
+        }
+    }
+
+    return $perms;
+}
+
+/**
  * Provision a new tenant database and register it in the master table
  * Restricted to Super Admins only
  */
-function createTenant($customer_name, $slug, $admin_username, $admin_password, $contact_person = '', $mobile = '', $email = '', $address = '', $gst_no = '')
+function createTenant($customer_name, $slug, $admin_username, $admin_password, $contact_person = '', $mobile = '', $email = '', $address = '', $gst_no = '', $db_host = 'localhost', $db_user = '', $db_pass = '')
 {
     // 1. Validate Input
     if (empty($admin_username) || empty($admin_password)) {
@@ -229,13 +264,13 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
     }
 
     $slug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $slug));
+    $db_host = !empty($db_host) ? $db_host : (defined('DB_HOST') ? DB_HOST : 'localhost');
 
     // Prefix for grouping in phpMyAdmin and shortening for compliance
     if (defined('ENVIRONMENT') && ENVIRONMENT === 'LOCAL') {
         $db_name = "gp_" . $slug; // Local prefix
     } else {
         // PRODUCTION: Use Hostinger account prefix if available
-        // Usually, the DB_USER or DB_NAME will have the prefix like u875321134_
         $prefix = explode('_', DB_NAME)[0]; // Extract account ID (e.g. u875321134)
         $db_name = $prefix . "_gp_" . $slug;
     }
@@ -248,26 +283,31 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
         return ["success" => false, "message" => "This slug '$slug' is already taken!"];
     }
 
-    // 2. Validate Password uniqueness across all tenants
-    $admin_password_trimmed = trim($admin_password);
-    $all_pw_q = mysqli_query($master_conn, "SELECT slug, admin_password_hash FROM tenants WHERE admin_password_hash IS NOT NULL AND admin_password_hash != ''");
-    while ($row = mysqli_fetch_assoc($all_pw_q)) {
-        if (password_verify($admin_password_trimmed, $row['admin_password_hash'])) {
-            $existing_slug = strtoupper($row['slug']);
-            return ["success" => false, "message" => "❌ Security Violation: This password is already being used by the '$existing_slug' system! For security compliance, every customer must have a unique administrative password."];
-        }
-    }
+    // 3. Create or Link New Database
+    // Try custom credentials if provided, otherwise fallback to master credentials
+    $conn_user = !empty($db_user) ? $db_user : DB_USER;
+    $conn_pass = (!empty($db_user) || !empty($db_pass)) ? $db_pass : DB_PASS;
 
-    // 3. Create New Database
-    $conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS);
+    // Connect to Host without selecting a DB first to check for creation
+    $conn = @mysqli_connect($db_host, $conn_user, $conn_pass);
     if (!$conn) {
         return ["success" => false, "message" => "Database server connection failed: " . mysqli_connect_error()];
     }
 
-    if (!mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
-        return ["success" => false, "message" => "Database creation failed: " . mysqli_error($conn)];
+    // Attempt creation (May fail on shared hosting like Hostinger - that is OK)
+    $create_q = "CREATE DATABASE IF NOT EXISTS `$db_name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
+    @mysqli_query($conn, $create_q);
+
+    // Now try to select the database
+    if (!@mysqli_select_db($conn, $db_name)) {
+        $err = mysqli_error($conn);
+        return [
+            "success" => false, 
+            "message" => "Could not access database '$db_name'. 
+                          If you are on Hostinger, you MUST first create the database & user manually in hPanel before linking it here. 
+                          Error: $err"
+        ];
     }
-    mysqli_select_db($conn, $db_name);
 
     // 4. Import Schema from database/schema.sql
     $schema_file = dirname(__DIR__) . '/database/schema.sql';
@@ -275,22 +315,36 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
         return ["success" => false, "message" => "Schema file not found at $schema_file"];
     }
 
-    $sql = file_get_contents($schema_file);
+    // Check if the database is already populated
+    $check_tables = mysqli_query($conn, "SHOW TABLES LIKE 'user_master'");
+    if (mysqli_num_rows($check_tables) == 0) {
+        $sql = file_get_contents($schema_file);
 
-    // Split and run each query
-    $queries = array_filter(array_map('trim', explode(';', $sql)));
-    foreach ($queries as $query) {
-        if (!empty($query)) {
-            // Use @ to suppress errors if tables exist, or check result
-            @mysqli_query($conn, $query);
+        // Split and run each query
+        $queries = array_filter(array_map('trim', explode(';', $sql)));
+        $import_errors = [];
+        foreach ($queries as $query) {
+            if (!empty($query)) {
+                if (!mysqli_query($conn, $query)) {
+                    $import_errors[] = mysqli_error($conn);
+                }
+            }
         }
+
+        if (!empty($import_errors)) {
+            error_log("Tenant Schema Warnings for $db_name: " . implode(", ", array_slice($import_errors, 0, 3)));
+        }
+    } else {
+        error_log("Skipping schema import for $db_name - tables already exist.");
     }
 
-    // 5. Create Initial Admin User in the NEW database (WITH DYNAMIC PERMISSIONS)
+    // 5. Create Initial Admin User in the NEW database
     $hashed_pass = password_hash($admin_password, PASSWORD_DEFAULT);
-    $full_perms = '{}'; // Admin permissions are dynamically bypassed in init.php->hasPermission()
+    
+    // Default Dynamic Permissions for the primary Admin
+    $perms_array = getAppDefaultPermissions(true);
+    $full_perms = mysqli_real_escape_string($conn, json_encode($perms_array));
 
-    // Sanitize metadata for the NEW tenant database connection ($conn)
     $esc_mobile = mysqli_real_escape_string($conn, $mobile);
     $esc_email = mysqli_real_escape_string($conn, $email);
 
@@ -300,7 +354,6 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
                   password = VALUES(password), 
                   full_name = VALUES(full_name), 
                   role = 'admin',
-                  super_admin = 0,
                   is_active = 1,
                   permissions = VALUES(permissions),
                   mobile = VALUES(mobile),
@@ -308,13 +361,20 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
     mysqli_query($conn, $admin_sql);
 
     // 6. Register in Master DB
-    $register_sql = "INSERT INTO tenants (customer_name, slug, db_name, admin_password_hash, contact_person, mobile, email, address, gst_no) 
-                     VALUES ('$customer_name', '$slug', '$db_name', '$hashed_pass', 
+    $register_sql = "INSERT INTO tenants (customer_name, slug, db_host, db_name, db_user, db_pass, admin_username, admin_password_hash, contact_person, mobile, email, address, gst_no) 
+                     VALUES ('$customer_name', '$slug', 
+                             '" . mysqli_real_escape_string($master_conn, $db_host) . "',
+                             '$db_name', 
+                             '" . mysqli_real_escape_string($master_conn, $db_user) . "', 
+                             '" . mysqli_real_escape_string($master_conn, $db_pass) . "', 
+                             '" . mysqli_real_escape_string($master_conn, $admin_username) . "', 
+                             '$hashed_pass', 
                              '" . mysqli_real_escape_string($master_conn, $contact_person) . "', 
                              '" . mysqli_real_escape_string($master_conn, $mobile) . "', 
                              '" . mysqli_real_escape_string($master_conn, $email) . "', 
                              '" . mysqli_real_escape_string($master_conn, $address) . "', 
                              '" . mysqli_real_escape_string($master_conn, $gst_no) . "')";
+
     if (mysqli_query($master_conn, $register_sql)) {
         return ["success" => true, "message" => "Tenant '$customer_name' created successfully! Database: $db_name"];
     } else {

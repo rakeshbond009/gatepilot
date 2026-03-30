@@ -125,43 +125,90 @@ if ($is_local) {
 }
 
 // ========== MASTER DATABASE (Global Control) ==========
-define('MASTER_DB_NAME', DB_NAME); // Using existing "gatepilot_admin" DB as the control center
+define('MASTER_DB_NAME', DB_NAME); // The main gatepilot_admin database
 define('MASTER_DB_USER', DB_USER);
 define('MASTER_DB_PASS', DB_PASS);
 
-// Get Master DB connection
-function getMasterDatabaseConnection()
-{
-    // Since we're using the main DB as the control center, just return the standard connection
-    return mysqli_connect(DB_HOST, MASTER_DB_USER, MASTER_DB_PASS, DB_NAME);
+// 1. EARLY TENANT RESTORATION (VisitPilot Logic: Restore from Cookie, Session or URL)
+if (isset($_GET['tslug'])) {
+    $_SESSION['tenant_slug'] = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['tslug']);
 }
 
-// Database connection function
+if (!isset($_SESSION['tenant_slug']) && isset($_COOKIE['GATEPILOT_TENANT'])) {
+    $_SESSION['tenant_slug'] = preg_replace('/[^a-zA-Z0-9_\-]/', '', $_COOKIE['GATEPILOT_TENANT']);
+}
+
+// 2. MASTER CONNECTION POOL
+$master_conn = null;
+function getMasterDatabaseConnection()
+{
+    global $master_conn;
+    if ($master_conn)
+        return $master_conn;
+
+    $master_conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    if (!$master_conn) {
+        die("Master Connection Failed: " . mysqli_connect_error());
+    }
+    mysqli_query($master_conn, "SET time_zone = '+05:30'");
+    return $master_conn;
+}
+
+// 3. ENHANCED TENANT DATABASE CONNECTION (VisitPilot Style)
 function getDatabaseConnection()
 {
-    // If we're logged in/specifying a tenant, we use that database
-    $db_name = $_SESSION['tenant_db'] ?? DB_NAME;
+    $m_conn = getMasterDatabaseConnection();
+    $tenant_slug = $_SESSION['tenant_slug'] ?? 'admin';
 
-    $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, $db_name);
+    // Default fallback to environment config
+    $db_host = DB_HOST;
+    $db_user = DB_USER;
+    $db_pass = DB_PASS;
+    $db_name = DB_NAME;
 
-    if (!$conn) {
-        // Try to connect without database and create it
-        $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
-        if ($conn) {
-            $db_created = mysqli_query($conn, "CREATE DATABASE IF NOT EXISTS " . $db_name . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-            if ($db_created) {
-                mysqli_select_db($conn, $db_name);
-            } else {
-                die("Error creating database: " . mysqli_error($conn));
+    // Logic: Query master for tenant-specific isolation credentials
+    if ($tenant_slug !== 'admin') {
+        $stmt = mysqli_prepare($m_conn, "SELECT db_host, db_name, db_user, db_pass, is_active FROM tenants WHERE slug = ?");
+        mysqli_stmt_bind_param($stmt, "s", $tenant_slug);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+
+        if ($tenant = mysqli_fetch_assoc($result)) {
+            if (!$tenant['is_active']) {
+                die("🚫 System Suspended: This company's system has been deactivated.");
             }
-        } else {
-            die("Database connection failed: " . mysqli_connect_error());
+            // Populate isolation credentials (use Master defaults if columns are not yet migrated)
+            $db_host = $tenant['db_host'] ?: DB_HOST;
+            $db_name = $tenant['db_name'] ?: DB_NAME;
+            $db_user = $tenant['db_user'] ?: DB_USER;
+            $db_pass = $tenant['db_pass'] ?: DB_PASS;
+
+            $_SESSION['tenant_db'] = $db_name;
+
+            // Set cookie for persistence (VisitPilot logic)
+            if (!isset($_COOKIE['GATEPILOT_TENANT']) || $_COOKIE['GATEPILOT_TENANT'] !== $tenant_slug) {
+                setcookie('GATEPILOT_TENANT', $tenant_slug, time() + (365 * 24 * 60 * 60), '/', '', false, true);
+            }
         }
     }
 
-    // Set MySQL timezone to IST
-    mysqli_query($conn, "SET time_zone = '+05:30'");
+    $conn = @mysqli_connect($db_host, $db_user, $db_pass, $db_name);
 
+    if (!$conn) {
+        // Fallback: Attempt to auto-create and select if missing
+        $temp_conn = mysqli_connect($db_host, $db_user, $db_pass);
+        if ($temp_conn) {
+            mysqli_query($temp_conn, "CREATE DATABASE IF NOT EXISTS " . mysqli_real_escape_string($temp_conn, $db_name) . " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $conn = mysqli_connect($db_host, $db_user, $db_pass, $db_name);
+            mysqli_close($temp_conn);
+        }
+    }
+
+    if (!$conn) {
+        die("❌ Critical Connection Failure for Tenant: [$tenant_slug]");
+    }
+
+    mysqli_query($conn, "SET time_zone = '+05:30'");
     return $conn;
 }
 
