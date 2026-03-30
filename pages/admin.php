@@ -549,15 +549,27 @@
     if (isset($_GET['toggle_tenant']) && isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] == 'admin' && ($_SESSION['super_admin'] ?? 0) == 1) {
         $id = (int) $_GET['toggle_tenant'];
         $status = (int) $_GET['status'];
-        $master_conn = getMasterDatabaseConnection();
+        $msg = mysqli_real_escape_string($master_conn, $_GET['msg'] ?? '');
 
-        // Ensure column exists first
+        // Ensure columns exist first
         $col_check = mysqli_query($master_conn, "SHOW COLUMNS FROM tenants LIKE 'is_active'");
         if (mysqli_num_rows($col_check) == 0) {
             mysqli_query($master_conn, "ALTER TABLE tenants ADD COLUMN is_active TINYINT(1) DEFAULT 1 AFTER gst_no");
         }
+        $msg_check = mysqli_query($master_conn, "SHOW COLUMNS FROM tenants LIKE 'deactivation_message'");
+        if (mysqli_num_rows($msg_check) == 0) {
+            mysqli_query($master_conn, "ALTER TABLE tenants ADD COLUMN deactivation_message TEXT NULL AFTER is_active");
+        }
 
-        $success = mysqli_query($master_conn, "UPDATE tenants SET is_active = $status WHERE id = $id");
+        $sql = "UPDATE tenants SET is_active = $status";
+        if ($status === 0) {
+            $sql .= ", deactivation_message = '$msg'";
+        } else {
+            $sql .= ", deactivation_message = NULL";
+        }
+        $sql .= " WHERE id = $id";
+        
+        $success = mysqli_query($master_conn, $sql);
 
         // Get slug for log
         $slug_q = mysqli_query($master_conn, "SELECT slug FROM tenants WHERE id = $id");
@@ -1251,12 +1263,6 @@
 
                     $showModal = !empty($tenant_data);
                     $isEditMode = !empty($tenant_data['edit_tenant_id']);
-                    
-                    // Hosted Environment Verification
-                    $hostname = $_SERVER['SERVER_NAME'];
-                    $isLocal = ($hostname === 'localhost' || $hostname === '127.0.0.1' || str_contains($hostname, '192.168.'));
-                    $isHosted = !$isLocal;
-                    $dbReq = $isHosted ? 'required' : '';
                     ?>
                             <div id="tenantModal" class="perm-modal-overlay"
                                 style="display: <?php echo $showModal ? 'flex' : 'none'; ?>; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
@@ -1415,7 +1421,7 @@
                                                                 Host</label>
                                                             <input type="text" name="db_host" id="t_db_host"
                                                                 value="<?php echo htmlspecialchars($tenant_data['db_host'] ?? 'localhost'); ?>"
-                                                                placeholder="localhost" <?php echo $dbReq; ?>
+                                                                placeholder="localhost"
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                         <div>
@@ -1424,7 +1430,7 @@
                                                                 Name</label>
                                                             <input type="text" name="db_name" id="t_db_name"
                                                                 value="<?php echo htmlspecialchars($tenant_data['db_name'] ?? ''); ?>"
-                                                                placeholder="e.g. u12345_gatepilot_db" <?php echo $dbReq; ?>
+                                                                placeholder="e.g. u12345_gatepilot_db"
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                         <div>
@@ -1433,7 +1439,7 @@
                                                                 DB User</label>
                                                             <input type="text" name="db_user" id="t_db_user"
                                                                 value="<?php echo htmlspecialchars($tenant_data['db_user'] ?? ''); ?>"
-                                                                placeholder="(Leave blank for default root)" <?php echo $dbReq; ?>
+                                                                placeholder="(Leave blank for default root)"
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                         <div>
@@ -1442,7 +1448,7 @@
                                                                 DB Password</label>
                                                             <input type="password" name="db_pass" id="t_db_pass"
                                                                 value="<?php echo htmlspecialchars($tenant_data['db_pass'] ?? ''); ?>"
-                                                                placeholder="(Leave blank for none)" <?php echo $dbReq; ?>
+                                                                placeholder="(Leave blank for none)"
                                                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px;">
                                                         </div>
                                                     </div>
@@ -1478,19 +1484,12 @@
                             </div>
 
                             <script>
-                                document.getElementById('provisionForm').addEventListener('submit', function(e) {
-                                    const btn = document.getElementById('provisionBtn');
-                                    // Visual loader state
-                                    btn.disabled = true;
-                                    btn.style.opacity = '0.7';
-                                    btn.style.cursor = 'wait';
-                                    btn.innerHTML = '<span style="display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-radius:50%; border-top-color:white; animation:spin 0.8s linear infinite; margin-right:8px;"></span> Processing Setup...';
-                                });
 
-                                document.getElementById('t_admin_user').addEventListener('input', function () {
+                                document.getElementById('t_admin_user')?.addEventListener('input', function () {
                                     const uname = this.value.trim();
                                     const warning = document.getElementById('userWarning');
                                     const btn = document.getElementById('provisionBtn');
+                                    if (!btn || !warning) return;
                                     
                                     if (uname.length < 2) {
                                         warning.style.display = 'none';
@@ -1502,7 +1501,8 @@
                                         .then(res => res.json())
                                         .then(data => {
                                             if (!data.unique) {
-                                                document.getElementById('userWarningText').innerText = 'Conflict: The username "' + uname + '" is already taken by ' + data.owner + '. Administrative usernames must be unique.';
+                                                const warnText = document.getElementById('userWarningText');
+                                                if (warnText) warnText.innerText = 'Conflict: The username "' + uname + '" is already taken by ' + data.owner + '. Administrative usernames must be unique.';
                                                 warning.style.display = 'block';
                                                 btn.style.backgroundColor = '#94a3b8';
                                                 btn.style.opacity = '0.6';
@@ -1514,18 +1514,20 @@
                                         });
                                 });
 
-                                document.getElementById('t_slug').addEventListener('input', function () {
+                                document.getElementById('t_slug')?.addEventListener('input', function () {
                                     const slug = this.value.trim();
                                     const warning = document.getElementById('slugWarning');
                                     const btn = document.getElementById('provisionBtn');
+                                    if (!btn || !warning) return;
                                     
                                     // Auto-populate DB name on Local ONLY (for new tenants)
                                     const hostname = window.location.hostname;
                                     const isLocal = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'));
-                                    const isEdit = document.getElementById('edit_tenant_id').value !== "";
+                                    const isEdit = document.getElementById('edit_tenant_id')?.value !== "";
                                     
                                     if (isLocal && !isEdit && slug.length > 0) {
-                                        document.getElementById('t_db_name').value = 'gp_' + slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                        const dbNameField = document.getElementById('t_db_name');
+                                        if (dbNameField) dbNameField.value = 'gp_' + slug.toLowerCase().replace(/[^a-z0-9]/g, '');
                                     }
                                     
                                     if (slug.length < 2) {
@@ -1538,7 +1540,8 @@
                                         .then(res => res.json())
                                         .then(data => {
                                             if (!data.unique) {
-                                                document.getElementById('slugWarningText').innerText = 'The code "' + slug + '" is already taken by ' + data.owner + '. Please use a different company code.';
+                                                const slugWarnText = document.getElementById('slugWarningText');
+                                                if (slugWarnText) slugWarnText.innerText = 'The code "' + slug + '" is already taken by ' + data.owner + '. Please use a different company code.';
                                                 warning.style.display = 'block';
                                                 btn.style.backgroundColor = '#94a3b8';
                                                 btn.style.opacity = '0.6';
@@ -1559,11 +1562,13 @@
                                         window.location.href = 'index.php?page=admin&master=multi-tenancy&open_setup=1';
                                     } else {
                                         // Hosted environment (e.g., Hostinger) - Show mandatory popup
-                                        document.getElementById('hostingerCheckModal').style.display = 'flex';
+                                        const modal = document.getElementById('hostingerCheckModal');
+                                        if (modal) modal.style.display = 'flex';
                                     }
                                 }
                                 function closeHostingerCheck() {
-                                    document.getElementById('hostingerCheckModal').style.display = 'none';
+                                    const modal = document.getElementById('hostingerCheckModal');
+                                    if (modal) modal.style.display = 'none';
                                 }
                                 function confirmHostingerReady() {
                                     closeHostingerCheck();
@@ -1572,11 +1577,30 @@
 
                                 function checkOverallStatus() {
                                     const btn = document.getElementById('provisionBtn');
+                                    if (!btn) return;
                                     const slugWarn = document.getElementById('slugWarning');
                                     const userWarn = document.getElementById('userWarning');
                                     
+                                    // DB Fields validation
+                                    const dbHost = document.getElementById('t_db_host')?.value.trim() || '';
+                                    const dbName = document.getElementById('t_db_name')?.value.trim() || '';
+                                    const dbUser = document.getElementById('t_db_user')?.value.trim() || '';
+                                    const dbPass = document.getElementById('t_db_pass')?.value.trim() || '';
+                                    
+                                    const hostname = window.location.hostname;
+                                    const isLocal = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.'));
+                                    
+                                    let dbValid = true;
+                                    // If hosted, all 4 DB fields are MANDATORY
+                                    if (!isLocal) {
+                                        if (!dbHost || !dbName || !dbUser || !dbPass) {
+                                            dbValid = false;
+                                        }
+                                    }
+                                    
                                     const hasConflict = (slugWarn && slugWarn.style.display === 'block') || 
-                                                       (userWarn && userWarn.style.display === 'block');
+                                                       (userWarn && userWarn.style.display === 'block') ||
+                                                       !dbValid;
                                     
                                     if (!hasConflict) {
                                         btn.style.backgroundColor = '<?php echo $isEditMode ? "#3b82f6" : "#10b981"; ?>';
@@ -1591,18 +1615,24 @@
                                     }
                                 }
 
-                                document.getElementById('hpanel_confirm').addEventListener('change', checkOverallStatus);
-                                document.getElementById('t_db_host').addEventListener('input', checkOverallStatus);
+                                document.getElementById('hpanel_confirm')?.addEventListener('change', checkOverallStatus);
+                                document.getElementById('t_db_host')?.addEventListener('input', checkOverallStatus);
+                                document.getElementById('t_db_name')?.addEventListener('input', checkOverallStatus);
+                                document.getElementById('t_db_user')?.addEventListener('input', checkOverallStatus);
+                                document.getElementById('t_db_pass')?.addEventListener('input', checkOverallStatus);
 
                                 document.getElementById('provisionForm').addEventListener('submit', function () {
                                     const btn = document.getElementById('provisionBtn');
                                     // Delay the disable slightly so the browser registers the intent
+                                    btn.innerHTML = '<span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid white; border-top:2px solid transparent; border-radius:50%; animation:spin 0.8s linear infinite; margin-right:8px; vertical-align: middle;"></span> Working...';
+                                    btn.style.opacity = '0.7';
+                                    btn.style.cursor = 'wait';
+                                    btn.style.pointerEvents = 'none'; // Prevent double click
+                                    
+                                    // Native disabled can sometimes stop the submit, so we use pointerEvents
                                     setTimeout(() => {
                                         btn.disabled = true;
-                                        btn.innerHTML = '<span class="spinner" style="display:inline-block; width:12px; height:12px; border:2px solid white; border-top:2px solid transparent; border-radius:50%; animation:spin 0.8s linear infinite; margin-right:8px; vertical-align: middle;"></span> Working...';
-                                        btn.style.opacity = '0.7';
-                                        btn.style.cursor = 'wait';
-                                    }, 10);
+                                    }, 100);
 
                                     if (!document.getElementById('spinAnimation')) {
                                         const style = document.createElement('style');
@@ -1765,11 +1795,41 @@
                                 }
 
                                 function toggleTenantStatus(btn, id, newStatus) {
+                                    if(newStatus === 0) {
+                                        // Deactivating: Prompt for message
+                                        Swal.fire({
+                                            title: 'Deactivate System?',
+                                            text: "Enter a custom message to show the customer (Optional):",
+                                            input: 'textarea',
+                                            inputPlaceholder: 'e.g. System is undergoing scheduled maintenance...',
+                                            showCancelButton: true,
+                                            confirmButtonColor: '#ef4444',
+                                            cancelButtonColor: '#6b7280',
+                                            confirmButtonText: 'Deactivate Now',
+                                            cancelButtonText: 'Cancel'
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                const msg = result.value || '';
+                                                executeToggle(btn, id, newStatus, msg);
+                                            }
+                                        });
+                                    } else {
+                                        // Activating: Just do it
+                                        executeToggle(btn, id, newStatus);
+                                    }
+                                }
+
+                                function executeToggle(btn, id, newStatus, deactivationMsg = '') {
                                     const originalContent = btn.innerHTML;
                                     btn.innerHTML = '⌛...';
                                     btn.disabled = true;
 
-                                    fetch('index.php?page=admin&master=multi-tenancy&toggle_tenant=' + id + '&status=' + newStatus + '&ajax=1')
+                                    const url = 'index.php?page=admin&master=multi-tenancy&toggle_tenant=' + id + 
+                                                '&status=' + newStatus + 
+                                                '&msg=' + encodeURIComponent(deactivationMsg) + 
+                                                '&ajax=1';
+
+                                    fetch(url)
                                         .then(res => res.json())
                                         .then(data => {
                                             if (data.success) {

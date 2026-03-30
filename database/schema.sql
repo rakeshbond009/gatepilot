@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS `tenants` (
   `address` text DEFAULT NULL,
   `gst_no` varchar(50) DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
+  `deactivation_message` text DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `slug` (`slug`)

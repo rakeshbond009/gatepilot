@@ -174,9 +174,6 @@ function getDatabaseConnection()
         $result = mysqli_stmt_get_result($stmt);
 
         if ($tenant = mysqli_fetch_assoc($result)) {
-            if (!$tenant['is_active']) {
-                die("🚫 System Suspended: This company's system has been deactivated.");
-            }
             // Populate isolation credentials (use Master defaults if columns are not yet migrated)
             $db_host = $tenant['db_host'] ?: DB_HOST;
             $db_name = $tenant['db_name'] ?: DB_NAME;
