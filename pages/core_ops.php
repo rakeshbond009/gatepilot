@@ -5284,8 +5284,8 @@ elseif ($page == 'reports'):
                                               LEFT JOIN employee_master em ON e.employee_id = em.employee_id
                                               LEFT JOIN user_master u ON e.inward_by = u.id
                                               LEFT JOIN user_master u2 ON e.outward_by = u2.id
-                                              LEFT JOIN gp_admin.user_master um ON e.inward_by = um.id
-                                              LEFT JOIN gp_admin.user_master um2 ON e.outward_by = um2.id
+                                              LEFT JOIN " . DB_NAME . ".user_master um ON e.inward_by = um.id
+                                              LEFT JOIN " . DB_NAME . ".user_master um2 ON e.outward_by = um2.id
                                               $employee_where_sql
                                               ORDER BY e.inward_datetime DESC");
 
