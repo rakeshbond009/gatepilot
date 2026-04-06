@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.06.1247');
+    define('APP_VERSION', '26.04.06.1624');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -293,25 +293,23 @@ if ($conn) {
     }
 
     // Ensure vehicle_photo_url column exists
-    $check_vehicle_col = @mysqli_query($conn, "SHOW COLUMNS FROM truck_inward LIKE 'vehicle_photo_url'");
-    $check_old_col = @mysqli_query($conn, "SHOW COLUMNS FROM truck_inward LIKE 'driver_photo_url'");
+    $check_vehicle_col = mysqli_query($conn, "SHOW COLUMNS FROM truck_inward LIKE 'vehicle_photo_url'");
+    $check_old_col = mysqli_query($conn, "SHOW COLUMNS FROM truck_inward LIKE 'driver_photo_url'");
 
-    if ($check_vehicle_col && $check_old_col) {
-        if (mysqli_num_rows($check_vehicle_col) == 0 && mysqli_num_rows($check_old_col) > 0) {
-            // Rename old column to new one
-            mysqli_query($conn, "ALTER TABLE truck_inward CHANGE driver_photo_url vehicle_photo_url VARCHAR(255)");
-        } elseif (mysqli_num_rows($check_vehicle_col) == 0 && mysqli_num_rows($check_old_col) == 0) {
-            // Create new column if neither exists
-            mysqli_query($conn, "ALTER TABLE truck_inward ADD COLUMN vehicle_photo_url VARCHAR(255) AFTER photo_url");
-        } elseif (mysqli_num_rows($check_vehicle_col) > 0 && mysqli_num_rows($check_old_col) > 0) {
-            // Both exist - drop the old driver_photo_url column
-            mysqli_query($conn, "ALTER TABLE truck_inward DROP COLUMN driver_photo_url");
-        }
+    if (mysqli_num_rows($check_vehicle_col) == 0 && mysqli_num_rows($check_old_col) > 0) {
+        // Rename old column to new one
+        mysqli_query($conn, "ALTER TABLE truck_inward CHANGE driver_photo_url vehicle_photo_url VARCHAR(255)");
+    } elseif (mysqli_num_rows($check_vehicle_col) == 0 && mysqli_num_rows($check_old_col) == 0) {
+        // Create new column if neither exists
+        mysqli_query($conn, "ALTER TABLE truck_inward ADD COLUMN vehicle_photo_url VARCHAR(255) AFTER photo_url");
+    } elseif (mysqli_num_rows($check_vehicle_col) > 0 && mysqli_num_rows($check_old_col) > 0) {
+        // Both exist - drop the old driver_photo_url column
+        mysqli_query($conn, "ALTER TABLE truck_inward DROP COLUMN driver_photo_url");
     }
 
     // Add bill_photo_url column if it doesn't exist
-    $check_bill_col = @mysqli_query($conn, "SHOW COLUMNS FROM truck_inward LIKE 'bill_photo_url'");
-    if ($check_bill_col && mysqli_num_rows($check_bill_col) == 0) {
+    $check_bill_col = mysqli_query($conn, "SHOW COLUMNS FROM truck_inward LIKE 'bill_photo_url'");
+    if (mysqli_num_rows($check_bill_col) == 0) {
         mysqli_query($conn, "ALTER TABLE truck_inward ADD COLUMN bill_photo_url VARCHAR(255) AFTER vehicle_photo_url");
     }
 
@@ -340,8 +338,8 @@ if ($conn) {
     initIssueTables($conn);
 
     // Ensure permissions column exists in user_master
-    $check_perm_col = @mysqli_query($conn, "SHOW COLUMNS FROM user_master LIKE 'permissions'");
-    if ($check_perm_col && mysqli_num_rows($check_perm_col) == 0) {
+    $check_perm_col = mysqli_query($conn, "SHOW COLUMNS FROM user_master LIKE 'permissions'");
+    if (mysqli_num_rows($check_perm_col) == 0) {
         mysqli_query($conn, "ALTER TABLE user_master ADD COLUMN permissions TEXT DEFAULT NULL");
     }
 
@@ -432,11 +430,6 @@ function formatDuration($hours)
     $total_minutes = round($hours * 60);
     $display_hours = floor($total_minutes / 60);
     $display_minutes = $total_minutes % 60;
-
-    ini_set('display_errors', 1);
-    ini_set('display_startup_errors', 1);
-    error_reporting(E_ALL);
-    ini_set('log_errors', 1);
 
     if ($display_hours > 0) {
         return $display_hours . ' hr' . ($display_hours > 1 ? 's' : '') . ' ' . $display_minutes . ' min (' . number_format($hours, 1) . ' hrs)';
