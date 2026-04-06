@@ -5115,7 +5115,11 @@ elseif ($page == 'reports'):
     initLoadingUnloadingTables($conn);
 
     // Get filtered entries
-    $entries = mysqli_query($conn, "SELECT * FROM truck_inward $where_sql ORDER BY inward_datetime DESC LIMIT 200");
+    $entries_query = "SELECT * FROM truck_inward $where_sql ORDER BY inward_datetime DESC LIMIT 200";
+    $entries = mysqli_query($conn, $entries_query);
+    if (!$entries) {
+        die("❌ Database Error (truck_inward): " . mysqli_error($conn) . "<br>Query: " . $entries_query);
+    }
 
     // Get loading/unloading entries
     $check_loading = mysqli_query($conn, "SHOW TABLES LIKE 'vehicle_loading_checklist'");
@@ -5216,7 +5220,12 @@ elseif ($page == 'reports'):
     // Get patrol logs
     $patrol_entries = [];
     $patrol_analysis = [];
-    $active_locations_count = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as cnt FROM patrol_locations WHERE is_active = 1"))['cnt'];
+    $loc_count_query = mysqli_query($conn, "SELECT COUNT(*) as cnt FROM patrol_locations WHERE is_active = 1");
+    if (!$loc_count_query) {
+        $active_locations_count = 0;
+    } else {
+        $active_locations_count = mysqli_fetch_assoc($loc_count_query)['cnt'];
+    }
 
     // Build WHERE clause for patrol logs
     $patrol_where = [];
@@ -5351,6 +5360,11 @@ elseif ($page == 'reports'):
     $transporters = mysqli_query($conn, "SELECT DISTINCT transporter_name FROM truck_inward WHERE transporter_name IS NOT NULL AND transporter_name != '' ORDER BY transporter_name");
     $drivers = mysqli_query($conn, "SELECT DISTINCT driver_name FROM truck_inward WHERE driver_name IS NOT NULL AND driver_name != '' ORDER BY driver_name LIMIT 100");
     $vehicles = mysqli_query($conn, "SELECT DISTINCT vehicle_number FROM truck_inward WHERE vehicle_number IS NOT NULL ORDER BY vehicle_number LIMIT 100");
+    
+    // Ensure they are not false
+    if (!$transporters) $transporters = mysqli_query($conn, "SELECT 1 WHERE 0"); // Empty result set
+    if (!$drivers) $drivers = mysqli_query($conn, "SELECT 1 WHERE 0");
+    if (!$vehicles) $vehicles = mysqli_query($conn, "SELECT 1 WHERE 0");
 ?>
         <div class="container">
             <a href="?page=dashboard" class="btn btn-secondary btn-full"
