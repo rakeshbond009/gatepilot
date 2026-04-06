@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.03.30.1747');
+    define('APP_VERSION', '26.04.06.1242');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -430,6 +430,11 @@ function formatDuration($hours)
     $total_minutes = round($hours * 60);
     $display_hours = floor($total_minutes / 60);
     $display_minutes = $total_minutes % 60;
+
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+    ini_set('log_errors', 1);
 
     if ($display_hours > 0) {
         return $display_hours . ' hr' . ($display_hours > 1 ? 's' : '') . ' ' . $display_minutes . ' min (' . number_format($hours, 1) . ' hrs)';
