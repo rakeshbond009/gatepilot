@@ -4060,6 +4060,17 @@ elseif ($page == 'edit-outward'):
     $inward = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM truck_inward WHERE id = {$outward['inward_id']}"));
     $checklist = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM vehicle_outgoing_checklist WHERE inward_id = {$outward['inward_id']} LIMIT 1"));
     
+    // Parse documents JSON
+    $saved_docs = [];
+    if ($checklist && !empty($checklist['documents_json'])) {
+        $decoded = json_decode($checklist['documents_json'], true);
+        if (is_array($decoded)) {
+            foreach($decoded as $d) {
+                $saved_docs[$d['type']] = ['status' => $d['status'], 'remarks' => $d['remarks'] ?? ''];
+            }
+        }
+    }
+
     // Get customers for dropdown
     $customers_result = mysqli_query($conn, "SELECT id, customer_name FROM customer_master WHERE is_active = 1 ORDER BY customer_name");
     ?>
@@ -4094,11 +4105,29 @@ elseif ($page == 'edit-outward'):
                     <h3 style="margin: 0;">Outward Basic Details</h3>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label>Outward Date & Time *</label>
-                    <input type="datetime-local" name="outward_datetime"
-                        value="<?php echo date('Y-m-d\TH:i', strtotime($outward['outward_datetime'])); ?>" required>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Outward Date & Time</label>
+                        <input type="datetime-local" name="outward_datetime" value="<?php echo date('Y-m-d\TH:i', strtotime($outward['outward_datetime'] ?? 'now')); ?>" 
+                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;" required>
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Status</label>
+                        <select name="outgoing_status" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
+                            <?php 
+                            $curr_s = $outgoing_checklist['status'] ?? 'completed';
+                            foreach(['draft'=>'Draft','completed'=>'Completed','cancelled'=>'Cancelled'] as $k=>$v)
+                                echo "<option value='$k' ".($curr_s==$k?'selected':'').">$v</option>";
+                            ?>
+                        </select>
+                    </div>
+                    <div style="flex: 1; min-width: 180px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Checklist Doc ID</label>
+                        <input type="text" name="outgoing_doc_id" value="<?php echo htmlspecialchars($outgoing_checklist['document_id'] ?? 'VCPL/LOG/FR/02'); ?>" 
+                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
+                    </div>
                 </div>
+
 
                 <div class="form-group">
                     <label>Outward Remarks</label>
@@ -4117,7 +4146,7 @@ elseif ($page == 'edit-outward'):
                     <div class="form-group">
                         <label>Reporting Date & Time</label>
                         <input type="datetime-local" name="outgoing_reporting_datetime"
-                            value="<?php echo $checklist ? date('Y-m-d\TH:i', strtotime($checklist['reporting_datetime'])) : ''; ?>">
+                            value="<?php echo $checklist && $checklist['reporting_datetime'] ? date('Y-m-d\TH:i', strtotime($checklist['reporting_datetime'])) : ''; ?>">
                     </div>
                     <div class="form-group">
                         <label>Customer</label>
@@ -4142,29 +4171,36 @@ elseif ($page == 'edit-outward'):
                     <input type="text" name="outgoing_destination" value="<?php echo htmlspecialchars($checklist['destination'] ?? ''); ?>" placeholder="Destination">
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 12px;">
-                    <div class="form-group">
-                        <label style="font-size: 11px;">Tarpaulin Condition</label>
-                        <select name="tarpaulin_condition_obs">
-                            <option value="">Select</option>
-                            <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist['tarpaulin_condition_obs']==$v ? 'selected' : '').">$v</option>"; ?>
-                        </select>
+                <!-- Observations -->
+                <?php
+                $obs_fields = [
+                    'tarpaulin_condition' => 'Tarpaulin Condition / Method of Lying',
+                    'wooden_blocks_used' => 'Use of "L" Angle / Wooden Blocks',
+                    'rope_tightening' => 'Rope Tightening',
+                    'sealing' => 'Sealing Check'
+                ];
+                foreach ($obs_fields as $key => $lbl): ?>
+                    <div style="margin-top: 15px; border: 1px solid #f1f5f9; border-radius: 10px; padding: 12px; background: #fafafa;">
+                        <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 8px;"><?php echo $lbl; ?></label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                            <div>
+                                <label style="font-size: 10px;">Observation</label>
+                                <select name="<?php echo $key; ?>_obs">
+                                    <option value="">Select</option>
+                                    <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist[$key.'_obs']==$v ? 'selected' : '').">$v</option>"; ?>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 10px;">Action if NOT</label>
+                                <input type="text" name="<?php echo $key; ?>_action" value="<?php echo htmlspecialchars($checklist[$key.'_action'] ?? ''); ?>">
+                            </div>
+                            <div>
+                                <label style="font-size: 10px;">Remarks</label>
+                                <input type="text" name="<?php echo $key; ?>_remarks" value="<?php echo htmlspecialchars($checklist[$key.'_remarks'] ?? ''); ?>">
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label style="font-size: 11px;">Wooden Blocks</label>
-                        <select name="wooden_blocks_used_obs">
-                            <option value="">Select</option>
-                            <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist['wooden_blocks_used_obs']==$v ? 'selected' : '').">$v</option>"; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label style="font-size: 11px;">Rope Tightening</label>
-                        <select name="rope_tightening_obs">
-                            <option value="">Select</option>
-                            <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist['rope_tightening_obs']==$v ? 'selected' : '').">$v</option>"; ?>
-                        </select>
-                    </div>
-                </div>
+                <?php endforeach; ?>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px;">
                     <div class="form-group">
@@ -4182,13 +4218,100 @@ elseif ($page == 'edit-outward'):
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <!-- Documents Section -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div style="background: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">3</div>
+                    <h3 style="margin: 0;">Document Check (CE Invoice, Way Bill, LR Copy, TREM Card)</h3>
+                </div>
+
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                    <?php
+                    $out_doc_items = [
+                        'ce_invoice' => 'CE Invoice',
+                        'way_bill' => 'Way Bill',
+                        'lr_copy' => 'LR Copy',
+                        'trem_card' => 'TREM Card'
+                    ];
+                    foreach ($out_doc_items as $k => $lbl): 
+                        $curr_status = $saved_docs[$k]['status'] ?? '';
+                        $curr_rem = $saved_docs[$k]['remarks'] ?? '';
+                    ?>
+                        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:12px;">
+                            <div style="font-weight:700; margin-bottom:8px; font-size: 13px;"><?php echo htmlspecialchars($lbl); ?></div>
+                            <select name="out_doc_<?php echo $k; ?>_status" style="width:100%; border-radius:8px; margin-bottom: 8px;">
+                                <option value="">Select</option>
+                                <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($curr_status==$v ? 'selected' : '').">$v</option>"; ?>
+                            </select>
+                            <input type="text" name="out_doc_<?php echo $k; ?>_remarks" value="<?php echo htmlspecialchars($curr_rem); ?>" placeholder="Remarks" style="width:100%; border-radius:8px;">
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <!-- Final Section -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div style="background: #f59e0b; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">4</div>
+                    <h3 style="margin: 0;">Leaving Details & Signatures</h3>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label>Date & Time of Leaving</label>
+                        <input type="datetime-local" name="leaving_datetime" 
+                            value="<?php echo $checklist && $checklist['leaving_datetime'] ? date('Y-m-d\TH:i', strtotime($checklist['leaving_datetime'])) : ''; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label>Naaviq Trip Started?</label>
+                        <select name="naaviq_trip_started">
+                            <option value="">Select</option>
+                            <option value="Yes" <?php echo ($checklist && $checklist['naaviq_trip_started']=='Yes') ? 'selected' : ''; ?>>Yes</option>
+                            <option value="No" <?php echo ($checklist && $checklist['naaviq_trip_started']=='No') ? 'selected' : ''; ?>>No</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                    <div class="form-group">
+                        <label>Naaviq Action (if NOT)</label>
+                        <input type="text" name="naaviq_trip_action" value="<?php echo htmlspecialchars($checklist['naaviq_trip_action'] ?? ''); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label>Naaviq Remarks</label>
+                        <input type="text" name="naaviq_trip_remarks" value="<?php echo htmlspecialchars($checklist['naaviq_trip_remarks'] ?? ''); ?>">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; border-top: 1px dashed #cbd5e1; padding-top: 15px;">
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Driver Sign</label>
+                        <input type="text" name="out_driver_signature" value="<?php echo htmlspecialchars($checklist['driver_signature'] ?? ''); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Transporter Sign</label>
+                        <input type="text" name="out_transporter_signature" value="<?php echo htmlspecialchars($checklist['transporter_signature'] ?? ''); ?>">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Security Sign</label>
+                        <input type="text" name="out_security_signature" value="<?php echo htmlspecialchars($checklist['security_signature'] ?? ''); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Logistics Sign</label>
+                        <input type="text" name="out_logistic_signature" value="<?php echo htmlspecialchars($checklist['logistic_signature'] ?? ''); ?>">
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px; margin-bottom: 50px;">
                 <button type="submit" name="update_outward" class="btn btn-success"
-                    style="flex: 1; padding: 12px 20px; font-size: 16px; font-weight: 600;">
-                    💾 Update All Entry Details
+                    style="flex: 1; padding: 15px 20px; font-size: 18px; font-weight: 700; border-radius: 12px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);">
+                    💾 SAVE ALL CHANGES
                 </button>
                 <a href="?page=outward-details&id=<?php echo $outward['inward_id']; ?>" class="btn btn-secondary"
-                    style="padding: 12px 20px; font-size: 16px; font-weight: 600; text-decoration: none; text-align: center;">
+                    style="padding: 15px 20px; font-size: 16px; font-weight: 600; text-decoration: none; text-align: center; border-radius: 12px;">
                     Cancel
                 </a>
             </div>

@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.10.0038');
+    define('APP_VERSION', '26.04.10.0101');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -2217,55 +2217,110 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
     $id = intval($_POST['id']);
     $inward_id = intval($_POST['inward_id']);
     $remarks = mysqli_real_escape_string($conn, $_POST['outward_remarks']);
-    $outward_datetime = mysqli_real_escape_string($conn, $_POST['outward_datetime']);
-
-    // Parse datetime
-    $datetime_parts = explode(' ', $outward_datetime);
-    $date = $datetime_parts[0];
-    $time = isset($datetime_parts[1]) ? $datetime_parts[1] : date('H:i:s');
+    // Parse datetime correctly (handle both space and T separator)
+    $ts = strtotime($outward_datetime);
+    $date = date('Y-m-d', $ts);
+    $time = date('H:i:s', $ts);
 
     // Get inward time to calculate duration
-    $inward = mysqli_fetch_assoc(mysqli_query($conn, "SELECT inward_datetime FROM truck_inward WHERE id = $inward_id"));
+    $inward_query = mysqli_query($conn, "SELECT inward_datetime FROM truck_inward WHERE id = $inward_id");
+    $inward = mysqli_fetch_assoc($inward_query);
     $duration = (strtotime($outward_datetime) - strtotime($inward['inward_datetime'])) / 3600;
 
-    $sql = "UPDATE truck_outward SET 
-        outward_date = '$date',
-        outward_time = '$time',
-        outward_datetime = '$outward_datetime',
-        outward_remarks = '$remarks',
-        duration_hours = $duration
-        WHERE id = $id";
+    // FIND THE CORRECT truck_outward ID using inward_id
+    $to_res = mysqli_query($conn, "SELECT id FROM truck_outward WHERE inward_id = $inward_id LIMIT 1");
+    $to_id_row = mysqli_fetch_assoc($to_res);
+    $to_id = $to_id_row ? $to_id_row['id'] : 0;
 
-    // Fetch old record BEFORE update for diff logging
-    $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id=$inward_id");
-    $v_num = ($v_row = mysqli_fetch_assoc($v_res)) ? $v_row['vehicle_number'] : 'N/A';
-    $old_out_res = mysqli_query($conn, "SELECT * FROM truck_outward WHERE id=$id");
-    $old_out = mysqli_fetch_assoc($old_out_res);
+    $success = false;
+    if ($to_id > 0) {
+        $sql = "UPDATE truck_outward SET 
+            outward_date = '$date',
+            outward_time = '$time',
+            outward_datetime = '$outward_datetime',
+            outward_remarks = '$remarks',
+            duration_hours = $duration
+            WHERE id = $to_id";
+        $success = mysqli_query($conn, $sql);
+    } else {
+        // Fallback or ignore if no outward record exists
+        $success = true; 
+    }
 
-    if (mysqli_query($conn, $sql)) {
+    if ($success) {
+        // Fetch old record BEFORE update for diff logging
+        $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id=$inward_id");
+        $v_num = ($v_row = mysqli_fetch_assoc($v_res)) ? $v_row['vehicle_number'] : 'N/A';
+        $old_out_res = mysqli_query($conn, "SELECT * FROM truck_outward WHERE inward_id=$inward_id");
+        $old_out = mysqli_fetch_assoc($old_out_res);
         // Update vehicle_outgoing_checklist if fields are present
         $outgoing_reporting_datetime = mysqli_real_escape_string($conn, $_POST['outgoing_reporting_datetime'] ?? '');
         $outgoing_customer_id = !empty($_POST['outgoing_customer_id']) ? intval($_POST['outgoing_customer_id']) : 'NULL';
         $outgoing_customer_name = mysqli_real_escape_string($conn, $_POST['outgoing_customer_name'] ?? '');
         $outgoing_destination = mysqli_real_escape_string($conn, $_POST['outgoing_destination'] ?? '');
-        $tarpaulin_obs = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_obs'] ?? '');
-        $wooden_obs = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_obs'] ?? '');
+        
+        // Observations
+        $tarp_obs = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_obs'] ?? '');
+        $tarp_act = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_action'] ?? '');
+        $tarp_rem = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_remarks'] ?? '');
+        
+        $wood_obs = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_obs'] ?? '');
+        $wood_act = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_action'] ?? '');
+        $wood_rem = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_remarks'] ?? '');
+        
         $rope_obs = mysqli_real_escape_string($conn, $_POST['rope_tightening_obs'] ?? '');
-        $seals = intval($_POST['number_of_seals'] ?? 0);
+        $rope_act = mysqli_real_escape_string($conn, $_POST['rope_tightening_action'] ?? '');
+        $rope_rem = mysqli_real_escape_string($conn, $_POST['rope_tightening_remarks'] ?? '');
+
+        $seal_obs = mysqli_real_escape_string($conn, $_POST['sealing_obs'] ?? '');
+        $seal_act = mysqli_real_escape_string($conn, $_POST['sealing_action'] ?? '');
+        $seal_rem = mysqli_real_escape_string($conn, $_POST['sealing_remarks'] ?? '');
+
+        $seals_count = intval($_POST['number_of_seals'] ?? 0);
         $seal_method = mysqli_real_escape_string($conn, $_POST['sealing_method'] ?? '');
         $seal_done_by = mysqli_real_escape_string($conn, $_POST['sealing_done_by'] ?? '');
+
+        // Documents JSON
+        $out_docs = [];
+        $out_doc_types = ['ce_invoice' => 'CE Invoice', 'way_bill' => 'Way Bill', 'lr_copy' => 'LR Copy', 'trem_card' => 'TREM Card'];
+        foreach ($out_doc_types as $k => $lbl) {
+            $status = $_POST["out_doc_{$k}_status"] ?? '';
+            $rem = mysqli_real_escape_string($conn, $_POST["out_doc_{$k}_remarks"] ?? '');
+            if ($status) {
+                $out_docs[] = ['type' => $k, 'label' => $lbl, 'status' => $status, 'remarks' => $rem];
+            }
+        }
+        $docs_json = json_encode($out_docs);
+
+        $leaving_dt = mysqli_real_escape_string($conn, $_POST['leaving_datetime'] ?? '');
+        $naaviq_trip = mysqli_real_escape_string($conn, $_POST['naaviq_trip_started'] ?? '');
+        $naaviq_act = mysqli_real_escape_string($conn, $_POST['naaviq_trip_action'] ?? '');
+        $naaviq_rem = mysqli_real_escape_string($conn, $_POST['naaviq_trip_remarks'] ?? '');
+
+        $d_sig = mysqli_real_escape_string($conn, $_POST['out_driver_signature'] ?? '');
+        $t_sig = mysqli_real_escape_string($conn, $_POST['out_transporter_signature'] ?? '');
+        $s_sig = mysqli_real_escape_string($conn, $_POST['out_security_signature'] ?? '');
+        $l_sig = mysqli_real_escape_string($conn, $_POST['out_logistic_signature'] ?? '');
+
+        $obs_status = mysqli_real_escape_string($conn, $_POST['outgoing_status'] ?? 'completed');
 
         mysqli_query($conn, "UPDATE vehicle_outgoing_checklist SET 
             reporting_datetime = " . ($outgoing_reporting_datetime ? "'$outgoing_reporting_datetime'" : "NULL") . ",
             customer_id = $outgoing_customer_id,
             customer_name = '$outgoing_customer_name',
             destination = '$outgoing_destination',
-            tarpaulin_condition_obs = '$tarpaulin_obs',
-            wooden_blocks_used_obs = '$wooden_obs',
-            rope_tightening_obs = '$rope_obs',
-            number_of_seals = $seals,
+            tarpaulin_condition_obs = '$tarp_obs', tarpaulin_condition_action = '$tarp_act', tarpaulin_condition_remarks = '$tarp_rem',
+            wooden_blocks_used_obs = '$wood_obs', wooden_blocks_used_action = '$wood_act', wooden_blocks_used_remarks = '$wood_rem',
+            rope_tightening_obs = '$rope_obs', rope_tightening_action = '$rope_act', rope_tightening_remarks = '$rope_rem',
+            sealing_obs = '$seal_obs', sealing_action = '$seal_act', sealing_remarks = '$seal_rem',
+            number_of_seals = $seals_count,
             sealing_method = '$seal_method',
-            sealing_done_by = '$seal_done_by'
+            sealing_done_by = '$seal_done_by',
+            documents_json = '$docs_json',
+            leaving_datetime = " . ($leaving_dt ? "'$leaving_dt'" : "NULL") . ",
+            naaviq_trip_started = '$naaviq_trip', naaviq_trip_action = '$naaviq_act', naaviq_trip_remarks = '$naaviq_rem',
+            driver_signature = '$d_sig', transporter_signature = '$t_sig', security_signature = '$s_sig', logistic_signature = '$l_sig',
+            status = '$obs_status'
             WHERE inward_id = $inward_id");
 
         $out_log = "Edited Outward Entry: ID: [$id], Vehicle: [$v_num]";
