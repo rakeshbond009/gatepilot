@@ -111,18 +111,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
   InAppWebViewSettings settings = InAppWebViewSettings(
     isInspectable: kDebugMode,
     mediaPlaybackRequiresUserGesture: false,
+    useHybridComposition: true,
     allowsInlineMediaPlayback: true,
-    iframeAllow: "camera; microphone",
-    iframeAllowFullscreen: true,
-    useHybridComposition: false,
-    allowFileAccess: true,
-    allowContentAccess: true,
-    javaScriptCanOpenWindowsAutomatically: true,
-    supportZoom: true,
-    // Ensures cookies are stored to disk, not just in memory
+    useShouldInterceptRequest: true,
     incognito: false,
     databaseEnabled: true,
     domStorageEnabled: true,
+    userAgent: "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Mobile Safari/537.36",
+    cacheMode: CacheMode.LOAD_DEFAULT,
+    allowFileAccess: true,
+    allowContentAccess: true,
+    allowFileAccessFromFileURLs: true,
+    allowUniversalAccessFromFileURLs: true,
+    saveFormData: true,
+    iframeAllow: "camera; microphone",
+    iframeAllowFullscreen: true,
+    javaScriptCanOpenWindowsAutomatically: true,
+    supportZoom: true,
     applicationNameForUserAgent: "GatePilot/1.0",
   );
 
@@ -171,6 +176,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
             initialUrlRequest: URLRequest(url: WebUri(widget.startUrl)),
             initialSettings: settings,
             onWebViewCreated: (controller) {
+              webViewController = controller;
+            },
+            onReceivedError: (controller, request, error) {
+              debugPrint("WEBVIEW_ERROR: ${error.description} (Code: ${error.type})");
+              // Optionally show a snackbar or helpful message on screen
+            },
+            onLoadStart: (controller, url) {
               webViewController = controller;
             },
             onPermissionRequest: (controller, request) async {

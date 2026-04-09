@@ -522,7 +522,7 @@ elseif ($page == 'tickets'):
 
         // Fetch ticket, location, and currently assigned employee name for audit log
         $t_info_res = mysqli_query($conn, "
-            SELECT t.issue_description, pl.location_name, em.employee_name as assigned_to_name
+            SELECT t.issue_description, t.status, pl.location_name, em.employee_name as assigned_to_name
             FROM patrol_issues t 
             LEFT JOIN patrol_locations pl ON t.location_id = pl.id 
             LEFT JOIN employee_master em ON t.assigned_to = em.id
@@ -531,6 +531,7 @@ elseif ($page == 'tickets'):
         $t_info = mysqli_fetch_assoc($t_info_res);
         $issue_desc = $t_info['issue_description'] ?? 'N/A';
         $location = $t_info['location_name'] ?? 'N/A';
+        $old_status = $t_info['status'] ?? 'N/A';
         $existing_assigned_name = $t_info['assigned_to_name'] ?? 'None';
 
         if ($action == 'assign') {
@@ -540,24 +541,32 @@ elseif ($page == 'tickets'):
             // Get employee name for log
             $e_info_res = mysqli_query($conn, "SELECT employee_name FROM employee_master WHERE id = $assign_to");
             $employee_name = ($e_row = mysqli_fetch_assoc($e_info_res)) ? $e_row['employee_name'] : 'Unknown';
+            $new_status = 'Assigned';
         } elseif ($action == 'resolve') {
             $sql = "UPDATE patrol_issues SET status='Resolved', resolution_remarks='$remarks', resolved_at=NOW(), updated_at=NOW() WHERE id=$ticket_id";
+            $new_status = 'Resolved';
         } elseif ($action == 'close') {
             $sql = "UPDATE patrol_issues SET status='Closed', closing_remarks='$remarks', updated_at=NOW() WHERE id=$ticket_id";
+            $new_status = 'Closed';
         }
 
         if (isset($sql) && mysqli_query($conn, $sql)) {
             $_SESSION['success_msg'] = "✅ Ticket updated successfully.";
 
-            // Enhanced Audit Log
-            $details = "Ticket Updated: ID: [$ticket_id]\n";
-            $details .= "Action: [" . strtoupper($action) . "]\n";
+            // Enhanced Audit Log: Show transitions
+            $details = "Ticket ID: [$ticket_id]\n";
             $details .= "Location: [$location]\n";
             $details .= "Issue: [$issue_desc]\n";
-            $details .= "Assigned To: [" . ($action == 'assign' ? $employee_name : $existing_assigned_name) . "]\n";
+            $details .= "Status Change: [$old_status ➔ $new_status]\n";
+            
+            if ($action == 'assign') {
+                $details .= "Assigned To: [$existing_assigned_name ➔ $employee_name]\n";
+            } else {
+                $details .= "Assigned To: [$existing_assigned_name]\n";
+            }
 
             if (!empty($remarks)) {
-                $details .= "Remarks: [$remarks]";
+                $details .= ($action == 'resolve' ? "Resolution: " : "Closing Remarks: ") . "[$remarks]";
             }
 
             logActivity($conn, 'TICKET_UPDATE', 'Patrol', trim($details));
