@@ -9,7 +9,7 @@
         const unit = document.getElementById('new_item_unit').value;
 
         if (!name || !qty) {
-            alert('Item Name and Quantity are required!');
+            showCustomAlert('Item Name and Quantity are required!', 'Missing Info');
             return;
         }
 
@@ -30,12 +30,62 @@
         document.getElementById('new_item_name').focus();
     }
 
+    // --- Custom Alert Modal ---
+    function showCustomAlert(message, title = 'Attention') {
+        const modalId = 'customAlertModal';
+        let modal = document.getElementById(modalId);
+        
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = modalId;
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.6); display: flex; align-items: center;
+                justify-content: center; z-index: 99999; backdrop-filter: blur(4px);
+                transition: opacity 0.3s ease; opacity: 0;
+            `;
+            modal.innerHTML = `
+                <div style="background: white; width: 90%; max-width: 400px; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.3); transform: scale(0.9); transition: transform 0.3s ease;">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; color: white; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 24px;">⚠️</span>
+                        <h3 id="alertTitle" style="margin: 0; font-size: 18px; font-weight: 700;"></h3>
+                    </div>
+                    <div style="padding: 25px; text-align: center;">
+                        <p id="alertMessage" style="margin: 0; color: #4b5563; line-height: 1.6; font-size: 15px; font-weight: 500;"></p>
+                    </div>
+                    <div style="padding: 15px 20px 20px; display: flex; justify-content: center;">
+                        <button onclick="closeCustomAlert()" style="background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 12px; font-weight: 700; cursor: pointer; width: 100%; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">OK, GOT IT</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        document.getElementById('alertTitle').textContent = title;
+        document.getElementById('alertMessage').textContent = message;
+        
+        modal.style.display = 'flex';
+        setTimeout(() => {
+            modal.style.opacity = '1';
+            modal.querySelector('div').style.transform = 'scale(1)';
+        }, 10);
+    }
+
+    function closeCustomAlert() {
+        const modal = document.getElementById('customAlertModal');
+        if (modal) {
+            modal.style.opacity = '0';
+            modal.querySelector('div').style.transform = 'scale(0.9)';
+            setTimeout(() => modal.style.display = 'none', 300);
+        }
+    }
+
     function validateManualItemsCommit() {
         const name = document.getElementById('new_item_name')?.value.trim();
         const qty = document.getElementById('new_item_qty')?.value.trim();
         
         if (name || qty) {
-            alert('⚠️ You have entered item details (' + (name || 'Unnamed') + ') but haven\'t clicked the "Add" (+) button.\n\nPlease add the item to the list or clear the fields before submitting.');
+            showCustomAlert('You have entered item details (' + (name || 'Unnamed') + ') but haven\'t clicked the "Add" (+) button. Please add the item to the list or clear the fields before submitting.', 'Action Required');
             const nameField = document.getElementById('new_item_name');
             if (nameField) nameField.focus();
             document.getElementById('manual_items_section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });

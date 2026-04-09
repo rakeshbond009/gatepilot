@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.09.2337');
+    define('APP_VERSION', '26.04.09.2343');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -2128,16 +2128,44 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
             if ($diff)
                 $inward_log .= "\nChanges:\n" . $diff;
 
-            // Add items summary to audit
+            // Add items summary to audit - ONLY NEW OR CHANGED ITEMS
             if (!empty($items_json) && $items_json !== '[]') {
-                $items_arr = json_decode($items_json, true);
-                if (is_array($items_arr) && count($items_arr) > 0) {
-                    $inward_log .= "\nMaterial Items (" . count($items_arr) . "):";
-                    foreach ($items_arr as $idx => $item) {
-                        $name = $item['item_name'] ?? ($item['item_description'] ?? 'Item');
-                        $qty = $item['quantity'] ?? 0;
-                        $unit = $item['unit'] ?? '';
-                        $inward_log .= "\n  - " . $name . ": " . $qty . " " . $unit;
+                $new_items = json_decode($items_json, true);
+                if (is_array($new_items)) {
+                    $old_items = [];
+                    if (!empty($old['items_json'])) {
+                        $old_items = json_decode($old['items_json'], true);
+                        if (is_string($old_items)) $old_items = json_decode($old_items, true);
+                    }
+                    if (!is_array($old_items)) $old_items = [];
+
+                    $changed_items = [];
+                    foreach ($new_items as $item) {
+                        $found = false;
+                        foreach ($old_items as $old_item) {
+                            if (
+                                ($item['item_name'] ?? '') == ($old_item['item_name'] ?? '') &&
+                                ($item['item_code'] ?? '') == ($old_item['item_code'] ?? '') &&
+                                (float) ($item['quantity'] ?? 0) == (float) ($old_item['quantity'] ?? 0) &&
+                                ($item['unit'] ?? '') == ($old_item['unit'] ?? '')
+                            ) {
+                                $found = true;
+                                break;
+                            }
+                        }
+                        if (!$found) {
+                            $changed_items[] = $item;
+                        }
+                    }
+
+                    if (!empty($changed_items)) {
+                        $inward_log .= "\nAdded/Changed Items (" . count($changed_items) . "):";
+                        foreach ($changed_items as $item) {
+                            $name = $item['item_name'] ?? ($item['item_description'] ?? 'Item');
+                            $qty = $item['quantity'] ?? 0;
+                            $unit = $item['unit'] ?? '';
+                            $inward_log .= "\n  - " . $name . ": " . $qty . " " . $unit;
+                        }
                     }
                 }
             }
