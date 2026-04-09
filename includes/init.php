@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.06.1624');
+    define('APP_VERSION', '26.04.09.2042');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -91,170 +91,170 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
 
                     // Render Professional Full-Page Suspension UI
                     ?>
-                    <!DOCTYPE html>
-                    <html lang="en">
+                                        <!DOCTYPE html>
+                                        <html lang="en">
 
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>System Suspended | GatePilot</title>
-                        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-                        <style>
-                            :root {
-                                --primary: #6366f1;
-                                --danger: #ef4444;
-                                --bg: #0f172a;
-                                --text: #f8fafc;
-                                --glass: rgba(255, 255, 255, 0.03);
-                                --border: rgba(255, 255, 255, 0.1);
-                            }
+                                        <head>
+                                            <meta charset="UTF-8">
+                                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                            <title>System Suspended | GatePilot</title>
+                                            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+                                            <style>
+                                                :root {
+                                                    --primary: #6366f1;
+                                                    --danger: #ef4444;
+                                                    --bg: #0f172a;
+                                                    --text: #f8fafc;
+                                                    --glass: rgba(255, 255, 255, 0.03);
+                                                    --border: rgba(255, 255, 255, 0.1);
+                                                }
 
-                            * {
-                                margin: 0;
-                                padding: 0;
-                                box-sizing: border-box;
-                                font-family: 'Outfit', sans-serif;
-                            }
+                                                * {
+                                                    margin: 0;
+                                                    padding: 0;
+                                                    box-sizing: border-box;
+                                                    font-family: 'Outfit', sans-serif;
+                                                }
 
-                            body {
-                                background: var(--bg);
-                                color: var(--text);
-                                height: 100vh;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                background-image:
-                                    radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
-                                    radial-gradient(circle at 80% 70%, rgba(239, 68, 68, 0.1) 0%, transparent 40%);
-                                overflow: hidden;
-                            }
+                                                body {
+                                                    background: var(--bg);
+                                                    color: var(--text);
+                                                    height: 100vh;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    background-image:
+                                                        radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                                                        radial-gradient(circle at 80% 70%, rgba(239, 68, 68, 0.1) 0%, transparent 40%);
+                                                    overflow: hidden;
+                                                }
 
-                            .card {
-                                background: var(--glass);
-                                backdrop-filter: blur(20px);
-                                border: 1px solid var(--border);
-                                padding: 3rem;
-                                border-radius: 2rem;
-                                width: 90%;
-                                max-width: 600px;
-                                text-align: center;
-                                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-                                animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-                            }
+                                                .card {
+                                                    background: var(--glass);
+                                                    backdrop-filter: blur(20px);
+                                                    border: 1px solid var(--border);
+                                                    padding: 3rem;
+                                                    border-radius: 2rem;
+                                                    width: 90%;
+                                                    max-width: 600px;
+                                                    text-align: center;
+                                                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+                                                    animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+                                                }
 
-                            @keyframes slideIn {
-                                from {
-                                    opacity: 0;
-                                    transform: translateY(30px);
-                                }
+                                                @keyframes slideIn {
+                                                    from {
+                                                        opacity: 0;
+                                                        transform: translateY(30px);
+                                                    }
 
-                                to {
-                                    opacity: 1;
-                                    transform: translateY(0);
-                                }
-                            }
+                                                    to {
+                                                        opacity: 1;
+                                                        transform: translateY(0);
+                                                    }
+                                                }
 
-                            .icon-box {
-                                width: 80px;
-                                height: 80px;
-                                background: rgba(239, 68, 68, 0.1);
-                                border-radius: 1.5rem;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                margin: 0 auto 2rem;
-                                border: 1px solid rgba(239, 68, 68, 0.2);
-                            }
+                                                .icon-box {
+                                                    width: 80px;
+                                                    height: 80px;
+                                                    background: rgba(239, 68, 68, 0.1);
+                                                    border-radius: 1.5rem;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    margin: 0 auto 2rem;
+                                                    border: 1px solid rgba(239, 68, 68, 0.2);
+                                                }
 
-                            .icon-box svg {
-                                width: 40px;
-                                height: 40px;
-                                color: var(--danger);
-                            }
+                                                .icon-box svg {
+                                                    width: 40px;
+                                                    height: 40px;
+                                                    color: var(--danger);
+                                                }
 
-                            h1 {
-                                font-weight: 800;
-                                font-size: 2.5rem;
-                                margin-bottom: 1rem;
-                                letter-spacing: -1px;
-                            }
+                                                h1 {
+                                                    font-weight: 800;
+                                                    font-size: 2.5rem;
+                                                    margin-bottom: 1rem;
+                                                    letter-spacing: -1px;
+                                                }
 
-                            p.message {
-                                color: #94a3b8;
-                                font-size: 1.1rem;
-                                line-height: 1.6;
-                                margin-bottom: 2.5rem;
-                            }
+                                                p.message {
+                                                    color: #94a3b8;
+                                                    font-size: 1.1rem;
+                                                    line-height: 1.6;
+                                                    margin-bottom: 2.5rem;
+                                                }
 
-                            .btn-group {
-                                display: flex;
-                                gap: 1rem;
-                                justify-content: center;
-                            }
+                                                .btn-group {
+                                                    display: flex;
+                                                    gap: 1rem;
+                                                    justify-content: center;
+                                                }
 
-                            .btn {
-                                padding: 0.8rem 2rem;
-                                border-radius: 0.75rem;
-                                font-weight: 600;
-                                text-decoration: none;
-                                transition: all 0.3s;
-                                cursor: pointer;
-                            }
+                                                .btn {
+                                                    padding: 0.8rem 2rem;
+                                                    border-radius: 0.75rem;
+                                                    font-weight: 600;
+                                                    text-decoration: none;
+                                                    transition: all 0.3s;
+                                                    cursor: pointer;
+                                                }
 
-                            .btn-primary {
-                                background: var(--primary);
-                                color: white;
-                                border: none;
-                            }
+                                                .btn-primary {
+                                                    background: var(--primary);
+                                                    color: white;
+                                                    border: none;
+                                                }
 
-                            .btn-primary:hover {
-                                transform: translateY(-2px);
-                                box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
-                            }
+                                                .btn-primary:hover {
+                                                    transform: translateY(-2px);
+                                                    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+                                                }
 
-                            .btn-outline {
-                                background: transparent;
-                                color: #94a3b8;
-                                border: 1px solid var(--border);
-                            }
+                                                .btn-outline {
+                                                    background: transparent;
+                                                    color: #94a3b8;
+                                                    border: 1px solid var(--border);
+                                                }
 
-                            .btn-outline:hover {
-                                background: rgba(255, 255, 255, 0.05);
-                                color: white;
-                            }
+                                                .btn-outline:hover {
+                                                    background: rgba(255, 255, 255, 0.05);
+                                                    color: white;
+                                                }
 
-                            .brand {
-                                position: absolute;
-                                bottom: 3rem;
-                                opacity: 0.4;
-                                font-weight: 600;
-                                letter-spacing: 2px;
-                            }
-                        </style>
-                    </head>
+                                                .brand {
+                                                    position: absolute;
+                                                    bottom: 3rem;
+                                                    opacity: 0.4;
+                                                    font-weight: 600;
+                                                    letter-spacing: 2px;
+                                                }
+                                            </style>
+                                        </head>
 
-                    <body>
-                        <div class="card">
-                            <div class="icon-box">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                    stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                                </svg>
-                            </div>
-                            <h1>System Locked</h1>
-                            <p class="message"><?php echo nl2br(htmlspecialchars($custom_msg)); ?></p>
-                            <div class="btn-group">
-                                <a href="?page=logout" class="btn btn-primary">Logout from System</a>
-                                <button onclick="location.reload()" class="btn btn-outline">Check Connection</button>
-                            </div>
-                        </div>
-                        <div class="brand">GATEPILOT CLOUD</div>
-                    </body>
+                                        <body>
+                                            <div class="card">
+                                                <div class="icon-box">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                                        stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                                            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                                    </svg>
+                                                </div>
+                                                <h1>System Locked</h1>
+                                                <p class="message"><?php echo nl2br(htmlspecialchars($custom_msg)); ?></p>
+                                                <div class="btn-group">
+                                                    <a href="?page=logout" class="btn btn-primary">Logout from System</a>
+                                                    <button onclick="location.reload()" class="btn btn-outline">Check Connection</button>
+                                                </div>
+                                            </div>
+                                            <div class="brand">GATEPILOT CLOUD</div>
+                                        </body>
 
-                    </html>
-                    <?php
-                    exit;
+                                        </html>
+                                        <?php
+                                        exit;
                 }
             }
         }
@@ -361,7 +361,7 @@ if ($conn) {
         $color = ($type == 'success') ? '#10b981' : '#ef4444';
         $icon = ($type == 'success') ? '✅' : '❌';
         echo "
-    <div id='app_modal_overlay' style='position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 9999; animation: fadeIn 0.3s;'>
+    <div id='app_modal_overlay' style='position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50000; animation: fadeIn 0.3s;'>
         <div style='background: white; padding: 30px; border-radius: 16px; border-top: 6px solid $color; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 90%; max-width: 400px; text-align: center; transform: scale(0.9); animation: popIn 0.3s forwards;'>
             <div style='font-size: 50px; margin-bottom: 20px;'>$icon</div>
             <h2 style='margin: 0 0 10px; color: #1f2937; font-size: 24px;'>$title</h2>
@@ -456,14 +456,33 @@ function logActivity($conn, $activity_type, $module, $details = "")
 
 function getSetting($conn, $key, $default = null)
 {
-    if (!$conn)
-        return $default;
     $key = mysqli_real_escape_string($conn, $key);
-    $result = mysqli_query($conn, "SELECT setting_value FROM app_settings WHERE setting_key = '$key'");
-    if ($result && $row = mysqli_fetch_assoc($result)) {
+    $res = mysqli_query($conn, "SELECT setting_value FROM app_settings WHERE setting_key = '$key'");
+    if ($row = mysqli_fetch_assoc($res)) {
         return $row['setting_value'];
     }
     return $default;
+}
+
+/**
+ * Returns the maximum number of users allowed for a specific tenant.
+ * Fetched from the Master Database Index.
+ */
+function getUserQuota($tenant_slug)
+{
+    if ($tenant_slug === 'admin')
+        return 999; // Super Admin has no limit
+
+    $master_conn = getMasterDatabaseConnection();
+    $esc_slug = mysqli_real_escape_string($master_conn, $tenant_slug);
+
+    // Check for user_limit column first (Self-Healing)
+    $res = mysqli_query($master_conn, "SELECT user_limit FROM tenants WHERE slug = '$esc_slug'");
+    if ($res && $row = mysqli_fetch_assoc($res)) {
+        return (int) ($row['user_limit'] ?? 10);
+    }
+
+    return 10; // Default fallback
 }
 
 // Set setting value
@@ -1396,14 +1415,16 @@ if ($page == 'guard-patrol' && isset($_POST['patrol_scan'])) {
 
             if (mysqli_query($conn, $sql)) {
                 logActivity($conn, 'PATROL_SCAN', 'Patrol', "Patrol Log: Location: [$location_name], Guard: [{$_SESSION['full_name']}], Result: [OK]");
-                $success_msg = "✅ Patrol logged successfully: <strong>$location_name</strong> at " . date('h:i A');
+                $_SESSION['success_msg'] = "✅ Patrol logged successfully: <strong>$location_name</strong> at " . date('h:i A');
             } else {
-                $error_msg = "❌ Error logging patrol: " . mysqli_error($conn);
+                $_SESSION['error_msg'] = "❌ Error logging patrol: " . mysqli_error($conn);
             }
         }
     } else {
-        $error_msg = "❌ Invalid QR code! Location not found in system.";
+        $_SESSION['error_msg'] = "❌ Invalid QR code! Location not found in system.";
     }
+    header("Location: ?page=guard-patrol");
+    exit;
 }
 
 // Handle Patrol Issue Reporting
@@ -1447,13 +1468,15 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
                 $details .= "\nPhoto: [Uploaded]";
             }
             logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
-            $success_msg = "✅ Issue reported successfully. Ticket created.";
+            $_SESSION['success_msg'] = "✅ Issue reported successfully. Ticket created.";
         } else {
-            $error_msg = "❌ Error reporting issue: " . mysqli_error($conn);
+            $_SESSION['error_msg'] = "❌ Error reporting issue: " . mysqli_error($conn);
         }
     } else {
-        $error_msg = "❌ Please select a location.";
+        $_SESSION['error_msg'] = "❌ Please select a location.";
     }
+    header("Location: ?page=guard-patrol");
+    exit;
 }
 
 // Handle Manual Register Entry (FULLY DYNAMIC)
@@ -1821,8 +1844,11 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
                 // Use @ to suppress errors and prevent 500 status if insertion fails
                 @mysqli_query($conn, $log_sql);
             }
+            $_SESSION['success_msg'] = "✅ Inward entry created successfully! Entry #: $entry_num";
+            header("Location: ?page=inward-details&id=$inward_id");
+            exit;
         } else {
-            $error_msg = "❌ Error creating entry: " . mysqli_error($conn);
+            $_SESSION['error_msg'] = "❌ Error creating entry: " . mysqli_error($conn);
         }
     }
 }
@@ -1966,11 +1992,11 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
         // Update inward status
         mysqli_query($conn, "UPDATE truck_inward SET status = 'exited', is_exited = 1 WHERE id = $inward_id");
 
-
-
-        $success_msg = "✅ Outward entry completed! Duration: " . formatDuration($duration);
+        $_SESSION['success_msg'] = "✅ Outward entry completed! Duration: " . formatDuration($duration);
+        header("Location: ?page=outward-details&id=$inward_id");
+        exit;
     } else {
-        $error_msg = "❌ Error recording outward entry: " . mysqli_error($conn);
+        $_SESSION['error_msg'] = "❌ Error recording outward entry: " . mysqli_error($conn);
     }
 }
 
@@ -2078,11 +2104,13 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
                 $inward_log .= "\nBill Photo: [Updated]";
         }
         logActivity($conn, 'INWARD_EDIT', 'Logistics', $inward_log);
-        $success_msg = "✅ Inward entry updated successfully!";
-        header("Location: ?page=inward-details&id=$id&success=1");
+        $_SESSION['success_msg'] = "✅ Inward entry updated successfully!";
+        header("Location: ?page=inward-details&id=$id&success=1&t=" . time());
         exit;
     } else {
-        $error_msg = "❌ Error updating entry: " . mysqli_error($conn);
+        $_SESSION['error_msg'] = "❌ Error updating entry: " . mysqli_error($conn);
+        header("Location: ?page=edit-inward&id=$id");
+        exit;
     }
 }
 
@@ -2131,11 +2159,13 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
                 $out_log .= "\nChanges:\n" . $diff;
         }
         logActivity($conn, 'OUTWARD_EDIT', 'Logistics', $out_log);
-        $success_msg = "✅ Outward entry updated successfully!";
-        header("Location: ?page=outward-details&id=$inward_id&success=1");
+        $_SESSION['success_msg'] = "✅ Outward entry updated successfully!";
+        header("Location: ?page=outward-details&id=$inward_id&success=1&t=" . time());
         exit;
     } else {
-        $error_msg = "❌ Error updating entry: " . mysqli_error($conn);
+        $_SESSION['error_msg'] = "❌ Error updating outward entry: " . mysqli_error($conn);
+        header("Location: ?page=edit-outward&id=$id");
+        exit;
     }
 }
 

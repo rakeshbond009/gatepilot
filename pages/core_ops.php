@@ -6290,12 +6290,13 @@ elseif ($page == 'vehicle-history'):
 
         $emp_where_sql = $emp_where ? 'WHERE ' . implode(' AND ', $emp_where) : '';
 
+        $m_db = MASTER_DB_NAME;
         $emp_visit_sql = "
             SELECT e.*, em.department, u.username as inward_by_name, u2.username as outward_by_name
             FROM employee_entries e
             LEFT JOIN employee_master em ON e.employee_id = em.employee_id
-            LEFT JOIN user_master u ON e.inward_by = u.id
-            LEFT JOIN user_master u2 ON e.outward_by = u2.id
+            LEFT JOIN $m_db.user_master u ON e.inward_by = u.id
+            LEFT JOIN $m_db.user_master u2 ON e.outward_by = u2.id
             $emp_where_sql
             ORDER BY e.inward_datetime DESC
             LIMIT 200";

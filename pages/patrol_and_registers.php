@@ -547,7 +547,7 @@ elseif ($page == 'tickets'):
         }
 
         if (isset($sql) && mysqli_query($conn, $sql)) {
-            $success_msg = "✅ Ticket updated successfully.";
+            $_SESSION['success_msg'] = "✅ Ticket updated successfully.";
 
             // Enhanced Audit Log
             $details = "Ticket Updated: ID: [$ticket_id]\n";
@@ -561,8 +561,12 @@ elseif ($page == 'tickets'):
             }
 
             logActivity($conn, 'TICKET_UPDATE', 'Patrol', trim($details));
+            header("Location: ?page=tickets&tab=" . (in_array($action, ['resolve', 'close']) ? 'resolved' : 'open') . "&t=" . time());
+            exit;
         } else {
-            $error_msg = "❌ Error updating ticket: " . mysqli_error($conn);
+            $_SESSION['error_msg'] = "❌ Error updating ticket: " . mysqli_error($conn);
+            header("Location: ?page=tickets&tab=" . $tab);
+            exit;
         }
     }
 
@@ -1154,9 +1158,13 @@ elseif ($page == 'edit-material-inward'):
                     WHERE id=$id";
 
         if (mysqli_query($conn, $sql)) {
-            echo "<script>alert('✅ Entry Updated Successfully!'); window.location.href='?page=view-material-inward';</script>";
+            $_SESSION['success_msg'] = "✅ Entry Updated Successfully!";
+            header("Location: ?page=view-material-inward&t=" . time());
+            exit;
         } else {
-            $error_msg = "❌ Error: " . mysqli_error($conn);
+            $_SESSION['error_msg'] = "❌ Error: " . mysqli_error($conn);
+            header("Location: ?page=edit-material-inward&id=" . $id);
+            exit;
         }
     }
 
@@ -1386,9 +1394,13 @@ elseif ($page == 'material-inward'):
                     VALUES ('$date', '$vehicle_no', '$mat_code', '$mat_desc', '$quantity', '$supp_code', '$supplier', '$category', '$pack_size', '$remarks')";
 
         if (mysqli_query($conn, $sql)) {
-            $success_msg = "✅ Material Inward Entry Saved Successfully!";
+            $_SESSION['success_msg'] = "✅ Material Inward Entry Saved Successfully!";
+            header("Location: ?page=view-material-inward&t=" . time());
+            exit;
         } else {
-            $error_msg = "❌ Error: " . mysqli_error($conn);
+            $_SESSION['error_msg'] = "❌ Error: " . mysqli_error($conn);
+            header("Location: ?page=add-material-inward");
+            exit;
         }
     }
 

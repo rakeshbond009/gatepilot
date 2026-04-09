@@ -256,7 +256,7 @@ function getAppDefaultPermissions($is_tenant_admin = true) {
  * Provision a new tenant database and register it in the master table
  * Restricted to Super Admins only
  */
-function createTenant($customer_name, $slug, $admin_username, $admin_password, $contact_person = '', $mobile = '', $email = '', $address = '', $gst_no = '', $db_host = 'localhost', $db_user = '', $db_pass = '', $custom_db_name = '')
+function createTenant($customer_name, $slug, $admin_username, $admin_password, $contact_person = '', $mobile = '', $email = '', $address = '', $gst_no = '', $db_host = 'localhost', $db_user = '', $db_pass = '', $custom_db_name = '', $user_limit = 10)
 {
     // 1. Validate Input
     if (empty($admin_username) || empty($admin_password)) {
@@ -365,7 +365,7 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
     mysqli_query($conn, $admin_sql);
 
     // 6. Register in Master DB
-    $register_sql = "INSERT INTO tenants (customer_name, slug, db_host, db_name, db_user, db_pass, admin_username, admin_password_hash, contact_person, mobile, email, address, gst_no) 
+    $register_sql = "INSERT INTO tenants (customer_name, slug, db_host, db_name, db_user, db_pass, admin_username, admin_password_hash, user_limit, contact_person, mobile, email, address, gst_no) 
                      VALUES ('$customer_name', '$slug', 
                              '" . mysqli_real_escape_string($master_conn, $db_host) . "',
                              '$db_name', 
@@ -373,6 +373,7 @@ function createTenant($customer_name, $slug, $admin_username, $admin_password, $
                              '" . mysqli_real_escape_string($master_conn, $db_pass) . "', 
                              '" . mysqli_real_escape_string($master_conn, $admin_username) . "', 
                              '$hashed_pass', 
+                             " . (int)$user_limit . ", 
                              '" . mysqli_real_escape_string($master_conn, $contact_person) . "', 
                              '" . mysqli_real_escape_string($master_conn, $mobile) . "', 
                              '" . mysqli_real_escape_string($master_conn, $email) . "', 

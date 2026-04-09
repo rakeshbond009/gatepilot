@@ -14,10 +14,25 @@ class DynamicRegisters {
     /**
      * Get register types from the database
      */
-    public function getAllTypes($only_active = true) {
+    public function getAllTypes($only_active = true, $bypass_tenant_filter = false) {
         $types = [];
-        $where = $only_active ? "WHERE is_active = 1" : "";
-        $res = mysqli_query($this->conn, "SELECT * FROM register_types $where ORDER BY title ASC");
+        $tenant_slug = $_SESSION['tenant_slug'] ?? 'global';
+        $is_super_admin = ($_SESSION['super_admin'] ?? 0) == 1;
+        
+        $where = $only_active ? "WHERE is_active = 1" : "WHERE 1=1";
+        
+        $tenant_filter = "";
+        if (!$bypass_tenant_filter && !$is_super_admin) {
+            $tenant_filter = " AND (tenant_slug = 'global' OR tenant_slug = '$tenant_slug' OR tenant_slug IS NULL)";
+        }
+        
+        // Filter by tenant: either global or specific to this tenant
+        $sql = "SELECT * FROM register_types 
+                $where 
+                $tenant_filter
+                ORDER BY title ASC";
+                
+        $res = mysqli_query($this->conn, $sql);
         while ($row = mysqli_fetch_assoc($res)) {
             $row['fields'] = json_decode($row['fields_json'], true) ?: [];
             $types[$row['slug']] = $row;

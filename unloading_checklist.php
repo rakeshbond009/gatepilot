@@ -201,12 +201,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
         )";
 
         if (mysqli_query($conn, $sql)) {
-            $success = "Unloading checklist saved successfully!";
+            $last_id = mysqli_insert_id($conn);
+            $_SESSION['success_msg'] = "✅ Unloading checklist saved successfully!";
             logActivity($conn, 'UNLOADING_CREATE', 'Checklists', "Created Unloading Checklist:\n" . auditFromPost($_POST));
-            $_POST = array();
+            header("Location: ?page=unloading-details&id=" . $last_id);
+            exit;
         }
         else {
-            $error = "Error: " . mysqli_error($conn);
+            $_SESSION['error_msg'] = "❌ Error saving checklist: " . mysqli_error($conn);
+            header("Location: ?page=unloading");
+            exit;
         }
     }
 }

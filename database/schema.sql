@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `tenants` (
   `db_pass` varchar(255) DEFAULT '',
   `admin_username` varchar(100) NOT NULL,
   `admin_password_hash` varchar(255) NOT NULL,
+  `user_limit` int(11) DEFAULT 10,
   `contact_person` varchar(100) DEFAULT NULL,
   `mobile` varchar(20) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,

@@ -463,6 +463,13 @@
 </script>
 
 <?php if ($page == 'admin'):
+    // GLOBAL AUTO-UPGRADE: Ensure user_limit column exists in Master DB
+    $master_conn = getMasterDatabaseConnection();
+    $limit_check = mysqli_query($master_conn, "SHOW COLUMNS FROM tenants LIKE 'user_limit'");
+    if (mysqli_num_rows($limit_check) == 0) {
+        mysqli_query($master_conn, "ALTER TABLE tenants ADD COLUMN user_limit INT DEFAULT 10 AFTER admin_password_hash");
+    }
+
     // Handle Create Tenant (Multi-Tenancy)
     if (isset($_POST['create_tenant'])) {
         // DEBUG: Log the arrival of a create_tenant request
@@ -476,8 +483,9 @@
             $old_res = mysqli_query($master_conn, "SELECT contact_person, mobile, email, gst_no, address, db_host, db_user, db_pass FROM tenants WHERE id = $tenant_id");
             $old_row = mysqli_fetch_assoc($old_res) ?: [];
 
-            $stmt = $master_conn->prepare("UPDATE tenants SET contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=? WHERE id=?");
-            $stmt->bind_param("ssssssssi", $_POST['contact_person'], $_POST['mobile'], $_POST['email'], $_POST['gst_no'], $_POST['address'], $_POST['db_host'], $_POST['db_user'], $_POST['db_pass'], $tenant_id);
+            $stmt = $master_conn->prepare("UPDATE tenants SET contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=?, user_limit=? WHERE id=?");
+            $user_limit = (int) ($_POST['user_limit'] ?? 10);
+            $stmt->bind_param("ssssssssii", $_POST['contact_person'], $_POST['mobile'], $_POST['email'], $_POST['gst_no'], $_POST['address'], $_POST['db_host'], $_POST['db_user'], $_POST['db_pass'], $user_limit, $tenant_id);
 
             if ($stmt->execute()) {
                 // Apply Dynamic Permissions Update to existing tenant admins if metadata is saved
@@ -524,7 +532,8 @@
                 $_POST['db_host'] ?? 'localhost',
                 $_POST['db_user'] ?? '',
                 $_POST['db_pass'] ?? '',
-                $_POST['db_name'] ?? ''
+                $_POST['db_name'] ?? '',
+                (int) ($_POST['user_limit'] ?? 10)
             );
 
             if ($res['success']) {
@@ -747,9 +756,16 @@
     if (isset($_POST['save_webhook']) && ($_SESSION['super_admin'] ?? 0) == 1) {
         $url = trim($_POST['webhook_url']);
         $m_conn = getMasterDatabaseConnection();
-        setSetting($m_conn, 'hostinger_webhook', $url);
-        $success_msg = "✅ Hostinger Webhook URL saved successfully!";
-        logActivity($conn, 'SETTINGS_UPDATE', 'System', "Super Admin updated Webhook URL.");
+        if (setSetting($m_conn, 'hostinger_webhook', $url)) {
+            $_SESSION['success_msg'] = "✅ Hostinger Webhook URL saved successfully!";
+            logActivity($conn, 'SETTINGS_UPDATE', 'System', "Super Admin updated Webhook URL.");
+            header("Location: ?page=admin&master=settings");
+            exit;
+        } else {
+            $_SESSION['error_msg'] = "❌ Error saving webhook URL.";
+            header("Location: ?page=admin&master=settings");
+            exit;
+        }
     }
     $total_users = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM user_master"));
     $total_transporters = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM transporter_master"));
@@ -1414,6 +1430,17 @@
                                                     </div>
                                                 </div>
                                             </div>
+                                            <div style="margin-top: 15px;">
+                                                <label
+                                                    style="display:block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">User
+                                                    Quota (Max Users) *</label>
+                                                <input type="number" name="user_limit" id="t_user_limit"
+                                                    value="<?php echo htmlspecialchars($tenant_data['user_limit'] ?? '10'); ?>"
+                                                    min="1" max="1000" required
+                                                    style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                <small style="color: #64748b; font-size: 11px;">Maximum number of records
+                                                    allowed in user_master table.</small>
+                                            </div>
                                         </div>
 
                                         <!-- Metadata -->
@@ -1769,7 +1796,8 @@
                                             'db_host' => $t['db_host'],
                                             'db_name' => $t['db_name'],
                                             'db_user' => $t['db_user'],
-                                            'db_pass' => $t['db_pass']
+                                            'db_pass' => $t['db_pass'],
+                                            'user_limit' => $t['user_limit'] ?? 10
                                         ]), ENT_QUOTES, 'UTF-8');
                                         ?>
                                         <div style="display: flex; gap: 6px; justify-content: center;">
@@ -1830,6 +1858,9 @@
                         document.getElementById('t_db_name').value = data.db_name || '';
                         document.getElementById('t_db_user').value = data.db_user || '';
                         document.getElementById('t_db_pass').value = data.db_pass || '';
+                        if (document.getElementById('t_user_limit')) {
+                            document.getElementById('t_user_limit').value = data.user_limit || 10;
+                        }
 
                         // Hide credentials logic for edit mode
                         document.getElementById('credentialsWrapper').style.display = 'none';
@@ -2058,8 +2089,13 @@
                                         header("Location: ?page=admin&master=users&t=" . time());
                                         exit;
                                     } else {
-                                        $error_msg = "❌ Error updating user: " . mysqli_error($conn);
-                                        showAppModal('Error', $error_msg, 'error');
+                                        $_SESSION['admin_msg'] = [
+                                            "type" => "error",
+                                            "title" => "Update Failed",
+                                            "msg" => "❌ Error updating user: " . mysqli_error($conn)
+                                        ];
+                                        header("Location: ?page=admin&master=users");
+                                        exit;
                                     }
                                 }
                             }
@@ -2067,43 +2103,80 @@
                     } else {
                         // Create New User
                         if (empty($password)) {
-                            $error_msg = "❌ Password is required for new users!";
-                            showAppModal('Error', $error_msg, 'error');
+                            $_SESSION['admin_msg'] = [
+                                "type" => "error",
+                                "title" => "Validation Error",
+                                "msg" => "❌ Password is required for new users!"
+                            ];
+                            header("Location: ?page=admin&master=users");
+                            exit;
                         } else {
-                            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                            $sql = "INSERT INTO user_master (username, password, full_name, email, mobile, role, photo) 
-                                VALUES ('$username', '$hashed_password', '$full_name', '$email', '$mobile', '$role', " . ($photo_path ? "'$photo_path'" : "NULL") . ")";
+                            // Check User quota
+                            $limit = getUserQuota($_SESSION['tenant_slug']);
+                            $res_c = mysqli_query($conn, "SELECT COUNT(*) as total FROM user_master");
+                            $row_c = mysqli_fetch_assoc($res_c);
+                            $current_count = (int) $row_c['total'];
 
-                            if (mysqli_query($conn, $sql)) {
-                                $details = "Created User: Name: [$full_name]\nUsername: [$username]";
-                                $post_details = auditFromPost($_POST, ['password', 'username', 'full_name', 'user_id', 'role']);
-                                if (!empty($post_details)) {
-                                    $details .= "\n" . $post_details;
-                                }
-                                $details .= "\nPassword: [Set]";
-                                if ($photo_path) {
-                                    $details .= "\nPhoto: [Uploaded]";
-                                }
-                                logActivity($conn, 'USER_CREATE', 'Users', $details);
-                                $success_msg = "✅ User created successfully!";
-                                $_SESSION['success_msg'] = $success_msg;
-                                session_write_close();
-                                header("Location: ?page=admin&master=users&t=" . time());
+                            if ($current_count >= $limit) {
+                                $_SESSION['admin_msg'] = [
+                                    "type" => "error",
+                                    "title" => "Quota Exceeded",
+                                    "msg" => "❌ User Limit Reached ($limit)! Your current plan only allows up to $limit users. Please contact the administrator to upgrade your limit."
+                                ];
+                                header("Location: ?page=admin&master=users");
                                 exit;
                             } else {
-                                $error_msg = "❌ Error creating user: " . mysqli_error($conn);
-                                showAppModal('Error', $error_msg, 'error');
+                                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                                $sql = "INSERT INTO user_master (username, password, full_name, email, mobile, role, photo) 
+                                    VALUES ('$username', '$hashed_password', '$full_name', '$email', '$mobile', '$role', " . ($photo_path ? "'$photo_path'" : "NULL") . ")";
+
+                                if (mysqli_query($conn, $sql)) {
+                                    $details = "Created User: Name: [$full_name]\nUsername: [$username]";
+                                    $post_details = auditFromPost($_POST, ['password', 'username', 'full_name', 'user_id', 'role']);
+                                    if (!empty($post_details)) {
+                                        $details .= "\n" . $post_details;
+                                    }
+                                    $details .= "\nPassword: [Set]";
+                                    if ($photo_path) {
+                                        $details .= "\nPhoto: [Uploaded]";
+                                    }
+                                    logActivity($conn, 'USER_CREATE', 'Users', $details);
+
+                                    $_SESSION['admin_msg'] = [
+                                        "type" => "success",
+                                        "title" => "Success",
+                                        "msg" => "✅ User created successfully!"
+                                    ];
+                                    header("Location: ?page=admin&master=users&t=" . time());
+                                    exit;
+                                } else {
+                                    $_SESSION['admin_msg'] = [
+                                        "type" => "error",
+                                        "title" => "Error",
+                                        "msg" => "❌ Error creating user: " . mysqli_error($conn)
+                                    ];
+                                    header("Location: ?page=admin&master=users");
+                                    exit;
+                                }
                             }
                         }
                     }
                 } catch (mysqli_sql_exception $e) {
                     if ($e->getCode() == 1062) {
-                        $error_msg = "❌ Error: Username '$username' already exists!";
-                        showAppModal('Error', $error_msg, 'error');
+                        $_SESSION['admin_msg'] = [
+                            "type" => "error",
+                            "title" => "Conflict",
+                            "msg" => "❌ Error: Username '$username' already exists!"
+                        ];
                     } else {
-                        $error_msg = "❌ Database Error: " . $e->getMessage();
-                        showAppModal('Error', $error_msg, 'error');
+                        $_SESSION['admin_msg'] = [
+                            "type" => "error",
+                            "title" => "Database Error",
+                            "msg" => "❌ Database Error: " . $e->getMessage()
+                        ];
                     }
+                    header("Location: ?page=admin&master=users");
+                    exit;
                 }
             }
 
@@ -5821,11 +5894,13 @@
                     }
                     fclose($handle);
                     logActivity($conn, 'MATERIAL_IMPORT', 'Materials', "Material CSV Import Summary: Successfully imported [$success_count] items. (Skipped/Errors: $error_count)");
-                    $success_msg = "✅ Imported $success_count materials. Skipped $error_count duplicates/errors.";
-                    $sweet_alert_success = $success_msg;
+                    $_SESSION['success_msg'] = "✅ Imported $success_count materials. Skipped $error_count duplicates/errors!";
+                    header("Location: ?page=admin&master=materials&t=" . time());
+                    exit;
                 } else {
-                    $error_msg = "❌ Error uploading file.";
-                    $sweet_alert_error = $error_msg;
+                    $_SESSION['error_msg'] = "❌ Error uploading file.";
+                    header("Location: ?page=admin&master=materials");
+                    exit;
                 }
             }
 
@@ -6155,11 +6230,13 @@
                     }
                     fclose($handle);
                     logActivity($conn, 'SUPPLIER_IMPORT', 'Suppliers', "Supplier CSV Import Summary: Successfully imported [$success_count] vendors. (Skipped/Errors: $error_count)");
-                    $success_msg = "✅ Imported $success_count suppliers. Skipped $error_count duplicates/errors.";
-                    $sweet_alert_success = $success_msg;
+                    $_SESSION['success_msg'] = "✅ Imported $success_count suppliers. Skipped $error_count duplicates/errors!";
+                    header("Location: ?page=admin&master=suppliers&t=" . time());
+                    exit;
                 } else {
-                    $error_msg = "❌ Error uploading file.";
-                    $sweet_alert_error = $error_msg;
+                    $_SESSION['error_msg'] = "❌ Error uploading file.";
+                    header("Location: ?page=admin&master=suppliers");
+                    exit;
                 }
             }
 

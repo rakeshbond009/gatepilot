@@ -14,11 +14,14 @@ $msg_type = 'success';
 
 // Handle Actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $redirect_url = "?page=manage-register-types";
+    
     if (isset($_POST['add_type'])) {
         $slug = preg_replace('/[^a-z0-9_]/', '', strtolower($_POST['slug']));
         $title = mysqli_real_escape_string($conn, $_POST['title']);
         $icon = mysqli_real_escape_string($conn, $_POST['icon'] ?: '📝');
         $color = mysqli_real_escape_string($conn, $_POST['color'] ?: '#4f46e5');
+        $tenant_slug = mysqli_real_escape_string($conn, $_POST['tenant_slug'] ?? ($_SESSION['tenant_slug'] ?? 'global'));
 
         $raw_fields = $_POST['fields_json'] ?: '[]';
         $test = json_decode($raw_fields);
@@ -33,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg_type = 'error';
             }
             else {
-                $sql = "INSERT INTO register_types (slug, title, icon, color, fields_json, is_active) VALUES ('$slug', '$title', '$icon', '$color', '$fields_json_stored', 1)";
+                $sql = "INSERT INTO register_types (slug, title, icon, color, fields_json, is_active, tenant_slug) VALUES ('$slug', '$title', '$icon', '$color', '$fields_json_stored', 1, '$tenant_slug')";
                 if (mysqli_query($conn, $sql)) {
                     $fields_list = 'None';
                     $fields_decoded = json_decode(stripslashes($_POST['fields_json'] ?? '[]'), true);
@@ -42,19 +45,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $details = "Create Success: Register '$title'\nUnique ID: $slug\nConfigured Fields: $fields_list\nTheme Color: $color";
                     logActivity($conn, 'REGISTER_CONFIG_CREATE', 'Config', $details);
-                    $message = "✅ Success: New register type '$title' created.";
-                    $msg_type = 'success';
+                    $_SESSION['success_msg'] = "✅ Success: New register type '$title' created.";
+                    header("Location: $redirect_url");
+                    exit;
                 }
                 else {
-                    $message = "❌ Error: " . mysqli_error($conn);
-                    $msg_type = 'error';
+                    $_SESSION['error_msg'] = "❌ Error: " . mysqli_error($conn);
                 }
             }
         }
         else {
-            $message = "❌ Error: Invalid fields structure. Please use the builder.";
-            $msg_type = 'error';
+            $_SESSION['error_msg'] = "❌ Error: Invalid fields structure. Please use the builder.";
         }
+        header("Location: $redirect_url");
+        exit;
     }
 
     // prioritized deletion to avoid duplicate logs with update
@@ -67,16 +71,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $check_entries = mysqli_query($conn, "SELECT id FROM manual_registers WHERE register_type = '$slug' LIMIT 1");
         if (mysqli_num_rows($check_entries) > 0) {
-            $message = "❌ Error: Cannot delete. This register already has entries logged.";
-            $msg_type = 'error';
+            $_SESSION['error_msg'] = "❌ Error: Cannot delete. This register already has entries logged.";
         }
         else {
             if (mysqli_query($conn, "DELETE FROM register_types WHERE id = $id")) {
                 logActivity($conn, 'REGISTER_CONFIG_DELETE', 'Config', "Deleted register type: '$slug' (ID: $id)");
-                $message = "✅ Success: Register type deleted.";
-                $msg_type = 'success';
+                $_SESSION['success_msg'] = "✅ Success: Register type deleted.";
             }
         }
+        header("Location: $redirect_url");
+        exit;
     }
     elseif (isset($_POST['update_fields'])) {
         $id = intval($_POST['type_id']);
@@ -84,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $icon = mysqli_real_escape_string($conn, $_POST['icon'] ?? '');
         $color = mysqli_real_escape_string($conn, $_POST['color'] ?? '');
         $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $tenant_slug = mysqli_real_escape_string($conn, $_POST['tenant_slug'] ?? ($_SESSION['tenant_slug'] ?? 'global'));
         $fields_json_raw = $_POST['fields_json'] ?? '[]';
         $fields_json_esc = mysqli_real_escape_string($conn, $fields_json_raw);
 
@@ -98,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($current['title'] != $title) $diff_parts[] = "Title: [" . $current['title'] . " ➔ " . $title . "]";
             if ($current['icon'] != $icon) $diff_parts[] = "Icon: [" . $current['icon'] . " ➔ " . $icon . "]";
             if ($current['color'] != $color) $diff_parts[] = "Color: [" . $current['color'] . " ➔ " . $color . "]";
+            if ($current['tenant_slug'] != $tenant_slug) $diff_parts[] = "Tenant: [" . $current['tenant_slug'] . " ➔ " . $tenant_slug . "]";
             if ($current['is_active'] != $is_active) $diff_parts[] = "Status: [" . ($current['is_active'] ? 'Active':'Inactive') . " ➔ " . ($is_active ? 'Active':'Inactive') . "]";
             
             $old_fields = json_decode($current['fields_json'] ?? '[]', true);
@@ -146,23 +152,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     title = '$title',
                     icon = '$icon',
                     color = '$color',
+                    tenant_slug = '$tenant_slug',
                     is_active = $is_active,
                     fields_json = '$fields_json_esc' 
                     WHERE id = $id";
             if (mysqli_query($conn, $sql)) {
                 logActivity($conn, 'REGISTER_CONFIG_UPDATE', 'Config', $details);
-                $message = "✅ Success: Register type '$title' updated.";
-                $msg_type = 'success';
+                $_SESSION['success_msg'] = "✅ Success: Register type '$title' updated.";
+                header("Location: $redirect_url");
+                exit;
+            } else {
+                $_SESSION['error_msg'] = "❌ Error updating: " . mysqli_error($conn);
             }
-            else {
-                $message = "❌ Error: " . mysqli_error($conn);
-                $msg_type = 'error';
-            }
+        } else {
+            $_SESSION['error_msg'] = "❌ Error: Invalid fields JSON.";
         }
-        else {
-            $message = "❌ Error: Invalid JSON structure. Update aborted.";
-            $msg_type = 'error';
-        }
+        header("Location: $redirect_url");
+        exit;
     }
 }
 
@@ -232,6 +238,8 @@ endif; ?>
                                 <input type="color" name="color" value="#4f46e5" style="height: 48px; cursor: pointer;">
                             </div>
                         </div>
+
+                        <input type="hidden" name="tenant_slug" value="<?php echo $_SESSION['tenant_slug'] ?? 'global'; ?>">
 
                         <!-- Instructions for Emoji -->
                         <div class="emoji-info">
@@ -363,6 +371,8 @@ endif; ?>
                                             <input type="color" name="color" value="<?php echo $type['color']; ?>" style="height: 48px; padding: 2px;">
                                         </div>
                                     </div>
+
+                                    <input type="hidden" name="tenant_slug" value="<?php echo $type['tenant_slug'] ?? $_SESSION['tenant_slug']; ?>">
 
                                     <div class="visual-builder-container">
                                         <label>Modify Fields</label>

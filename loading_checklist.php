@@ -178,13 +178,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
             $checked_by, '$checked_by_name', 'completed'
         )";
         if (mysqli_query($conn, $sql)) {
-            $success = "Loading checklist saved successfully!";
+            $last_id = mysqli_insert_id($conn);
+            $_SESSION['success_msg'] = "✅ Loading checklist saved successfully!";
             logActivity($conn, 'LOADING_CREATE', 'Checklists', "Created Loading Checklist:\n" . auditFromPost($_POST));
-            // Reset form or redirect
-            $_POST = array();
+            header("Location: ?page=loading-details&id=" . $last_id);
+            exit;
         }
         else {
-            $error = "Error: " . mysqli_error($conn);
+            $_SESSION['error_msg'] = "❌ Error saving checklist: " . mysqli_error($conn);
+            header("Location: ?page=loading");
+            exit;
         }
     }
 }

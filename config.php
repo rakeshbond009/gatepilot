@@ -151,6 +151,7 @@ function getMasterDatabaseConnection()
         die("Master Connection Failed: " . mysqli_connect_error());
     }
     mysqli_query($master_conn, "SET time_zone = '+05:30'");
+    mysqli_set_charset($master_conn, "utf8mb4");
     return $master_conn;
 }
 
@@ -206,6 +207,7 @@ function getDatabaseConnection()
     }
 
     mysqli_query($conn, "SET time_zone = '+05:30'");
+    mysqli_set_charset($conn, "utf8mb4");
     return $conn;
 }
 
