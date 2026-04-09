@@ -5597,14 +5597,28 @@ elseif ($page == 'reports'):
     $department_filter = isset($_GET['department']) ? mysqli_real_escape_string($conn, $_GET['department']) : '';
 
     // Build WHERE clause
+    $entry_no_filter = $_GET['entry_no'] ?? '';
+    
     $where = [];
-    if ($start_date && $end_date) {
-        $where[] = "inward_date BETWEEN '$start_date' AND '$end_date'";
-    } elseif ($start_date) {
-        $where[] = "inward_date >= '$start_date'";
-    } elseif ($end_date) {
-        $where[] = "inward_date <= '$end_date'";
+    
+    // If Entry Number or Vehicle Number is searched, bypass date filters for easier direct lookup
+    if ($entry_no_filter || $vehicle_filter) {
+        if ($entry_no_filter) {
+            $where[] = "entry_number LIKE '%$entry_no_filter%'";
+        } elseif ($vehicle_filter) {
+            // If vehicle is searched, check both vehicle and entry number columns for universal lookup
+            $where[] = "(vehicle_number LIKE '%$vehicle_filter%' OR entry_number LIKE '%$vehicle_filter%')";
+        }
+    } else {
+        if ($start_date && $end_date) {
+            $where[] = "inward_date BETWEEN '$start_date' AND '$end_date'";
+        } elseif ($start_date) {
+            $where[] = "inward_date >= '$start_date'";
+        } elseif ($end_date) {
+            $where[] = "inward_date <= '$end_date'";
+        }
     }
+    
     if ($transporter_filter) {
         $where[] = "transporter_name LIKE '%$transporter_filter%'";
     }
@@ -5907,16 +5921,19 @@ elseif ($page == 'reports'):
             <form method="GET" style="margin-bottom: 20px;">
                 <input type="hidden" name="page" value="reports">
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                     <div>
-                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">Start
-                            Date</label>
+                        <label style="font-size: 11px; color: #1e40af; font-weight: 700; display: block; margin-bottom: 5px;">Entry # (Global Search)</label>
+                        <input type="text" name="entry_no" value="<?php echo htmlspecialchars($entry_no_filter ?? ''); ?>"
+                            placeholder="e.g. 1024" style="width: 100%; border: 2px solid #3b82f6; background: #eff6ff;">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 5px;">Start Date</label>
                         <input type="date" name="start_date" value="<?php echo htmlspecialchars($start_date); ?>"
                             style="width: 100%;">
                     </div>
                     <div>
-                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">End
-                            Date</label>
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 5px;">End Date</label>
                         <input type="date" name="end_date" value="<?php echo htmlspecialchars($end_date); ?>"
                             style="width: 100%;">
                     </div>
