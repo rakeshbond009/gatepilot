@@ -6471,17 +6471,21 @@ elseif ($page == 'reports'):
                         </thead>
                         <tbody>
                             <?php if (!empty($all_received_items)): ?>
-                                <?php foreach ($all_received_items as $item): ?>
+                                <?php $last_parent_id = null; ?>
+                                <?php foreach ($all_received_items as $item): 
+                                    $is_duplicate = ($last_parent_id === $item['parent_id']);
+                                    $last_parent_id = $item['parent_id'];
+                                ?>
                                     <tr onclick="window.location='?page=inward-details&id=<?php echo intval($item['parent_id'] ?? 0); ?>'"
-                                        style="cursor: pointer; transition: background 0.2s;">
-                                        <td><strong><?php echo htmlspecialchars($item['parent_entry_num'] ?? 'N/A'); ?></strong></td>
-                                        <td><?php echo date('d/m/Y', strtotime($item['parent_inward_date'] ?? 'today')); ?></td>
-                                        <td><strong><?php echo htmlspecialchars($item['parent_vehicle'] ?? '-'); ?></strong></td>
+                                        style="cursor: pointer; transition: background 0.2s; <?php echo $is_duplicate ? 'border-top: none;' : 'border-top: 2px solid #fef3c7;'; ?>">
+                                        <td><strong><?php echo !$is_duplicate ? htmlspecialchars($item['parent_entry_num'] ?? 'N/A') : ''; ?></strong></td>
+                                        <td style="color: #64748b; font-size: 13px;"><?php echo !$is_duplicate ? date('d/m/Y', strtotime($item['parent_inward_date'] ?? 'today')) : ''; ?></td>
+                                        <td><strong><?php echo !$is_duplicate ? htmlspecialchars($item['parent_vehicle'] ?? '-') : ''; ?></strong></td>
                                         <td style="font-family: monospace; font-size: 11px; color: #64748b;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?></td>
                                         <td><strong><?php echo htmlspecialchars($item['item_name'] ?? $item['item_description'] ?? 'Unknown'); ?></strong></td>
                                         <td style="font-weight: 700; color: #d97706;"><?php echo htmlspecialchars($item['quantity'] ?? '0'); ?></td>
                                         <td style="font-size: 12px; color: #6b7280;"><?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?></td>
-                                        <td style="font-size: 11px; color: #6b7280;"><?php echo htmlspecialchars($item['parent_transporter'] ?? '-'); ?></td>
+                                        <td style="font-size: 11px; color: #6b7280;"><?php echo !$is_duplicate ? htmlspecialchars($item['parent_transporter'] ?? '-') : ''; ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
