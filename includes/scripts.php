@@ -1088,6 +1088,11 @@ endif; ?>
                         var bf = document.getElementById("bill_number");
                         if (bf) bf.value = billCode;
 
+                        // Auto-populate manual items list if items found in QR
+                        if (typeof populateManualItemsList === 'function' && Array.isArray(itemsArray) && itemsArray.length > 0) {
+                            populateManualItemsList(itemsArray);
+                        }
+
                         // Store DECODED JSON in hidden field (Robust Method)
                         var jsonString = JSON.stringify(finalData);
                         var foundField = false;

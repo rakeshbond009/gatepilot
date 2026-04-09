@@ -262,6 +262,66 @@
                             onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                     </div>
                 </div>
+
+                <!-- Manual Items Entry Section -->
+                <div id="manual_items_section"
+                    style="margin-top: 25px; padding-top: 20px; border-top: 2px dashed #e5e7eb;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h4 style="margin: 0; color: #1f2937; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                            <span>📦</span> Material Items Information
+                        </h4>
+                        <span id="items_count_badge" class="badge" style="background: #8b5cf6; color: white; display: none;">0 Items</span>
+                    </div>
+
+                    <div id="items_list_container" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; display: none;">
+                        <table style="width: 100%; border-collapse: separate; border-spacing: 0 8px;">
+                            <thead>
+                                <tr style="text-align: left; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    <th style="padding: 0 10px;">Code</th>
+                                    <th style="padding: 0 10px;">Item Description</th>
+                                    <th style="padding: 0 10px;">Qty</th>
+                                    <th style="padding: 0 10px;">Unit</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="items_tbody"><!-- Items will be appended here --></tbody>
+                        </table>
+                    </div>
+
+                    <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 10px; align-items: end;">
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
+                            <input type="text" id="new_item_code" placeholder="Code" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM NAME</label>
+                            <input type="text" id="new_item_name" placeholder="Name of material" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QUANTITY</label>
+                            <input type="number" id="new_item_qty" step="any" placeholder="0" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
+                            <select id="new_item_unit" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: white;">
+                                <option value="PCS">PCS</option>
+                                <option value="KG">KG</option>
+                                <option value="MT">MT</option>
+                                <option value="NOS">NOS</option>
+                                <option value="BOX">BOX</option>
+                                <option value="BAG">BAG</option>
+                                <option value="LTR">LTR</option>
+                                <option value="UNIT">UNIT</option>
+                            </select>
+                        </div>
+                        <button type="button" onclick="addItemManually()" id="addItemBtn"
+                            style="background: #8b5cf6; color: white; border: none; padding: 12px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; height: 40px; width: 40px;"
+                            onmouseover="this.style.background='#7c3aed'" onmouseout="this.style.background='#8b5cf6'">
+                            <span style="font-size: 20px; font-weight: bold;">+</span>
+                        </button>
+                    </div>
+                    <input type="hidden" name="items" id="items_hidden_input">
+                </div>
             </div>
 
             <!-- Section 5: Additional Information -->
@@ -798,6 +858,108 @@
 
             return isMobile;
         }
+
+        // --- Manual Items Management ---
+        let manualItems = [];
+
+        function addItemManually() {
+            const code = document.getElementById('new_item_code').value.trim();
+            const name = document.getElementById('new_item_name').value.trim();
+            const qty = document.getElementById('new_item_qty').value.trim();
+            const unit = document.getElementById('new_item_unit').value;
+
+            if (!name || !qty) {
+                alert('Item Name and Quantity are required!');
+                return;
+            }
+
+            const item = {
+                item_code: code || 'N/A',
+                item_name: name,
+                quantity: parseFloat(qty),
+                unit: unit
+            };
+
+            manualItems.push(item);
+            renderItems();
+
+            // Clear inputs
+            document.getElementById('new_item_code').value = '';
+            document.getElementById('new_item_name').value = '';
+            document.getElementById('new_item_qty').value = '';
+            document.getElementById('new_item_name').focus();
+        }
+
+        function deleteItem(index) {
+            manualItems.splice(index, 1);
+            renderItems();
+        }
+
+        function renderItems() {
+            const tbody = document.getElementById('items_tbody');
+            const container = document.getElementById('items_list_container');
+            const badge = document.getElementById('items_count_badge');
+            const hiddenInput = document.getElementById('items_hidden_input');
+
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            
+            if (manualItems.length > 0) {
+                container.style.display = 'block';
+                badge.style.display = 'inline-block';
+                badge.textContent = manualItems.length + ' Items';
+                
+                manualItems.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.style.background = 'white';
+                    row.innerHTML = `
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; font-size: 13px; color: #64748b;">${item.item_code}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #1e293b;">${item.item_name}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #8b5cf6;">${item.quantity}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; color: #64748b;">${item.unit}</td>
+                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right;">
+                            <button type="button" onclick="deleteItem(${index})" style="background: #fee2e2; color: #ef4444; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px;">&times;</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else {
+                container.style.display = 'none';
+                badge.style.display = 'none';
+            }
+
+            // Sync with hidden input
+            if (hiddenInput) {
+                hiddenInput.value = JSON.stringify(manualItems);
+            }
+        }
+
+        // Global function for QR scanner to populate items
+        window.populateManualItemsList = function(itemsArray) {
+            console.log('Populating manual items list from QR data:', itemsArray);
+            if (!itemsArray || !Array.isArray(itemsArray)) return;
+            
+            // Standardize format from various QR structures
+            const standardizedItems = itemsArray.map(item => {
+                return {
+                    item_code: item.item_code || item.product_code || item.sku || 'N/A',
+                    item_name: item.item_name || item.product_name || item.name || item.description || 'Unknown Item',
+                    quantity: parseFloat(item.quantity || item.qty || 0),
+                    unit: item.unit || item.uom || 'PCS'
+                };
+            });
+
+            manualItems = standardizedItems;
+            renderItems();
+            
+            // Highlight the section
+            const section = document.getElementById('manual_items_section');
+            if (section) {
+                section.style.background = '#f5f3ff';
+                setTimeout(() => section.style.background = 'transparent', 2000);
+            }
+        };
 
         // Hide camera buttons on PC, show only on mobile - execute immediately
         (function () {
