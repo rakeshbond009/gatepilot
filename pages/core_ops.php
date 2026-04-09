@@ -30,6 +30,20 @@
         document.getElementById('new_item_name').focus();
     }
 
+    function validateManualItemsCommit() {
+        const name = document.getElementById('new_item_name')?.value.trim();
+        const qty = document.getElementById('new_item_qty')?.value.trim();
+        
+        if (name || qty) {
+            alert('⚠️ You have entered item details (' + (name || 'Unnamed') + ') but haven\'t clicked the "Add" (+) button.\n\nPlease add the item to the list or clear the fields before submitting.');
+            const nameField = document.getElementById('new_item_name');
+            if (nameField) nameField.focus();
+            document.getElementById('manual_items_section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+        return true;
+    }
+
     function deleteItem(index) {
         manualItems.splice(index, 1);
         renderItems();
@@ -582,6 +596,11 @@
 
         // Show loader on form submit
         document.getElementById('inwardForm')?.addEventListener('submit', function (e) {
+            // Validate manual items first
+            if (typeof validateManualItemsCommit === 'function' && !validateManualItemsCommit()) {
+                e.preventDefault();
+                return;
+            }
             const vehicleNumber = document.getElementById('vehicle_number').value.trim().toUpperCase();
 
             // Check if vehicle is already inside before submitting
@@ -3589,7 +3608,7 @@ elseif ($page == 'edit-inward'):
             </div>
         </div>
 
-        <form method="POST" enctype="multipart/form-data">
+        <form method="POST" enctype="multipart/form-data" id="editInwardForm">
             <input type="hidden" name="id" value="<?php echo $entry['id']; ?>">
 
             <div class="card" style="margin-bottom: 20px;">
@@ -3923,6 +3942,13 @@ elseif ($page == 'edit-inward'):
                     opts.forEach(o => { if (o.value === val) foundId = o.getAttribute('data-id'); });
                     const hidden = document.getElementById('edit_purpose_id_hidden');
                     if (hidden) hidden.value = foundId || '';
+                });
+
+                // Validate manual items commit on edit form submit
+                document.getElementById('editInwardForm')?.addEventListener('submit', function (e) {
+                    if (typeof validateManualItemsCommit === 'function' && !validateManualItemsCommit()) {
+                        e.preventDefault();
+                    }
                 });
             </script>
 
