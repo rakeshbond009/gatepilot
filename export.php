@@ -286,7 +286,7 @@ if ($export_tab === 'inward') {
     $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
     $columns = ['Entry #', 'Date', 'Vehicle Number', 'Item Code', 'Item Name', 'Qty', 'Unit', 'Transporter'];
-    $query = "SELECT id, entry_number, inward_date, vehicle_number, transporter_name, items_json FROM truck_inward ti $where_sql ORDER BY inward_datetime DESC LIMIT 2000";
+    $query = "SELECT entry_number, inward_date, vehicle_number, transporter_name, items_json FROM truck_inward ti $where_sql ORDER BY inward_datetime DESC LIMIT 500";
     $raw_res = mysqli_query($conn, $query);
 
     $items_data = [];
@@ -296,19 +296,17 @@ if ($export_tab === 'inward') {
             if (is_string($items))
                 $items = json_decode($items, true);
             if (is_array($items)) {
-                $first = true;
                 foreach ($items as $item) {
                     $items_data[] = [
-                        'Entry #' => $first ? ($row['entry_number'] ?? 'N/A') : '',
-                        'Date' => $first ? date('d-m-Y', strtotime($row['inward_date'])) : '',
-                        'Vehicle Number' => $first ? ($row['vehicle_number'] ?? '-') : '',
+                        'Entry #' => $row['entry_number'],
+                        'Date' => date('d-m-Y', strtotime($row['inward_date'])),
+                        'Vehicle Number' => $row['vehicle_number'],
                         'Item Code' => $item['item_code'] ?? '',
-                        'Item Name' => $item['item_name'] ?? $item['item_description'] ?? 'Unknown',
+                        'Item Name' => $item['item_name'] ?? '',
                         'Qty' => $item['quantity'] ?? 0,
                         'Unit' => $item['unit'] ?? '',
-                        'Transporter' => $first ? ($row['transporter_name'] ?? '-') : ''
+                        'Transporter' => $row['transporter_name']
                     ];
-                    $first = false;
                 }
             }
         }
@@ -419,7 +417,7 @@ if ($is_mobile) {
     $filename = str_replace('.xls', '.csv', $filename);
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
-    
+
     $output = fopen('php://output', 'w');
     // Output UTF-8 BOM for Excel compatibility if needed, but fputcsv is safer without for some mobile apps
     // fwrite($output, "\xEF\xBB\xBF"); 

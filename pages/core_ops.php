@@ -34,7 +34,7 @@
     function showCustomAlert(message, title = 'Attention') {
         const modalId = 'customAlertModal';
         let modal = document.getElementById(modalId);
-        
+
         if (!modal) {
             modal = document.createElement('div');
             modal.id = modalId;
@@ -63,7 +63,7 @@
 
         document.getElementById('alertTitle').textContent = title;
         document.getElementById('alertMessage').textContent = message;
-        
+
         modal.style.display = 'flex';
         setTimeout(() => {
             modal.style.opacity = '1';
@@ -83,7 +83,7 @@
     function validateManualItemsCommit() {
         const name = document.getElementById('new_item_name')?.value.trim();
         const qty = document.getElementById('new_item_qty')?.value.trim();
-        
+
         if (name || qty) {
             showCustomAlert('You have entered item details (' + (name || 'Unnamed') + ') but haven\'t clicked the "Add" (+) button. Please add the item to the list or clear the fields before submitting.', 'Action Required');
             const nameField = document.getElementById('new_item_name');
@@ -108,14 +108,14 @@
         if (!tbody) return;
 
         tbody.innerHTML = '';
-        
+
         if (manualItems.length > 0) {
             if (container) container.style.display = 'block';
             if (badge) {
                 badge.style.display = 'inline-block';
                 badge.textContent = manualItems.length + ' Items';
             }
-            
+
             manualItems.forEach((item, index) => {
                 const row = document.createElement('tr');
                 row.style.background = 'white';
@@ -142,10 +142,10 @@
     }
 
     // Global function for QR scanner to populate items
-    window.populateManualItemsList = function(itemsArray) {
+    window.populateManualItemsList = function (itemsArray) {
         console.log('Populating manual items list from QR data:', itemsArray);
         if (!itemsArray || !Array.isArray(itemsArray)) return;
-        
+
         // Standardize format from various QR structures
         const standardizedItems = itemsArray.map(item => {
             return {
@@ -158,7 +158,7 @@
 
         manualItems = standardizedItems;
         renderItems();
-        
+
         // Highlight the section
         const section = document.getElementById('manual_items_section');
         if (section) {
@@ -433,19 +433,22 @@
                 </div>
 
                 <!-- Manual Items Entry Section -->
-                <div id="manual_items_section"
-                    style="margin-top: 25px; padding-top: 20px; border-top: 2px dashed #e5e7eb;">
+                <div id="manual_items_section" style="margin-top: 25px; padding-top: 20px; border-top: 2px dashed #e5e7eb;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h4 style="margin: 0; color: #1f2937; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <h4
+                            style="margin: 0; color: #1f2937; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                             <span>📦</span> Material Items Information
                         </h4>
-                        <span id="items_count_badge" class="badge" style="background: #8b5cf6; color: white; display: none;">0 Items</span>
+                        <span id="items_count_badge" class="badge"
+                            style="background: #8b5cf6; color: white; display: none;">0 Items</span>
                     </div>
 
-                    <div id="items_list_container" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; display: none;">
+                    <div id="items_list_container"
+                        style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; display: none;">
                         <table style="width: 100%; border-collapse: separate; border-spacing: 0 8px;">
                             <thead>
-                                <tr style="text-align: left; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">
+                                <tr
+                                    style="text-align: left; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">
                                     <th style="padding: 0 10px;">Code</th>
                                     <th style="padding: 0 10px;">Item Description</th>
                                     <th style="padding: 0 10px;">Qty</th>
@@ -457,22 +460,32 @@
                         </table>
                     </div>
 
-                    <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 10px; align-items: end;">
+                    <div
+                        style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 10px; align-items: end;">
                         <div>
-                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
-                            <input type="text" id="new_item_code" placeholder="Code" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                            <label
+                                style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
+                            <input type="text" id="new_item_code" placeholder="Code"
+                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
                         <div>
-                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM NAME</label>
-                            <input type="text" id="new_item_name" placeholder="Name of material" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                            <label
+                                style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
+                                NAME</label>
+                            <input type="text" id="new_item_name" placeholder="Name of material"
+                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
                         <div>
-                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QUANTITY</label>
-                            <input type="number" id="new_item_qty" step="any" placeholder="0" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                            <label
+                                style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QUANTITY</label>
+                            <input type="number" id="new_item_qty" step="any" placeholder="0"
+                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
                         <div>
-                            <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
-                            <select id="new_item_unit" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: white;">
+                            <label
+                                style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
+                            <select id="new_item_unit"
+                                style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: white;">
                                 <option value="NOS">NOS</option>
                                 <option value="KGS">KGS</option>
                                 <option value="PCS">PCS</option>
@@ -484,16 +497,6 @@
                                 <option value="BUNDLE">BUNDLE</option>
                                 <option value="PKT">PKT</option>
                                 <option value="SET">SET</option>
-                                <option value="ROLL">ROLL</option>
-                                <option value="CAN">CAN</option>
-                                <option value="DRUM">DRUM</option>
-                                <option value="SQF">SQ.FT</option>
-                                <option value="SQM">SQ.MT</option>
-                                <option value="CFT">CU.FT</option>
-                                <option value="MTR">MTR</option>
-                                <option value="PLT">PALLET</option>
-                                <option value="CRT">CARTON</option>
-                                <option value="OTH">OTHER</option>
                             </select>
                         </div>
                         <button type="button" onclick="addItemManually()" id="addItemBtn"
@@ -3767,19 +3770,24 @@ elseif ($page == 'edit-inward'):
                 </div>
             </div>
 
-            <div class="card" id="manual_items_section" style="margin-bottom: 20px; border: 1px solid #e0e7ff; transition: all 0.3s ease;">
+            <div class="card" id="manual_items_section"
+                style="margin-bottom: 20px; border: 1px solid #e0e7ff; transition: all 0.3s ease;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="margin: 0;">📦 Material Items Information</h3>
-                    <span id="items_count_badge" style="background: #8b5cf6; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; display: none;">0 Items</span>
+                    <span id="items_count_badge"
+                        style="background: #8b5cf6; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; display: none;">0
+                        Items</span>
                 </div>
 
                 <!-- Hidden Input to store JSON -->
                 <input type="hidden" name="items" id="items_hidden_input">
 
                 <div id="items_list_container" style="display: none; margin-bottom: 20px;">
-                    <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                    <table
+                        style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
                         <thead>
-                            <tr style="background: #f1f5f9; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <tr
+                                style="background: #f1f5f9; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
                                 <th style="padding: 12px 10px;">Code</th>
                                 <th style="padding: 12px 10px;">Item Description</th>
                                 <th style="padding: 12px 10px;">Qty</th>
@@ -3791,22 +3799,32 @@ elseif ($page == 'edit-inward'):
                     </table>
                 </div>
 
-                <div style="background: #f1f5f9; padding: 15px; border-radius: 12px; display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 8px; align-items: end;">
+                <div
+                    style="background: #f1f5f9; padding: 15px; border-radius: 12px; display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 8px; align-items: end;">
                     <div>
-                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
-                        <input type="text" id="new_item_code" placeholder="Code" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                        <label
+                            style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
+                        <input type="text" id="new_item_code" placeholder="Code"
+                            style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div>
-                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM NAME</label>
-                        <input type="text" id="new_item_name" placeholder="Name/Desc" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                        <label
+                            style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
+                            NAME</label>
+                        <input type="text" id="new_item_name" placeholder="Name/Desc"
+                            style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div>
-                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QTY</label>
-                        <input type="number" id="new_item_qty" step="any" placeholder="0.0" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                        <label
+                            style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QTY</label>
+                        <input type="number" id="new_item_qty" step="any" placeholder="0.0"
+                            style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div>
-                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
-                        <select id="new_item_unit" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; appearance: none; background: white;">
+                        <label
+                            style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
+                        <select id="new_item_unit"
+                            style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; appearance: none; background: white;">
                             <option value="NOS">NOS</option>
                             <option value="KGS">KGS</option>
                             <option value="PCS">PCS</option>
@@ -3818,19 +3836,10 @@ elseif ($page == 'edit-inward'):
                             <option value="BUNDLE">BUNDLE</option>
                             <option value="PKT">PKT</option>
                             <option value="SET">SET</option>
-                            <option value="ROLL">ROLL</option>
-                            <option value="CAN">CAN</option>
-                            <option value="DRUM">DRUM</option>
-                            <option value="SQF">SQ.FT</option>
-                            <option value="SQM">SQ.MT</option>
-                            <option value="CFT">CU.FT</option>
-                            <option value="MTR">MTR</option>
-                            <option value="PLT">PALLET</option>
-                            <option value="CRT">CARTON</option>
-                            <option value="OTH">OTHER</option>
                         </select>
                     </div>
-                    <button type="button" onclick="addItemManually()" style="background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 800; cursor: pointer; height: 38px;">+</button>
+                    <button type="button" onclick="addItemManually()"
+                        style="background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 800; cursor: pointer; height: 38px;">+</button>
                 </div>
             </div>
 
@@ -3845,11 +3854,11 @@ elseif ($page == 'edit-inward'):
             </div>
 
             <script>
-                document.addEventListener('DOMContentLoaded', function() {
+                document.addEventListener('DOMContentLoaded', function () {
                     // Initialize manualItems from existing JSON
                     var existingItems = <?php echo !empty($entry['items_json']) ? $entry['items_json'] : '[]'; ?>;
                     if (typeof existingItems === 'string') {
-                        try { existingItems = JSON.parse(existingItems); } catch(e) { existingItems = []; }
+                        try { existingItems = JSON.parse(existingItems); } catch (e) { existingItems = []; }
                     }
                     if (Array.isArray(existingItems) && existingItems.length > 0) {
                         manualItems = existingItems;
@@ -4079,13 +4088,13 @@ elseif ($page == 'edit-outward'):
 
     $inward = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM truck_inward WHERE id = {$outward['inward_id']}"));
     $checklist = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM vehicle_outgoing_checklist WHERE inward_id = {$outward['inward_id']} LIMIT 1"));
-    
+
     // Parse documents JSON
     $saved_docs = [];
     if ($checklist && !empty($checklist['documents_json'])) {
         $decoded = json_decode($checklist['documents_json'], true);
         if (is_array($decoded)) {
-            foreach($decoded as $d) {
+            foreach ($decoded as $d) {
                 $saved_docs[$d['type']] = ['status' => $d['status'], 'remarks' => $d['remarks'] ?? ''];
             }
         }
@@ -4120,45 +4129,57 @@ elseif ($page == 'edit-outward'):
             <input type="hidden" name="inward_id" value="<?php echo $outward['inward_id']; ?>">
 
             <div class="card" style="margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
-                    <div style="background: #10b981; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">1</div>
+                <div
+                    style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div
+                        style="background: #10b981; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                        1</div>
                     <h3 style="margin: 0;">Outward Basic Details</h3>
                 </div>
 
                 <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
                     <div style="flex: 1; min-width: 200px;">
-                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Outward Date & Time</label>
-                        <input type="datetime-local" name="outward_datetime" value="<?php echo date('Y-m-d\TH:i', strtotime($outward['outward_datetime'] ?? 'now')); ?>" 
-                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;" required>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Outward Date &
+                            Time</label>
+                        <input type="datetime-local" name="outward_datetime"
+                            value="<?php echo date('Y-m-d\TH:i', strtotime($outward['outward_datetime'] ?? 'now')); ?>"
+                            style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;" required>
                     </div>
                     <div style="flex: 1; min-width: 150px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Status</label>
-                        <select name="outgoing_status" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-                            <?php 
+                        <select name="outgoing_status"
+                            style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
+                            <?php
                             $curr_s = $outgoing_checklist['status'] ?? 'completed';
-                            foreach(['draft'=>'Draft','completed'=>'Completed','cancelled'=>'Cancelled'] as $k=>$v)
-                                echo "<option value='$k' ".($curr_s==$k?'selected':'').">$v</option>";
+                            foreach (['draft' => 'Draft', 'completed' => 'Completed', 'cancelled' => 'Cancelled'] as $k => $v)
+                                echo "<option value='$k' " . ($curr_s == $k ? 'selected' : '') . ">$v</option>";
                             ?>
                         </select>
                     </div>
                     <div style="flex: 1; min-width: 180px;">
-                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Checklist Doc ID</label>
-                        <input type="text" name="outgoing_doc_id" value="<?php echo htmlspecialchars($outgoing_checklist['document_id'] ?? 'VCPL/LOG/FR/02'); ?>" 
-                               style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">Checklist Doc
+                            ID</label>
+                        <input type="text" name="outgoing_doc_id"
+                            value="<?php echo htmlspecialchars($outgoing_checklist['document_id'] ?? 'VCPL/LOG/FR/02'); ?>"
+                            style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
                     </div>
                 </div>
 
 
                 <div class="form-group">
                     <label>Outward Remarks</label>
-                    <textarea name="outward_remarks" rows="3"><?php echo htmlspecialchars($outward['outward_remarks']); ?></textarea>
+                    <textarea name="outward_remarks"
+                        rows="3"><?php echo htmlspecialchars($outward['outward_remarks']); ?></textarea>
                 </div>
             </div>
 
             <!-- OUT-GOING CHECK SECTION -->
             <div class="card" style="margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
-                    <div style="background: #8b5cf6; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">2</div>
+                <div
+                    style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div
+                        style="background: #8b5cf6; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                        2</div>
                     <h3 style="margin: 0;">Out-going Checklist (VCPL/LOG/FR/02)</h3>
                 </div>
 
@@ -4170,7 +4191,8 @@ elseif ($page == 'edit-outward'):
                     </div>
                     <div class="form-group">
                         <label>Customer</label>
-                        <select name="outgoing_customer_id" id="outgoing_customer_id" onchange="const sel = this.options[this.selectedIndex]; document.getElementById('outgoing_customer_name').value = sel.text;">
+                        <select name="outgoing_customer_id" id="outgoing_customer_id"
+                            onchange="const sel = this.options[this.selectedIndex]; document.getElementById('outgoing_customer_name').value = sel.text;">
                             <option value="">Select Customer</option>
                             <?php
                             if ($customers_result) {
@@ -4182,13 +4204,15 @@ elseif ($page == 'edit-outward'):
                                 <?php endwhile;
                             } ?>
                         </select>
-                        <input type="hidden" name="outgoing_customer_name" id="outgoing_customer_name" value="<?php echo htmlspecialchars($checklist['customer_name'] ?? ''); ?>">
+                        <input type="hidden" name="outgoing_customer_name" id="outgoing_customer_name"
+                            value="<?php echo htmlspecialchars($checklist['customer_name'] ?? ''); ?>">
                     </div>
                 </div>
 
                 <div class="form-group" style="margin-top: 15px;">
                     <label>Destination</label>
-                    <input type="text" name="outgoing_destination" value="<?php echo htmlspecialchars($checklist['destination'] ?? ''); ?>" placeholder="Destination">
+                    <input type="text" name="outgoing_destination"
+                        value="<?php echo htmlspecialchars($checklist['destination'] ?? ''); ?>" placeholder="Destination">
                 </div>
 
                 <!-- Observations -->
@@ -4200,23 +4224,28 @@ elseif ($page == 'edit-outward'):
                     'sealing' => 'Sealing Check'
                 ];
                 foreach ($obs_fields as $key => $lbl): ?>
-                    <div style="margin-top: 15px; border: 1px solid #f1f5f9; border-radius: 10px; padding: 12px; background: #fafafa;">
-                        <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 8px;"><?php echo $lbl; ?></label>
+                    <div
+                        style="margin-top: 15px; border: 1px solid #f1f5f9; border-radius: 10px; padding: 12px; background: #fafafa;">
+                        <label
+                            style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 8px;"><?php echo $lbl; ?></label>
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
                             <div>
                                 <label style="font-size: 10px;">Observation</label>
                                 <select name="<?php echo $key; ?>_obs">
                                     <option value="">Select</option>
-                                    <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist[$key.'_obs']==$v ? 'selected' : '').">$v</option>"; ?>
+                                    <?php foreach (['OK', 'NOT OK', 'NA'] as $v)
+                                        echo "<option value='$v' " . ($checklist && $checklist[$key . '_obs'] == $v ? 'selected' : '') . ">$v</option>"; ?>
                                 </select>
                             </div>
                             <div>
                                 <label style="font-size: 10px;">Action if NOT</label>
-                                <input type="text" name="<?php echo $key; ?>_action" value="<?php echo htmlspecialchars($checklist[$key.'_action'] ?? ''); ?>">
+                                <input type="text" name="<?php echo $key; ?>_action"
+                                    value="<?php echo htmlspecialchars($checklist[$key . '_action'] ?? ''); ?>">
                             </div>
                             <div>
                                 <label style="font-size: 10px;">Remarks</label>
-                                <input type="text" name="<?php echo $key; ?>_remarks" value="<?php echo htmlspecialchars($checklist[$key.'_remarks'] ?? ''); ?>">
+                                <input type="text" name="<?php echo $key; ?>_remarks"
+                                    value="<?php echo htmlspecialchars($checklist[$key . '_remarks'] ?? ''); ?>">
                             </div>
                         </div>
                     </div>
@@ -4225,23 +4254,29 @@ elseif ($page == 'edit-outward'):
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px;">
                     <div class="form-group">
                         <label>Number of Seals</label>
-                        <input type="number" name="number_of_seals" value="<?php echo $checklist['number_of_seals'] ?? 0; ?>">
+                        <input type="number" name="number_of_seals"
+                            value="<?php echo $checklist['number_of_seals'] ?? 0; ?>">
                     </div>
                     <div class="form-group">
                         <label>Sealing Method</label>
-                        <input type="text" name="sealing_method" value="<?php echo htmlspecialchars($checklist['sealing_method'] ?? ''); ?>">
+                        <input type="text" name="sealing_method"
+                            value="<?php echo htmlspecialchars($checklist['sealing_method'] ?? ''); ?>">
                     </div>
                     <div class="form-group">
                         <label>Sealing Done By</label>
-                        <input type="text" name="sealing_done_by" value="<?php echo htmlspecialchars($checklist['sealing_done_by'] ?? ''); ?>">
+                        <input type="text" name="sealing_done_by"
+                            value="<?php echo htmlspecialchars($checklist['sealing_done_by'] ?? ''); ?>">
                     </div>
                 </div>
             </div>
 
             <!-- Documents Section -->
             <div class="card" style="margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
-                    <div style="background: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">3</div>
+                <div
+                    style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div
+                        style="background: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                        3</div>
                     <h3 style="margin: 0;">Document Check (CE Invoice, Way Bill, LR Copy, TREM Card)</h3>
                 </div>
 
@@ -4253,17 +4288,23 @@ elseif ($page == 'edit-outward'):
                         'lr_copy' => 'LR Copy',
                         'trem_card' => 'TREM Card'
                     ];
-                    foreach ($out_doc_items as $k => $lbl): 
+                    foreach ($out_doc_items as $k => $lbl):
                         $curr_status = $saved_docs[$k]['status'] ?? '';
                         $curr_rem = $saved_docs[$k]['remarks'] ?? '';
-                    ?>
+                        ?>
                         <div style="background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:12px;">
-                            <div style="font-weight:700; margin-bottom:8px; font-size: 13px;"><?php echo htmlspecialchars($lbl); ?></div>
-                            <select name="out_doc_<?php echo $k; ?>_status" style="width:100%; border-radius:8px; margin-bottom: 8px;">
+                            <div style="font-weight:700; margin-bottom:8px; font-size: 13px;">
+                                <?php echo htmlspecialchars($lbl); ?>
+                            </div>
+                            <select name="out_doc_<?php echo $k; ?>_status"
+                                style="width:100%; border-radius:8px; margin-bottom: 8px;">
                                 <option value="">Select</option>
-                                <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($curr_status==$v ? 'selected' : '').">$v</option>"; ?>
+                                <?php foreach (['OK', 'NOT OK', 'NA'] as $v)
+                                    echo "<option value='$v' " . ($curr_status == $v ? 'selected' : '') . ">$v</option>"; ?>
                             </select>
-                            <input type="text" name="out_doc_<?php echo $k; ?>_remarks" value="<?php echo htmlspecialchars($curr_rem); ?>" placeholder="Remarks" style="width:100%; border-radius:8px;">
+                            <input type="text" name="out_doc_<?php echo $k; ?>_remarks"
+                                value="<?php echo htmlspecialchars($curr_rem); ?>" placeholder="Remarks"
+                                style="width:100%; border-radius:8px;">
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -4271,23 +4312,26 @@ elseif ($page == 'edit-outward'):
 
             <!-- Final Section -->
             <div class="card" style="margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
-                    <div style="background: #f59e0b; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">4</div>
+                <div
+                    style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div
+                        style="background: #f59e0b; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                        4</div>
                     <h3 style="margin: 0;">Leaving Details & Signatures</h3>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                     <div class="form-group">
                         <label>Date & Time of Leaving</label>
-                        <input type="datetime-local" name="leaving_datetime" 
+                        <input type="datetime-local" name="leaving_datetime"
                             value="<?php echo $checklist && $checklist['leaving_datetime'] ? date('Y-m-d\TH:i', strtotime($checklist['leaving_datetime'])) : ''; ?>">
                     </div>
                     <div class="form-group">
                         <label>Naaviq Trip Started?</label>
                         <select name="naaviq_trip_started">
                             <option value="">Select</option>
-                            <option value="Yes" <?php echo ($checklist && $checklist['naaviq_trip_started']=='Yes') ? 'selected' : ''; ?>>Yes</option>
-                            <option value="No" <?php echo ($checklist && $checklist['naaviq_trip_started']=='No') ? 'selected' : ''; ?>>No</option>
+                            <option value="Yes" <?php echo ($checklist && $checklist['naaviq_trip_started'] == 'Yes') ? 'selected' : ''; ?>>Yes</option>
+                            <option value="No" <?php echo ($checklist && $checklist['naaviq_trip_started'] == 'No') ? 'selected' : ''; ?>>No</option>
                         </select>
                     </div>
                 </div>
@@ -4295,32 +4339,39 @@ elseif ($page == 'edit-outward'):
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
                     <div class="form-group">
                         <label>Naaviq Action (if NOT)</label>
-                        <input type="text" name="naaviq_trip_action" value="<?php echo htmlspecialchars($checklist['naaviq_trip_action'] ?? ''); ?>">
+                        <input type="text" name="naaviq_trip_action"
+                            value="<?php echo htmlspecialchars($checklist['naaviq_trip_action'] ?? ''); ?>">
                     </div>
                     <div class="form-group">
                         <label>Naaviq Remarks</label>
-                        <input type="text" name="naaviq_trip_remarks" value="<?php echo htmlspecialchars($checklist['naaviq_trip_remarks'] ?? ''); ?>">
+                        <input type="text" name="naaviq_trip_remarks"
+                            value="<?php echo htmlspecialchars($checklist['naaviq_trip_remarks'] ?? ''); ?>">
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; border-top: 1px dashed #cbd5e1; padding-top: 15px;">
+                <div
+                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; border-top: 1px dashed #cbd5e1; padding-top: 15px;">
                     <div class="form-group">
                         <label style="font-size: 11px;">Driver Sign</label>
-                        <input type="text" name="out_driver_signature" value="<?php echo htmlspecialchars($checklist['driver_signature'] ?? ''); ?>">
+                        <input type="text" name="out_driver_signature"
+                            value="<?php echo htmlspecialchars($checklist['driver_signature'] ?? ''); ?>">
                     </div>
                     <div class="form-group">
                         <label style="font-size: 11px;">Transporter Sign</label>
-                        <input type="text" name="out_transporter_signature" value="<?php echo htmlspecialchars($checklist['transporter_signature'] ?? ''); ?>">
+                        <input type="text" name="out_transporter_signature"
+                            value="<?php echo htmlspecialchars($checklist['transporter_signature'] ?? ''); ?>">
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
                     <div class="form-group">
                         <label style="font-size: 11px;">Security Sign</label>
-                        <input type="text" name="out_security_signature" value="<?php echo htmlspecialchars($checklist['security_signature'] ?? ''); ?>">
+                        <input type="text" name="out_security_signature"
+                            value="<?php echo htmlspecialchars($checklist['security_signature'] ?? ''); ?>">
                     </div>
                     <div class="form-group">
                         <label style="font-size: 11px;">Logistics Sign</label>
-                        <input type="text" name="out_logistic_signature" value="<?php echo htmlspecialchars($checklist['logistic_signature'] ?? ''); ?>">
+                        <input type="text" name="out_logistic_signature"
+                            value="<?php echo htmlspecialchars($checklist['logistic_signature'] ?? ''); ?>">
                     </div>
                 </div>
             </div>
@@ -5597,28 +5648,14 @@ elseif ($page == 'reports'):
     $department_filter = isset($_GET['department']) ? mysqli_real_escape_string($conn, $_GET['department']) : '';
 
     // Build WHERE clause
-    $entry_no_filter = $_GET['entry_no'] ?? '';
-    
     $where = [];
-    
-    // If Entry Number or Vehicle Number is searched, bypass date filters for easier direct lookup
-    if ($entry_no_filter || $vehicle_filter) {
-        if ($entry_no_filter) {
-            $where[] = "entry_number LIKE '%$entry_no_filter%'";
-        } elseif ($vehicle_filter) {
-            // If vehicle is searched, check both vehicle and entry number columns for universal lookup
-            $where[] = "(vehicle_number LIKE '%$vehicle_filter%' OR entry_number LIKE '%$vehicle_filter%')";
-        }
-    } else {
-        if ($start_date && $end_date) {
-            $where[] = "inward_date BETWEEN '$start_date' AND '$end_date'";
-        } elseif ($start_date) {
-            $where[] = "inward_date >= '$start_date'";
-        } elseif ($end_date) {
-            $where[] = "inward_date <= '$end_date'";
-        }
+    if ($start_date && $end_date) {
+        $where[] = "inward_date BETWEEN '$start_date' AND '$end_date'";
+    } elseif ($start_date) {
+        $where[] = "inward_date >= '$start_date'";
+    } elseif ($end_date) {
+        $where[] = "inward_date <= '$end_date'";
     }
-    
     if ($transporter_filter) {
         $where[] = "transporter_name LIKE '%$transporter_filter%'";
     }
@@ -5647,8 +5684,10 @@ elseif ($page == 'reports'):
         while ($row = mysqli_fetch_assoc($entries)) {
             $items = !empty($row['items_json']) ? json_decode($row['items_json'], true) : [];
             // Handle double-encoded JS string if necessary
-            if (is_string($items)) { $items = json_decode($items, true); }
-            
+            if (is_string($items)) {
+                $items = json_decode($items, true);
+            }
+
             if (is_array($items)) {
                 foreach ($items as $item) {
                     $item['parent_entry_num'] = $row['entry_number'] ?? 'N/A';
@@ -5742,10 +5781,9 @@ elseif ($page == 'reports'):
         $outward_where[] = "ti.transporter_name LIKE '%$transporter_filter%'";
     }
     $outward_where_sql = $outward_where ? 'WHERE ' . implode(' AND ', $outward_where) : '';
-    $outward_query = mysqli_query($conn, "SELECT tou.*, ti.vehicle_number, ti.driver_name, ti.transporter_name, ti.purpose_name, voc.status as checklist_status
+    $outward_query = mysqli_query($conn, "SELECT tou.*, ti.vehicle_number, ti.driver_name, ti.transporter_name, ti.purpose_name 
                                         FROM truck_outward tou 
                                         JOIN truck_inward ti ON tou.inward_id = ti.id 
-                                        LEFT JOIN vehicle_outgoing_checklist voc ON tou.inward_id = voc.inward_id
                                         $outward_where_sql 
                                         ORDER BY tou.outward_datetime DESC LIMIT 200");
     if ($outward_query) {
@@ -5921,19 +5959,16 @@ elseif ($page == 'reports'):
             <form method="GET" style="margin-bottom: 20px;">
                 <input type="hidden" name="page" value="reports">
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                     <div>
-                        <label style="font-size: 11px; color: #1e40af; font-weight: 700; display: block; margin-bottom: 5px;">Entry # (Global Search)</label>
-                        <input type="text" name="entry_no" value="<?php echo htmlspecialchars($entry_no_filter ?? ''); ?>"
-                            placeholder="e.g. 1024" style="width: 100%; border: 2px solid #3b82f6; background: #eff6ff;">
-                    </div>
-                    <div>
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 5px;">Start Date</label>
+                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">Start
+                            Date</label>
                         <input type="date" name="start_date" value="<?php echo htmlspecialchars($start_date); ?>"
                             style="width: 100%;">
                     </div>
                     <div>
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 5px;">End Date</label>
+                        <label style="font-size: 12px; color: #666; display: block; margin-bottom: 5px;">End
+                            Date</label>
                         <input type="date" name="end_date" value="<?php echo htmlspecialchars($end_date); ?>"
                             style="width: 100%;">
                     </div>
@@ -6172,15 +6207,7 @@ elseif ($page == 'reports'):
                                         <td>
                                             <?php echo formatDuration($entry['duration_hours']); ?>
                                         </td>
-                                        <td>
-                                            <?php 
-                                            $status_text = strtoupper($entry['checklist_status'] ?? 'exited');
-                                            $badge_class = 'success';
-                                            if ($status_text === 'CANCELLED') $badge_class = 'danger';
-                                            if ($status_text === 'DRAFT') $badge_class = 'warning';
-                                            ?>
-                                            <span class="badge badge-<?php echo $badge_class; ?>"><?php echo $status_text; ?></span>
-                                        </td>
+                                        <td><span class="badge badge-success">EXITED</span></td>
                                     </tr>
                                     <?php
                                 endforeach; ?>
@@ -6696,7 +6723,8 @@ elseif ($page == 'reports'):
 
             <!-- Items Received Tab -->
             <div id="tab-content-items-received" class="tab-content" style="display: none;">
-                <h3 style="font-size: 16px; margin-bottom: 15px; color: #92400e; display: flex; align-items: center; gap: 8px;">
+                <h3
+                    style="font-size: 16px; margin-bottom: 15px; color: #92400e; display: flex; align-items: center; gap: 8px;">
                     <span>📦</span> Material Items Received (Consolidated)
                 </h3>
                 <div class="table-wrapper">
@@ -6716,20 +6744,33 @@ elseif ($page == 'reports'):
                         <tbody>
                             <?php if (!empty($all_received_items)): ?>
                                 <?php $last_parent_id = null; ?>
-                                <?php foreach ($all_received_items as $item): 
+                                <?php foreach ($all_received_items as $item):
                                     $is_duplicate = ($last_parent_id === $item['parent_id']);
                                     $last_parent_id = $item['parent_id'];
-                                ?>
+                                    ?>
                                     <tr onclick="window.location='?page=inward-details&id=<?php echo intval($item['parent_id'] ?? 0); ?>'"
                                         style="cursor: pointer; transition: background 0.2s; <?php echo $is_duplicate ? 'border-top: none;' : 'border-top: 2px solid #fef3c7;'; ?>">
-                                        <td><strong><?php echo !$is_duplicate ? htmlspecialchars($item['parent_entry_num'] ?? 'N/A') : ''; ?></strong></td>
-                                        <td style="color: #64748b; font-size: 13px;"><?php echo !$is_duplicate ? date('d/m/Y', strtotime($item['parent_inward_date'] ?? 'today')) : ''; ?></td>
-                                        <td><strong><?php echo !$is_duplicate ? htmlspecialchars($item['parent_vehicle'] ?? '-') : ''; ?></strong></td>
-                                        <td style="font-family: monospace; font-size: 11px; color: #64748b;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?></td>
-                                        <td><strong><?php echo htmlspecialchars($item['item_name'] ?? $item['item_description'] ?? 'Unknown'); ?></strong></td>
-                                        <td style="font-weight: 700; color: #d97706;"><?php echo htmlspecialchars($item['quantity'] ?? '0'); ?></td>
-                                        <td style="font-size: 12px; color: #6b7280;"><?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?></td>
-                                        <td style="font-size: 11px; color: #6b7280;"><?php echo !$is_duplicate ? htmlspecialchars($item['parent_transporter'] ?? '-') : ''; ?></td>
+                                        <td><strong><?php echo !$is_duplicate ? htmlspecialchars($item['parent_entry_num'] ?? 'N/A') : ''; ?></strong>
+                                        </td>
+                                        <td style="color: #64748b; font-size: 13px;">
+                                            <?php echo !$is_duplicate ? date('d/m/Y', strtotime($item['parent_inward_date'] ?? 'today')) : ''; ?>
+                                        </td>
+                                        <td><strong><?php echo !$is_duplicate ? htmlspecialchars($item['parent_vehicle'] ?? '-') : ''; ?></strong>
+                                        </td>
+                                        <td style="font-family: monospace; font-size: 11px; color: #64748b;">
+                                            <?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?>
+                                        </td>
+                                        <td><strong><?php echo htmlspecialchars($item['item_name'] ?? $item['item_description'] ?? 'Unknown'); ?></strong>
+                                        </td>
+                                        <td style="font-weight: 700; color: #d97706;">
+                                            <?php echo htmlspecialchars($item['quantity'] ?? '0'); ?>
+                                        </td>
+                                        <td style="font-size: 12px; color: #6b7280;">
+                                            <?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?>
+                                        </td>
+                                        <td style="font-size: 11px; color: #6b7280;">
+                                            <?php echo !$is_duplicate ? htmlspecialchars($item['parent_transporter'] ?? '-') : ''; ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -6750,13 +6791,9 @@ elseif ($page == 'reports'):
                     const link = document.getElementById('exportLink');
                     if (!link) return;
                     try {
-                        const url = new URL(link.href, window.location.href);
+                        const url = new URL(link.href, window.location.origin);
                         url.searchParams.set('tab', activeTab);
-                        
-                        // Extract base path to export.php
-                        const currentPath = window.location.pathname;
-                        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
-                        link.href = basePath + 'export.php' + url.search;
+                        link.href = 'export.php' + url.search;
 
                         // Specific filename per tab
                         let filename = '';

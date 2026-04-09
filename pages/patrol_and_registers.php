@@ -562,7 +562,7 @@ elseif ($page == 'tickets'):
             $details .= "Location: [$location]\n";
             $details .= "Issue: [$issue_desc]\n";
             $details .= "Status Change: [$old_status ➔ $new_status]\n";
-            
+
             if ($action == 'assign') {
                 $details .= "Assigned To: [$existing_assigned_name ➔ $employee_name]\n";
             } else {

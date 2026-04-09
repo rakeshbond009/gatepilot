@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.10.0128');
+    define('APP_VERSION', '26.04.10.0146');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -91,170 +91,170 @@ if (isset($_SESSION['tenant_slug']) && $_SESSION['tenant_slug'] !== 'admin') {
 
                     // Render Professional Full-Page Suspension UI
                     ?>
-                                        <!DOCTYPE html>
-                                        <html lang="en">
+                    <!DOCTYPE html>
+                    <html lang="en">
 
-                                        <head>
-                                            <meta charset="UTF-8">
-                                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                                            <title>System Suspended | GatePilot</title>
-                                            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-                                            <style>
-                                                :root {
-                                                    --primary: #6366f1;
-                                                    --danger: #ef4444;
-                                                    --bg: #0f172a;
-                                                    --text: #f8fafc;
-                                                    --glass: rgba(255, 255, 255, 0.03);
-                                                    --border: rgba(255, 255, 255, 0.1);
-                                                }
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>System Suspended | GatePilot</title>
+                        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+                        <style>
+                            :root {
+                                --primary: #6366f1;
+                                --danger: #ef4444;
+                                --bg: #0f172a;
+                                --text: #f8fafc;
+                                --glass: rgba(255, 255, 255, 0.03);
+                                --border: rgba(255, 255, 255, 0.1);
+                            }
 
-                                                * {
-                                                    margin: 0;
-                                                    padding: 0;
-                                                    box-sizing: border-box;
-                                                    font-family: 'Outfit', sans-serif;
-                                                }
+                            * {
+                                margin: 0;
+                                padding: 0;
+                                box-sizing: border-box;
+                                font-family: 'Outfit', sans-serif;
+                            }
 
-                                                body {
-                                                    background: var(--bg);
-                                                    color: var(--text);
-                                                    height: 100vh;
-                                                    display: flex;
-                                                    align-items: center;
-                                                    justify-content: center;
-                                                    background-image:
-                                                        radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
-                                                        radial-gradient(circle at 80% 70%, rgba(239, 68, 68, 0.1) 0%, transparent 40%);
-                                                    overflow: hidden;
-                                                }
+                            body {
+                                background: var(--bg);
+                                color: var(--text);
+                                height: 100vh;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                background-image:
+                                    radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                                    radial-gradient(circle at 80% 70%, rgba(239, 68, 68, 0.1) 0%, transparent 40%);
+                                overflow: hidden;
+                            }
 
-                                                .card {
-                                                    background: var(--glass);
-                                                    backdrop-filter: blur(20px);
-                                                    border: 1px solid var(--border);
-                                                    padding: 3rem;
-                                                    border-radius: 2rem;
-                                                    width: 90%;
-                                                    max-width: 600px;
-                                                    text-align: center;
-                                                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-                                                    animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-                                                }
+                            .card {
+                                background: var(--glass);
+                                backdrop-filter: blur(20px);
+                                border: 1px solid var(--border);
+                                padding: 3rem;
+                                border-radius: 2rem;
+                                width: 90%;
+                                max-width: 600px;
+                                text-align: center;
+                                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+                                animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+                            }
 
-                                                @keyframes slideIn {
-                                                    from {
-                                                        opacity: 0;
-                                                        transform: translateY(30px);
-                                                    }
+                            @keyframes slideIn {
+                                from {
+                                    opacity: 0;
+                                    transform: translateY(30px);
+                                }
 
-                                                    to {
-                                                        opacity: 1;
-                                                        transform: translateY(0);
-                                                    }
-                                                }
+                                to {
+                                    opacity: 1;
+                                    transform: translateY(0);
+                                }
+                            }
 
-                                                .icon-box {
-                                                    width: 80px;
-                                                    height: 80px;
-                                                    background: rgba(239, 68, 68, 0.1);
-                                                    border-radius: 1.5rem;
-                                                    display: flex;
-                                                    align-items: center;
-                                                    justify-content: center;
-                                                    margin: 0 auto 2rem;
-                                                    border: 1px solid rgba(239, 68, 68, 0.2);
-                                                }
+                            .icon-box {
+                                width: 80px;
+                                height: 80px;
+                                background: rgba(239, 68, 68, 0.1);
+                                border-radius: 1.5rem;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                margin: 0 auto 2rem;
+                                border: 1px solid rgba(239, 68, 68, 0.2);
+                            }
 
-                                                .icon-box svg {
-                                                    width: 40px;
-                                                    height: 40px;
-                                                    color: var(--danger);
-                                                }
+                            .icon-box svg {
+                                width: 40px;
+                                height: 40px;
+                                color: var(--danger);
+                            }
 
-                                                h1 {
-                                                    font-weight: 800;
-                                                    font-size: 2.5rem;
-                                                    margin-bottom: 1rem;
-                                                    letter-spacing: -1px;
-                                                }
+                            h1 {
+                                font-weight: 800;
+                                font-size: 2.5rem;
+                                margin-bottom: 1rem;
+                                letter-spacing: -1px;
+                            }
 
-                                                p.message {
-                                                    color: #94a3b8;
-                                                    font-size: 1.1rem;
-                                                    line-height: 1.6;
-                                                    margin-bottom: 2.5rem;
-                                                }
+                            p.message {
+                                color: #94a3b8;
+                                font-size: 1.1rem;
+                                line-height: 1.6;
+                                margin-bottom: 2.5rem;
+                            }
 
-                                                .btn-group {
-                                                    display: flex;
-                                                    gap: 1rem;
-                                                    justify-content: center;
-                                                }
+                            .btn-group {
+                                display: flex;
+                                gap: 1rem;
+                                justify-content: center;
+                            }
 
-                                                .btn {
-                                                    padding: 0.8rem 2rem;
-                                                    border-radius: 0.75rem;
-                                                    font-weight: 600;
-                                                    text-decoration: none;
-                                                    transition: all 0.3s;
-                                                    cursor: pointer;
-                                                }
+                            .btn {
+                                padding: 0.8rem 2rem;
+                                border-radius: 0.75rem;
+                                font-weight: 600;
+                                text-decoration: none;
+                                transition: all 0.3s;
+                                cursor: pointer;
+                            }
 
-                                                .btn-primary {
-                                                    background: var(--primary);
-                                                    color: white;
-                                                    border: none;
-                                                }
+                            .btn-primary {
+                                background: var(--primary);
+                                color: white;
+                                border: none;
+                            }
 
-                                                .btn-primary:hover {
-                                                    transform: translateY(-2px);
-                                                    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
-                                                }
+                            .btn-primary:hover {
+                                transform: translateY(-2px);
+                                box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+                            }
 
-                                                .btn-outline {
-                                                    background: transparent;
-                                                    color: #94a3b8;
-                                                    border: 1px solid var(--border);
-                                                }
+                            .btn-outline {
+                                background: transparent;
+                                color: #94a3b8;
+                                border: 1px solid var(--border);
+                            }
 
-                                                .btn-outline:hover {
-                                                    background: rgba(255, 255, 255, 0.05);
-                                                    color: white;
-                                                }
+                            .btn-outline:hover {
+                                background: rgba(255, 255, 255, 0.05);
+                                color: white;
+                            }
 
-                                                .brand {
-                                                    position: absolute;
-                                                    bottom: 3rem;
-                                                    opacity: 0.4;
-                                                    font-weight: 600;
-                                                    letter-spacing: 2px;
-                                                }
-                                            </style>
-                                        </head>
+                            .brand {
+                                position: absolute;
+                                bottom: 3rem;
+                                opacity: 0.4;
+                                font-weight: 600;
+                                letter-spacing: 2px;
+                            }
+                        </style>
+                    </head>
 
-                                        <body>
-                                            <div class="card">
-                                                <div class="icon-box">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                                        stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                                                    </svg>
-                                                </div>
-                                                <h1>System Locked</h1>
-                                                <p class="message"><?php echo nl2br(htmlspecialchars($custom_msg)); ?></p>
-                                                <div class="btn-group">
-                                                    <a href="?page=logout" class="btn btn-primary">Logout from System</a>
-                                                    <button onclick="location.reload()" class="btn btn-outline">Check Connection</button>
-                                                </div>
-                                            </div>
-                                            <div class="brand">GATEPILOT CLOUD</div>
-                                        </body>
+                    <body>
+                        <div class="card">
+                            <div class="icon-box">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                </svg>
+                            </div>
+                            <h1>System Locked</h1>
+                            <p class="message"><?php echo nl2br(htmlspecialchars($custom_msg)); ?></p>
+                            <div class="btn-group">
+                                <a href="?page=logout" class="btn btn-primary">Logout from System</a>
+                                <button onclick="location.reload()" class="btn btn-outline">Check Connection</button>
+                            </div>
+                        </div>
+                        <div class="brand">GATEPILOT CLOUD</div>
+                    </body>
 
-                                        </html>
-                                        <?php
-                                        exit;
+                    </html>
+                    <?php
+                    exit;
                 }
             }
         }
@@ -1799,7 +1799,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
             $inward_id = mysqli_insert_id($conn);
             $details = "Inward Gate Entry:\n" . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']);
             $details .= "\nReported By: [" . ($_SESSION['full_name'] ?? 'System') . "]";
-            
+
             // Add items to audit details
             if (!empty($items_json) && $items_json !== '[]') {
                 $items_arr = json_decode($items_json, true);
@@ -2133,10 +2133,13 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
             $old_items = [];
             if (!empty($old['items_json'])) {
                 $old_items = json_decode($old['items_json'], true);
-                if (is_string($old_items)) $old_items = json_decode($old_items, true);
+                if (is_string($old_items))
+                    $old_items = json_decode($old_items, true);
             }
-            if (!is_array($old_items)) $old_items = [];
-            if (!is_array($new_items)) $new_items = [];
+            if (!is_array($old_items))
+                $old_items = [];
+            if (!is_array($new_items))
+                $new_items = [];
 
             $added_items = [];
             foreach ($new_items as $item) {
@@ -2152,7 +2155,8 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
                         break;
                     }
                 }
-                if (!$found) $added_items[] = $item;
+                if (!$found)
+                    $added_items[] = $item;
             }
 
             $deleted_items = [];
@@ -2167,7 +2171,8 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
                         break;
                     }
                 }
-                if (!$still_exists) $deleted_items[] = $old_item;
+                if (!$still_exists)
+                    $deleted_items[] = $old_item;
             }
 
             if (!empty($added_items)) {
@@ -2222,7 +2227,7 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
     $formatted_out_dt = date('Y-m-d H:i:s', $ts);
     $date = date('Y-m-d', $ts);
     $time = date('H:i:s', $ts);
-    
+
     // Update POST for auditDiff to match DB format
     $_POST['outward_datetime'] = $formatted_out_dt;
     if (isset($_POST['leaving_datetime'])) {
@@ -2254,7 +2259,7 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
         $success = mysqli_query($conn, $sql);
     } else {
         // Fallback or ignore if no outward record exists
-        $success = true; 
+        $success = true;
     }
 
     if ($success) {
@@ -2263,29 +2268,29 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
         $v_num = ($v_row = mysqli_fetch_assoc($v_res)) ? $v_row['vehicle_number'] : 'N/A';
         $old_out_res = mysqli_query($conn, "SELECT * FROM truck_outward WHERE inward_id=$inward_id");
         $old_out = mysqli_fetch_assoc($old_out_res);
-        
+
         // Also fetch old checklist for audit
         $old_chk_res = mysqli_query($conn, "SELECT * FROM vehicle_outgoing_checklist WHERE inward_id=$inward_id");
         $old_chk = mysqli_fetch_assoc($old_chk_res);
         if ($old_chk && $old_out) {
             $old_out = array_merge($old_out, $old_chk);
         }
-        
+
         // Update vehicle_outgoing_checklist if fields are present
         $outgoing_reporting_datetime = mysqli_real_escape_string($conn, $_POST['outgoing_reporting_datetime'] ?? '');
         $outgoing_customer_id = !empty($_POST['outgoing_customer_id']) ? intval($_POST['outgoing_customer_id']) : 'NULL';
         $outgoing_customer_name = mysqli_real_escape_string($conn, $_POST['outgoing_customer_name'] ?? '');
         $outgoing_destination = mysqli_real_escape_string($conn, $_POST['outgoing_destination'] ?? '');
-        
+
         // Observations
         $tarp_obs = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_obs'] ?? '');
         $tarp_act = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_action'] ?? '');
         $tarp_rem = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_remarks'] ?? '');
-        
+
         $wood_obs = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_obs'] ?? '');
         $wood_act = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_action'] ?? '');
         $wood_rem = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_remarks'] ?? '');
-        
+
         $rope_obs = mysqli_real_escape_string($conn, $_POST['rope_tightening_obs'] ?? '');
         $rope_act = mysqli_real_escape_string($conn, $_POST['rope_tightening_action'] ?? '');
         $rope_rem = mysqli_real_escape_string($conn, $_POST['rope_tightening_remarks'] ?? '');
@@ -2343,41 +2348,30 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
 
         $out_log = "Edited Outward Entry: ID: [$id], Vehicle: [$v_num]";
         if ($old_out) {
-            // Map form fields to DB columns for audit matching
-            $audit_post = $_POST;
-            $audit_post['customer_name'] = $_POST['outgoing_customer_name'] ?? '';
-            $audit_post['destination'] = $_POST['outgoing_destination'] ?? '';
-            $audit_post['reporting_datetime'] = $_POST['outgoing_reporting_datetime'] ?? '';
-            $audit_post['status'] = $obs_status;
-            $audit_post['doc_id'] = $_POST['outgoing_doc_id'] ?? '';
-            $audit_post['driver_signature'] = $d_sig;
-            $audit_post['transporter_signature'] = $t_sig;
-            $audit_post['security_signature'] = $s_sig;
-            $audit_post['logistic_signature'] = $l_sig;
-
-            $diff = auditDiff($old_out, $audit_post, [], [
-                'outward_datetime' => 'Outward Date/Time', 
+            $diff = auditDiff($old_out, $_POST, [], [
+                'outward_datetime' => 'Datetime',
                 'outward_remarks' => 'Remarks',
-                'customer_name' => 'Customer',
-                'destination' => 'Destination',
-                'reporting_datetime' => 'Reporting Time',
-                'status' => 'Status',
-                'doc_id' => 'Document ID',
+                'outgoing_customer_name' => 'Customer',
+                'outgoing_destination' => 'Destination',
                 'number_of_seals' => 'Seals',
                 'tarpaulin_condition_obs' => 'Tarpaulin Obs',
+                'tarpaulin_condition_action' => 'Tarpaulin Action',
                 'wooden_blocks_used_obs' => 'Wooden Blocks Obs',
+                'wooden_blocks_used_action' => 'Wooden Blocks Action',
                 'rope_tightening_obs' => 'Rope Obs',
                 'sealing_obs' => 'Sealing Obs',
                 'leaving_datetime' => 'Leaving Time',
-                'naaviq_trip_started' => 'Naaviq Trip?',
-                'driver_signature' => 'Driver Signature',
-                'transporter_signature' => 'Transporter Signature',
-                'security_signature' => 'Security Signature',
-                'logistic_signature' => 'Logistic Signature'
+                'outgoing_reporting_datetime' => 'Reporting Time',
+                'naaviq_trip_started' => 'Naaviq Trip',
+                'outgoing_status' => 'Status',
+                'outgoing_doc_id' => 'Doc ID',
+                'out_driver_signature' => 'Driver Signature',
+                'out_transporter_signature' => 'Transporter Signature',
+                'out_security_signature' => 'Security Signature',
+                'out_logistic_signature' => 'Logistic Signature'
             ]);
-            if ($diff) {
+            if ($diff)
                 $out_log .= "\nChanges:\n" . $diff;
-            }
         }
         logActivity($conn, 'OUTWARD_EDIT', 'Logistics', $out_log);
         $_SESSION['success_msg'] = "✅ Outward entry updated successfully!";

@@ -504,36 +504,6 @@
             </div>
         </div>
 
-        <!-- Quick Search Record -->
-        <div class="card" style="margin-top: 20px; border-left: 5px solid #6366f1; background: linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%);">
-            <h3 style="margin: 0 0 15px 0; color: #4338ca; display: flex; align-items: center; gap: 10px;">
-                <span>🔍</span> Quick Record Lookup
-            </h3>
-            <form action="index.php" method="GET" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <input type="hidden" name="page" value="reports">
-                <div style="flex: 2; min-width: 200px;">
-                    <label style="font-size: 11px; color: #6b7280; font-weight: 700; margin-bottom: 5px; display: block;">VEHICLE OR ENTRY #</label>
-                    <input type="text" name="vehicle" placeholder="MH12AB1234 or Entry #" 
-                        style="width: 100%; padding: 12px; border: 2px solid #e0e7ff; border-radius: 8px; font-weight: 600;" 
-                        list="dashboard_vehicle_list" required>
-                    <datalist id="dashboard_vehicle_list">
-                        <?php
-                        $search_v_list = mysqli_query($conn, "SELECT DISTINCT vehicle_number FROM truck_inward ORDER BY inward_datetime DESC LIMIT 50");
-                        while($v = mysqli_fetch_assoc($search_v_list)) {
-                            echo "<option value='{$v['vehicle_number']}'>";
-                        }
-                        ?>
-                    </datalist>
-                </div>
-                <div style="flex: 1; min-width: 150px; align-self: flex-end;">
-                    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; height: 48px; background: #6366f1; border-radius: 8px; font-weight: 700; border: none; color: white; cursor: pointer;">
-                        FIND ENTRY
-                    </button>
-                </div>
-            </form>
-            <p style="margin: 10px 0 0 0; font-size: 11px; color: #6b7280;">Bypasses date filters to find records from any time in history.</p>
-        </div>
-
         <!-- Issues / Tickets Stats -->
         <?php if (hasPermission('pages.tickets')): ?>
             <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-top: -10px;">
