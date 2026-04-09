@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.10.0101');
+    define('APP_VERSION', '26.04.10.0108');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -2219,8 +2219,18 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
     $remarks = mysqli_real_escape_string($conn, $_POST['outward_remarks']);
     // Parse datetime correctly (handle both space and T separator)
     $ts = strtotime($outward_datetime);
+    $formatted_out_dt = date('Y-m-d H:i:s', $ts);
     $date = date('Y-m-d', $ts);
     $time = date('H:i:s', $ts);
+    
+    // Update POST for auditDiff to match DB format
+    $_POST['outward_datetime'] = $formatted_out_dt;
+    if (isset($_POST['leaving_datetime'])) {
+        $_POST['leaving_datetime'] = date('Y-m-d H:i:s', strtotime($_POST['leaving_datetime']));
+    }
+    if (isset($_POST['outgoing_reporting_datetime'])) {
+        $_POST['outgoing_reporting_datetime'] = date('Y-m-d H:i:s', strtotime($_POST['outgoing_reporting_datetime']));
+    }
 
     // Get inward time to calculate duration
     $inward_query = mysqli_query($conn, "SELECT inward_datetime FROM truck_inward WHERE id = $inward_id");
@@ -2237,7 +2247,7 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
         $sql = "UPDATE truck_outward SET 
             outward_date = '$date',
             outward_time = '$time',
-            outward_datetime = '$outward_datetime',
+            outward_datetime = '$formatted_out_dt',
             outward_remarks = '$remarks',
             duration_hours = $duration
             WHERE id = $to_id";
@@ -2253,6 +2263,14 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
         $v_num = ($v_row = mysqli_fetch_assoc($v_res)) ? $v_row['vehicle_number'] : 'N/A';
         $old_out_res = mysqli_query($conn, "SELECT * FROM truck_outward WHERE inward_id=$inward_id");
         $old_out = mysqli_fetch_assoc($old_out_res);
+        
+        // Also fetch old checklist for audit
+        $old_chk_res = mysqli_query($conn, "SELECT * FROM vehicle_outgoing_checklist WHERE inward_id=$inward_id");
+        $old_chk = mysqli_fetch_assoc($old_chk_res);
+        if ($old_chk && $old_out) {
+            $old_out = array_merge($old_out, $old_chk);
+        }
+        
         // Update vehicle_outgoing_checklist if fields are present
         $outgoing_reporting_datetime = mysqli_real_escape_string($conn, $_POST['outgoing_reporting_datetime'] ?? '');
         $outgoing_customer_id = !empty($_POST['outgoing_customer_id']) ? intval($_POST['outgoing_customer_id']) : 'NULL';
@@ -2330,7 +2348,22 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
                 'outward_remarks' => 'Remarks',
                 'outgoing_customer_name' => 'Customer',
                 'outgoing_destination' => 'Destination',
-                'number_of_seals' => 'Seals'
+                'number_of_seals' => 'Seals',
+                'tarpaulin_condition_obs' => 'Tarpaulin Obs',
+                'tarpaulin_condition_action' => 'Tarpaulin Action',
+                'wooden_blocks_used_obs' => 'Wooden Blocks Obs',
+                'wooden_blocks_used_action' => 'Wooden Blocks Action',
+                'rope_tightening_obs' => 'Rope Obs',
+                'sealing_obs' => 'Sealing Obs',
+                'leaving_datetime' => 'Leaving Time',
+                'outgoing_reporting_datetime' => 'Reporting Time',
+                'naaviq_trip_started' => 'Naaviq Trip',
+                'outgoing_status' => 'Status',
+                'outgoing_doc_id' => 'Doc ID',
+                'out_driver_signature' => 'Driver Signature',
+                'out_transporter_signature' => 'Transporter Signature',
+                'out_security_signature' => 'Security Signature',
+                'out_logistic_signature' => 'Logistic Signature'
             ]);
             if ($diff)
                 $out_log .= "\nChanges:\n" . $diff;
