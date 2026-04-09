@@ -484,6 +484,16 @@
                                 <option value="BUNDLE">BUNDLE</option>
                                 <option value="PKT">PKT</option>
                                 <option value="SET">SET</option>
+                                <option value="ROLL">ROLL</option>
+                                <option value="CAN">CAN</option>
+                                <option value="DRUM">DRUM</option>
+                                <option value="SQF">SQ.FT</option>
+                                <option value="SQM">SQ.MT</option>
+                                <option value="CFT">CU.FT</option>
+                                <option value="MTR">MTR</option>
+                                <option value="PLT">PALLET</option>
+                                <option value="CRT">CARTON</option>
+                                <option value="OTH">OTHER</option>
                             </select>
                         </div>
                         <button type="button" onclick="addItemManually()" id="addItemBtn"
@@ -3808,6 +3818,16 @@ elseif ($page == 'edit-inward'):
                             <option value="BUNDLE">BUNDLE</option>
                             <option value="PKT">PKT</option>
                             <option value="SET">SET</option>
+                            <option value="ROLL">ROLL</option>
+                            <option value="CAN">CAN</option>
+                            <option value="DRUM">DRUM</option>
+                            <option value="SQF">SQ.FT</option>
+                            <option value="SQM">SQ.MT</option>
+                            <option value="CFT">CU.FT</option>
+                            <option value="MTR">MTR</option>
+                            <option value="PLT">PALLET</option>
+                            <option value="CRT">CARTON</option>
+                            <option value="OTH">OTHER</option>
                         </select>
                     </div>
                     <button type="button" onclick="addItemManually()" style="background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 800; cursor: pointer; height: 38px;">+</button>
@@ -5708,9 +5728,10 @@ elseif ($page == 'reports'):
         $outward_where[] = "ti.transporter_name LIKE '%$transporter_filter%'";
     }
     $outward_where_sql = $outward_where ? 'WHERE ' . implode(' AND ', $outward_where) : '';
-    $outward_query = mysqli_query($conn, "SELECT tou.*, ti.vehicle_number, ti.driver_name, ti.transporter_name, ti.purpose_name 
+    $outward_query = mysqli_query($conn, "SELECT tou.*, ti.vehicle_number, ti.driver_name, ti.transporter_name, ti.purpose_name, voc.status as checklist_status
                                         FROM truck_outward tou 
                                         JOIN truck_inward ti ON tou.inward_id = ti.id 
+                                        LEFT JOIN vehicle_outgoing_checklist voc ON tou.inward_id = voc.inward_id
                                         $outward_where_sql 
                                         ORDER BY tou.outward_datetime DESC LIMIT 200");
     if ($outward_query) {
@@ -6134,7 +6155,15 @@ elseif ($page == 'reports'):
                                         <td>
                                             <?php echo formatDuration($entry['duration_hours']); ?>
                                         </td>
-                                        <td><span class="badge badge-success">EXITED</span></td>
+                                        <td>
+                                            <?php 
+                                            $status_text = strtoupper($entry['checklist_status'] ?? 'exited');
+                                            $badge_class = 'success';
+                                            if ($status_text === 'CANCELLED') $badge_class = 'danger';
+                                            if ($status_text === 'DRAFT') $badge_class = 'warning';
+                                            ?>
+                                            <span class="badge badge-<?php echo $badge_class; ?>"><?php echo $status_text; ?></span>
+                                        </td>
                                     </tr>
                                     <?php
                                 endforeach; ?>
@@ -6704,9 +6733,13 @@ elseif ($page == 'reports'):
                     const link = document.getElementById('exportLink');
                     if (!link) return;
                     try {
-                        const url = new URL(link.href, window.location.origin);
+                        const url = new URL(link.href, window.location.href);
                         url.searchParams.set('tab', activeTab);
-                        link.href = 'export.php' + url.search;
+                        
+                        // Extract base path to export.php
+                        const currentPath = window.location.pathname;
+                        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+                        link.href = basePath + 'export.php' + url.search;
 
                         // Specific filename per tab
                         let filename = '';
