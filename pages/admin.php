@@ -440,6 +440,12 @@
 
                     if (label && value) {
                         addRow(label, value);
+                    } else if (label && !value) {
+                        // Section Header Logic
+                        const subHeader = document.createElement("div");
+                        subHeader.style.cssText = "font-weight:800; color:#64748b; font-size:11px; margin:18px 0 8px; text-transform:uppercase; border-bottom:1px solid #f1f5f9; padding-bottom:5px; letter-spacing:0.3px;";
+                        subHeader.textContent = label;
+                        detailsDiv.appendChild(subHeader);
                     }
                 } else {
                     const item = document.createElement("div");

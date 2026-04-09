@@ -209,6 +209,12 @@ function auditDiff(array $old_row, array $post, array $skip = [], array $labels 
             continue;
         $new_val = trim((string) $new_val);
         $old_val = trim((string) ($old_row[$key] ?? ''));
+
+        // Normalize Datetime comparison
+        if (strpos($key, 'datetime') !== false || strpos($key, 'date') !== false) {
+            if (strtotime($old_val) === strtotime($new_val)) continue;
+        }
+
         if ($old_val !== $new_val) {
             $label = $labels[$key] ?? ucwords(str_replace('_', ' ', $key));
             $changes[] = "$label: [$old_val ➔ $new_val]";
