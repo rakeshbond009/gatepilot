@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.10.0023');
+    define('APP_VERSION', '26.04.10.0038');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -2243,9 +2243,40 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
     $old_out = mysqli_fetch_assoc($old_out_res);
 
     if (mysqli_query($conn, $sql)) {
+        // Update vehicle_outgoing_checklist if fields are present
+        $outgoing_reporting_datetime = mysqli_real_escape_string($conn, $_POST['outgoing_reporting_datetime'] ?? '');
+        $outgoing_customer_id = !empty($_POST['outgoing_customer_id']) ? intval($_POST['outgoing_customer_id']) : 'NULL';
+        $outgoing_customer_name = mysqli_real_escape_string($conn, $_POST['outgoing_customer_name'] ?? '');
+        $outgoing_destination = mysqli_real_escape_string($conn, $_POST['outgoing_destination'] ?? '');
+        $tarpaulin_obs = mysqli_real_escape_string($conn, $_POST['tarpaulin_condition_obs'] ?? '');
+        $wooden_obs = mysqli_real_escape_string($conn, $_POST['wooden_blocks_used_obs'] ?? '');
+        $rope_obs = mysqli_real_escape_string($conn, $_POST['rope_tightening_obs'] ?? '');
+        $seals = intval($_POST['number_of_seals'] ?? 0);
+        $seal_method = mysqli_real_escape_string($conn, $_POST['sealing_method'] ?? '');
+        $seal_done_by = mysqli_real_escape_string($conn, $_POST['sealing_done_by'] ?? '');
+
+        mysqli_query($conn, "UPDATE vehicle_outgoing_checklist SET 
+            reporting_datetime = " . ($outgoing_reporting_datetime ? "'$outgoing_reporting_datetime'" : "NULL") . ",
+            customer_id = $outgoing_customer_id,
+            customer_name = '$outgoing_customer_name',
+            destination = '$outgoing_destination',
+            tarpaulin_condition_obs = '$tarpaulin_obs',
+            wooden_blocks_used_obs = '$wooden_obs',
+            rope_tightening_obs = '$rope_obs',
+            number_of_seals = $seals,
+            sealing_method = '$seal_method',
+            sealing_done_by = '$seal_done_by'
+            WHERE inward_id = $inward_id");
+
         $out_log = "Edited Outward Entry: ID: [$id], Vehicle: [$v_num]";
         if ($old_out) {
-            $diff = auditDiff($old_out, $_POST, [], ['outward_datetime' => 'Datetime', 'outward_remarks' => 'Remarks']);
+            $diff = auditDiff($old_out, $_POST, [], [
+                'outward_datetime' => 'Datetime', 
+                'outward_remarks' => 'Remarks',
+                'outgoing_customer_name' => 'Customer',
+                'outgoing_destination' => 'Destination',
+                'number_of_seals' => 'Seals'
+            ]);
             if ($diff)
                 $out_log .= "\nChanges:\n" . $diff;
         }

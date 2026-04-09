@@ -16,7 +16,7 @@ $vehicle_filter = isset($_GET['vehicle']) ? mysqli_real_escape_string($conn, $_G
 $status_filter = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : '';
 // Selected reports tab: inward / loading / unloading / outward / patrol / employee
 $export_tab = strtolower(trim($_GET['tab'] ?? 'inward'));
-if (!in_array($export_tab, ['inward', 'loading', 'unloading', 'outward', 'patrol', 'employee', 'registers'], true)) {
+if (!in_array($export_tab, ['inward', 'loading', 'unloading', 'outward', 'patrol', 'employee', 'registers', 'items-received'], true)) {
     $export_tab = 'inward';
 }
 
@@ -267,6 +267,52 @@ if ($export_tab === 'inward') {
         ORDER BY entry_date DESC, created_at DESC
     ";
     $result = mysqli_query($conn, $query);
+} elseif ($export_tab === 'items-received') {
+    // Special handling to expand JSON items into multiple rows
+    $where = [];
+    if ($start_date && $end_date) {
+        $where[] = "ti.inward_date BETWEEN '$start_date' AND '$end_date'";
+    } elseif ($start_date) {
+        $where[] = "ti.inward_date >= '$start_date'";
+    } elseif ($end_date) {
+        $where[] = "ti.inward_date <= '$end_date'";
+    }
+    if ($transporter_filter) {
+        $where[] = "ti.transporter_name LIKE '%$transporter_filter%'";
+    }
+    if ($vehicle_filter) {
+        $where[] = "ti.vehicle_number LIKE '%$vehicle_filter%'";
+    }
+    $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    $columns = ['Entry #', 'Date', 'Vehicle Number', 'Item Code', 'Item Name', 'Qty', 'Unit', 'Transporter'];
+    $query = "SELECT entry_number, inward_date, vehicle_number, transporter_name, items_json FROM truck_inward ti $where_sql ORDER BY inward_datetime DESC LIMIT 500";
+    $raw_res = mysqli_query($conn, $query);
+
+    $items_data = [];
+    if ($raw_res) {
+        while ($row = mysqli_fetch_assoc($raw_res)) {
+            $items = json_decode($row['items_json'] ?? '[]', true);
+            if (is_string($items))
+                $items = json_decode($items, true);
+            if (is_array($items)) {
+                foreach ($items as $item) {
+                    $items_data[] = [
+                        'Entry #' => $row['entry_number'],
+                        'Date' => date('d-m-Y', strtotime($row['inward_date'])),
+                        'Vehicle Number' => $row['vehicle_number'],
+                        'Item Code' => $item['item_code'] ?? '',
+                        'Item Name' => $item['item_name'] ?? '',
+                        'Qty' => $item['quantity'] ?? 0,
+                        'Unit' => $item['unit'] ?? '',
+                        'Transporter' => $row['transporter_name']
+                    ];
+                }
+            }
+        }
+    }
+    // Set $result to the array for the loop below
+    $result = $items_data;
 } else { // unloading
     $where = [];
     if ($start_date && $end_date) {
@@ -334,6 +380,9 @@ switch ($export_tab) {
     case 'registers':
         $filename_prefix = 'Registers_Report';
         break;
+    case 'items-received':
+        $filename_prefix = 'Material_Items_Received';
+        break;
 }
 
 $filename_parts = [$filename_prefix];
@@ -377,8 +426,14 @@ if ($is_mobile) {
     fputcsv($output, $columns);
 
     // Data rows
-    if ($result && mysqli_num_rows($result) > 0) {
-        while ($row = mysqli_fetch_assoc($result)) {
+    if ($result) {
+        $data_array = is_array($result) ? $result : [];
+        if (!is_array($result) && mysqli_num_rows($result) > 0) {
+            while ($row = mysqli_fetch_assoc($result))
+                $data_array[] = $row;
+        }
+
+        foreach ($data_array as $row) {
             $csv_row = [];
             foreach ($columns as $col) {
                 $csv_row[] = $row[$col] ?? '';
@@ -409,8 +464,14 @@ if ($is_mobile) {
     }
     echo '</tr></thead><tbody>';
 
-    if ($result && mysqli_num_rows($result) > 0) {
-        while ($row = mysqli_fetch_assoc($result)) {
+    if ($result) {
+        $data_array = is_array($result) ? $result : [];
+        if (!is_array($result) && mysqli_num_rows($result) > 0) {
+            while ($row = mysqli_fetch_assoc($result))
+                $data_array[] = $row;
+        }
+
+        foreach ($data_array as $row) {
             echo '<tr>';
             foreach ($columns as $col) {
                 echo '<td>' . htmlspecialchars($row[$col] ?? '') . '</td>';

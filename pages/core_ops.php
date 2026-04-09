@@ -4058,6 +4058,10 @@ elseif ($page == 'edit-outward'):
     }
 
     $inward = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM truck_inward WHERE id = {$outward['inward_id']}"));
+    $checklist = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM vehicle_outgoing_checklist WHERE inward_id = {$outward['inward_id']} LIMIT 1"));
+    
+    // Get customers for dropdown
+    $customers_result = mysqli_query($conn, "SELECT id, customer_name FROM customer_master WHERE is_active = 1 ORDER BY customer_name");
     ?>
     <div class="container">
         <?php if (isset($error_msg)): ?>
@@ -4085,34 +4089,105 @@ elseif ($page == 'edit-outward'):
             <input type="hidden" name="inward_id" value="<?php echo $outward['inward_id']; ?>">
 
             <div class="card" style="margin-bottom: 20px;">
-                <h3 style="margin-bottom: 15px;">Outward Date & Time</h3>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div style="background: #10b981; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">1</div>
+                    <h3 style="margin: 0;">Outward Basic Details</h3>
+                </div>
 
-                <div class="form-group">
+                <div class="form-group" style="margin-bottom: 15px;">
                     <label>Outward Date & Time *</label>
                     <input type="datetime-local" name="outward_datetime"
                         value="<?php echo date('Y-m-d\TH:i', strtotime($outward['outward_datetime'])); ?>" required>
-                    <small style="color: #666; margin-top: 5px; display: block;">
-                        Duration will be recalculated automatically based on inward time.
-                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Outward Remarks</label>
+                    <textarea name="outward_remarks" rows="3"><?php echo htmlspecialchars($outward['outward_remarks']); ?></textarea>
                 </div>
             </div>
 
+            <!-- OUT-GOING CHECK SECTION -->
             <div class="card" style="margin-bottom: 20px;">
-                <h3 style="margin-bottom: 15px;">Outward Remarks</h3>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
+                    <div style="background: #8b5cf6; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold;">2</div>
+                    <h3 style="margin: 0;">Out-going Checklist (VCPL/LOG/FR/02)</h3>
+                </div>
 
-                <div class="form-group">
-                    <label>Remarks</label>
-                    <textarea name="outward_remarks"
-                        rows="4"><?php echo htmlspecialchars($outward['outward_remarks']); ?></textarea>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label>Reporting Date & Time</label>
+                        <input type="datetime-local" name="outgoing_reporting_datetime"
+                            value="<?php echo $checklist ? date('Y-m-d\TH:i', strtotime($checklist['reporting_datetime'])) : ''; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label>Customer</label>
+                        <select name="outgoing_customer_id" id="outgoing_customer_id" onchange="const sel = this.options[this.selectedIndex]; document.getElementById('outgoing_customer_name').value = sel.text;">
+                            <option value="">Select Customer</option>
+                            <?php
+                            if ($customers_result) {
+                                mysqli_data_seek($customers_result, 0);
+                                while ($row = mysqli_fetch_assoc($customers_result)): ?>
+                                    <option value="<?php echo $row['id']; ?>" <?php echo ($checklist && $checklist['customer_id'] == $row['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($row['customer_name']); ?>
+                                    </option>
+                                <?php endwhile;
+                            } ?>
+                        </select>
+                        <input type="hidden" name="outgoing_customer_name" id="outgoing_customer_name" value="<?php echo htmlspecialchars($checklist['customer_name'] ?? ''); ?>">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Destination</label>
+                    <input type="text" name="outgoing_destination" value="<?php echo htmlspecialchars($checklist['destination'] ?? ''); ?>" placeholder="Destination">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 12px;">
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Tarpaulin Condition</label>
+                        <select name="tarpaulin_condition_obs">
+                            <option value="">Select</option>
+                            <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist['tarpaulin_condition_obs']==$v ? 'selected' : '').">$v</option>"; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Wooden Blocks</label>
+                        <select name="wooden_blocks_used_obs">
+                            <option value="">Select</option>
+                            <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist['wooden_blocks_used_obs']==$v ? 'selected' : '').">$v</option>"; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Rope Tightening</label>
+                        <select name="rope_tightening_obs">
+                            <option value="">Select</option>
+                            <?php foreach(['OK','NOT OK','NA'] as $v) echo "<option value='$v' ".($checklist && $checklist['rope_tightening_obs']==$v ? 'selected' : '').">$v</option>"; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px;">
+                    <div class="form-group">
+                        <label>Number of Seals</label>
+                        <input type="number" name="number_of_seals" value="<?php echo $checklist['number_of_seals'] ?? 0; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label>Sealing Method</label>
+                        <input type="text" name="sealing_method" value="<?php echo htmlspecialchars($checklist['sealing_method'] ?? ''); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label>Sealing Done By</label>
+                        <input type="text" name="sealing_done_by" value="<?php echo htmlspecialchars($checklist['sealing_done_by'] ?? ''); ?>">
+                    </div>
                 </div>
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button type="submit" name="update_outward" class="btn btn-success"
                     style="flex: 1; padding: 12px 20px; font-size: 16px; font-weight: 600;">
-                    💾 Update Entry
+                    💾 Update All Entry Details
                 </button>
-                <a href="?page=details&id=<?php echo $outward['inward_id']; ?>" class="btn btn-secondary"
+                <a href="?page=outward-details&id=<?php echo $outward['inward_id']; ?>" class="btn btn-secondary"
                     style="padding: 12px 20px; font-size: 16px; font-weight: 600; text-decoration: none; text-align: center;">
                     Cancel
                 </a>
