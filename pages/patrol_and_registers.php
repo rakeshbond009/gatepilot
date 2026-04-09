@@ -520,12 +520,14 @@ elseif ($page == 'tickets'):
         $action = $_POST['action'];
         $remarks = isset($_POST['remarks']) ? mysqli_real_escape_string($conn, $_POST['remarks']) : '';
 
-        // Fetch ticket, location, and currently assigned employee name for audit log
+        // Fetch ticket, location, reporter and currently assigned employee name for audit log
         $t_info_res = mysqli_query($conn, "
-            SELECT t.issue_description, t.status, pl.location_name, em.employee_name as assigned_to_name
+            SELECT t.issue_description, t.status, pl.location_name, em.employee_name as assigned_to_name,
+                   um.full_name as reported_by_name
             FROM patrol_issues t 
             LEFT JOIN patrol_locations pl ON t.location_id = pl.id 
             LEFT JOIN employee_master em ON t.assigned_to = em.id
+            LEFT JOIN user_master um ON t.reported_by = um.id
             WHERE t.id = $ticket_id
         ");
         $t_info = mysqli_fetch_assoc($t_info_res);
@@ -533,6 +535,7 @@ elseif ($page == 'tickets'):
         $location = $t_info['location_name'] ?? 'N/A';
         $old_status = $t_info['status'] ?? 'N/A';
         $existing_assigned_name = $t_info['assigned_to_name'] ?? 'None';
+        $reported_by_name = $t_info['reported_by_name'] ?? 'Unknown';
 
         if ($action == 'assign') {
             $assign_to = intval($_POST['employee_id']);
@@ -555,6 +558,7 @@ elseif ($page == 'tickets'):
 
             // Enhanced Audit Log: Show transitions
             $details = "Ticket ID: [$ticket_id]\n";
+            $details .= "Reported By: [$reported_by_name]\n";
             $details .= "Location: [$location]\n";
             $details .= "Issue: [$issue_desc]\n";
             $details .= "Status Change: [$old_status ➔ $new_status]\n";

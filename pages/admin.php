@@ -331,7 +331,7 @@
             let icon = "🔹";
             const k = key.toLowerCase();
             if (k.includes("vehicle")) icon = "🚛";
-            else if (k.includes("driver") || k.includes("user")) icon = "👤";
+            else if (k.includes("driver") || k.includes("user") || k.includes("reported")) icon = "👤";
             else if (k.includes("mobile") || k.includes("phone")) icon = "📱";
             else if (k.includes("location") || k.includes("from") || k.includes("to")) icon = "📍";
             else if (k.includes("bill")) icon = "🧾";
