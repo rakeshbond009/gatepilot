@@ -473,14 +473,17 @@
                         <div>
                             <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
                             <select id="new_item_unit" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: white;">
-                                <option value="PCS">PCS</option>
-                                <option value="KG">KG</option>
-                                <option value="MT">MT</option>
                                 <option value="NOS">NOS</option>
+                                <option value="KGS">KGS</option>
+                                <option value="PCS">PCS</option>
+                                <option value="MTS">MTS</option>
+                                <option value="LTR">LTR</option>
                                 <option value="BOX">BOX</option>
                                 <option value="BAG">BAG</option>
-                                <option value="LTR">LTR</option>
                                 <option value="UNIT">UNIT</option>
+                                <option value="BUNDLE">BUNDLE</option>
+                                <option value="PKT">PKT</option>
+                                <option value="SET">SET</option>
                             </select>
                         </div>
                         <button type="button" onclick="addItemManually()" id="addItemBtn"
@@ -3794,12 +3797,17 @@ elseif ($page == 'edit-inward'):
                     <div>
                         <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
                         <select id="new_item_unit" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; appearance: none; background: white;">
-                            <option value="Nos">Nos</option>
-                            <option value="Kgs">Kgs</option>
-                            <option value="Units">Units</option>
-                            <option value="Pcs">Pcs</option>
-                            <option value="Mts">Mts</option>
-                            <option value="Ltr">Ltr</option>
+                            <option value="NOS">NOS</option>
+                            <option value="KGS">KGS</option>
+                            <option value="PCS">PCS</option>
+                            <option value="MTS">MTS</option>
+                            <option value="LTR">LTR</option>
+                            <option value="BOX">BOX</option>
+                            <option value="BAG">BAG</option>
+                            <option value="UNIT">UNIT</option>
+                            <option value="BUNDLE">BUNDLE</option>
+                            <option value="PKT">PKT</option>
+                            <option value="SET">SET</option>
                         </select>
                     </div>
                     <button type="button" onclick="addItemManually()" style="background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 800; cursor: pointer; height: 38px;">+</button>
