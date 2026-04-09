@@ -1,3 +1,108 @@
+<script>
+    // --- Global Manual Items Management ---
+    let manualItems = [];
+
+    function addItemManually() {
+        const code = document.getElementById('new_item_code').value.trim();
+        const name = document.getElementById('new_item_name').value.trim();
+        const qty = document.getElementById('new_item_qty').value.trim();
+        const unit = document.getElementById('new_item_unit').value;
+
+        if (!name || !qty) {
+            alert('Item Name and Quantity are required!');
+            return;
+        }
+
+        const item = {
+            item_code: code || 'N/A',
+            item_name: name,
+            quantity: parseFloat(qty),
+            unit: unit
+        };
+
+        manualItems.push(item);
+        renderItems();
+
+        // Clear inputs
+        document.getElementById('new_item_code').value = '';
+        document.getElementById('new_item_name').value = '';
+        document.getElementById('new_item_qty').value = '';
+        document.getElementById('new_item_name').focus();
+    }
+
+    function deleteItem(index) {
+        manualItems.splice(index, 1);
+        renderItems();
+    }
+
+    function renderItems() {
+        const tbody = document.getElementById('items_tbody');
+        const container = document.getElementById('items_list_container');
+        const badge = document.getElementById('items_count_badge');
+        const hiddenInput = document.getElementById('items_hidden_input');
+
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        
+        if (manualItems.length > 0) {
+            if (container) container.style.display = 'block';
+            if (badge) {
+                badge.style.display = 'inline-block';
+                badge.textContent = manualItems.length + ' Items';
+            }
+            
+            manualItems.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.style.background = 'white';
+                row.innerHTML = `
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; font-size: 13px; color: #64748b;">${item.item_code}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #1e293b;">${item.item_name}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #8b5cf6;">${item.quantity}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; color: #64748b;">${item.unit}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right;">
+                        <button type="button" onclick="deleteItem(${index})" style="background: #fee2e2; color: #ef4444; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px;">&times;</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            if (container) container.style.display = 'none';
+            if (badge) badge.style.display = 'none';
+        }
+
+        // Sync with hidden input
+        if (hiddenInput) {
+            hiddenInput.value = JSON.stringify(manualItems);
+        }
+    }
+
+    // Global function for QR scanner to populate items
+    window.populateManualItemsList = function(itemsArray) {
+        console.log('Populating manual items list from QR data:', itemsArray);
+        if (!itemsArray || !Array.isArray(itemsArray)) return;
+        
+        // Standardize format from various QR structures
+        const standardizedItems = itemsArray.map(item => {
+            return {
+                item_code: item.item_code || item.product_code || item.sku || 'N/A',
+                item_name: item.item_name || item.product_name || item.name || item.description || 'Unknown Item',
+                quantity: parseFloat(item.quantity || item.qty || 0),
+                unit: item.unit || item.uom || 'PCS'
+            };
+        });
+
+        manualItems = standardizedItems;
+        renderItems();
+        
+        // Highlight the section
+        const section = document.getElementById('manual_items_section');
+        if (section) {
+            section.style.background = '#f5f3ff';
+            setTimeout(() => section.style.background = 'transparent', 2000);
+        }
+    };
+</script>
 <?php if ($page == 'inward'):
     ?>
     <div class="container">
@@ -859,107 +964,6 @@
             return isMobile;
         }
 
-        // --- Manual Items Management ---
-        let manualItems = [];
-
-        function addItemManually() {
-            const code = document.getElementById('new_item_code').value.trim();
-            const name = document.getElementById('new_item_name').value.trim();
-            const qty = document.getElementById('new_item_qty').value.trim();
-            const unit = document.getElementById('new_item_unit').value;
-
-            if (!name || !qty) {
-                alert('Item Name and Quantity are required!');
-                return;
-            }
-
-            const item = {
-                item_code: code || 'N/A',
-                item_name: name,
-                quantity: parseFloat(qty),
-                unit: unit
-            };
-
-            manualItems.push(item);
-            renderItems();
-
-            // Clear inputs
-            document.getElementById('new_item_code').value = '';
-            document.getElementById('new_item_name').value = '';
-            document.getElementById('new_item_qty').value = '';
-            document.getElementById('new_item_name').focus();
-        }
-
-        function deleteItem(index) {
-            manualItems.splice(index, 1);
-            renderItems();
-        }
-
-        function renderItems() {
-            const tbody = document.getElementById('items_tbody');
-            const container = document.getElementById('items_list_container');
-            const badge = document.getElementById('items_count_badge');
-            const hiddenInput = document.getElementById('items_hidden_input');
-
-            if (!tbody) return;
-
-            tbody.innerHTML = '';
-            
-            if (manualItems.length > 0) {
-                container.style.display = 'block';
-                badge.style.display = 'inline-block';
-                badge.textContent = manualItems.length + ' Items';
-                
-                manualItems.forEach((item, index) => {
-                    const row = document.createElement('tr');
-                    row.style.background = 'white';
-                    row.innerHTML = `
-                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; font-size: 13px; color: #64748b;">${item.item_code}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #1e293b;">${item.item_name}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-weight: 700; color: #8b5cf6;">${item.quantity}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; color: #64748b;">${item.unit}</td>
-                        <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right;">
-                            <button type="button" onclick="deleteItem(${index})" style="background: #fee2e2; color: #ef4444; border: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px;">&times;</button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } else {
-                container.style.display = 'none';
-                badge.style.display = 'none';
-            }
-
-            // Sync with hidden input
-            if (hiddenInput) {
-                hiddenInput.value = JSON.stringify(manualItems);
-            }
-        }
-
-        // Global function for QR scanner to populate items
-        window.populateManualItemsList = function(itemsArray) {
-            console.log('Populating manual items list from QR data:', itemsArray);
-            if (!itemsArray || !Array.isArray(itemsArray)) return;
-            
-            // Standardize format from various QR structures
-            const standardizedItems = itemsArray.map(item => {
-                return {
-                    item_code: item.item_code || item.product_code || item.sku || 'N/A',
-                    item_name: item.item_name || item.product_name || item.name || item.description || 'Unknown Item',
-                    quantity: parseFloat(item.quantity || item.qty || 0),
-                    unit: item.unit || item.uom || 'PCS'
-                };
-            });
-
-            manualItems = standardizedItems;
-            renderItems();
-            
-            // Highlight the section
-            const section = document.getElementById('manual_items_section');
-            if (section) {
-                section.style.background = '#f5f3ff';
-                setTimeout(() => section.style.background = 'transparent', 2000);
-            }
-        };
 
         // Hide camera buttons on PC, show only on mobile - execute immediately
         (function () {
@@ -3681,6 +3685,58 @@ elseif ($page == 'edit-inward'):
                 </div>
             </div>
 
+            <div class="card" id="manual_items_section" style="margin-bottom: 20px; border: 1px solid #e0e7ff; transition: all 0.3s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0;">📦 Material Items Information</h3>
+                    <span id="items_count_badge" style="background: #8b5cf6; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; display: none;">0 Items</span>
+                </div>
+
+                <!-- Hidden Input to store JSON -->
+                <input type="hidden" name="items" id="items_hidden_input">
+
+                <div id="items_list_container" style="display: none; margin-bottom: 20px;">
+                    <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                        <thead>
+                            <tr style="background: #f1f5f9; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <th style="padding: 12px 10px;">Code</th>
+                                <th style="padding: 12px 10px;">Item Description</th>
+                                <th style="padding: 12px 10px;">Qty</th>
+                                <th style="padding: 12px 10px;">Unit</th>
+                                <th style="padding: 12px 10px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="items_tbody"></tbody>
+                    </table>
+                </div>
+
+                <div style="background: #f1f5f9; padding: 15px; border-radius: 12px; display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 8px; align-items: end;">
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
+                        <input type="text" id="new_item_code" placeholder="Code" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM NAME</label>
+                        <input type="text" id="new_item_name" placeholder="Name/Desc" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QTY</label>
+                        <input type="number" id="new_item_qty" step="any" placeholder="0.0" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
+                        <select id="new_item_unit" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; appearance: none; background: white;">
+                            <option value="Nos">Nos</option>
+                            <option value="Kgs">Kgs</option>
+                            <option value="Units">Units</option>
+                            <option value="Pcs">Pcs</option>
+                            <option value="Mts">Mts</option>
+                            <option value="Ltr">Ltr</option>
+                        </select>
+                    </div>
+                    <button type="button" onclick="addItemManually()" style="background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: 800; cursor: pointer; height: 38px;">+</button>
+                </div>
+            </div>
+
             <div class="card" style="margin-bottom: 20px;">
                 <h3 style="margin-bottom: 15px;">Security Comments</h3>
 
@@ -3690,6 +3746,20 @@ elseif ($page == 'edit-inward'):
                         rows="4"><?php echo htmlspecialchars($entry['security_comments']); ?></textarea>
                 </div>
             </div>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Initialize manualItems from existing JSON
+                    var existingItems = <?php echo !empty($entry['items_json']) ? $entry['items_json'] : '[]'; ?>;
+                    if (typeof existingItems === 'string') {
+                        try { existingItems = JSON.parse(existingItems); } catch(e) { existingItems = []; }
+                    }
+                    if (Array.isArray(existingItems) && existingItems.length > 0) {
+                        manualItems = existingItems;
+                        renderItems();
+                    }
+                });
+            </script>
 
             <div class="card" style="margin-bottom: 20px;">
                 <h3 style="margin-bottom: 15px;">Photos (Leave empty to keep existing)</h3>

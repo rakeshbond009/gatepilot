@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.09.2233');
+    define('APP_VERSION', '26.04.09.2305');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -1798,6 +1798,22 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
         if (mysqli_query($conn, $sql)) {
             $inward_id = mysqli_insert_id($conn);
             $details = "Inward Gate Entry:\n" . auditFromPost($_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments']);
+            $details .= "\nReported By: [" . ($_SESSION['full_name'] ?? 'System') . "]";
+            
+            // Add items to audit details
+            if (!empty($items_json) && $items_json !== '[]') {
+                $items_arr = json_decode($items_json, true);
+                if (is_array($items_arr) && count($items_arr) > 0) {
+                    $details .= "\nMaterial Items (" . count($items_arr) . "):";
+                    foreach ($items_arr as $idx => $item) {
+                        $name = $item['item_name'] ?? ($item['item_description'] ?? 'Item');
+                        $qty = $item['quantity'] ?? 0;
+                        $unit = $item['unit'] ?? '';
+                        $details .= "\n  - " . $name . ": " . $qty . " " . $unit;
+                    }
+                }
+            }
+
             if ($vehicle_photo_url)
                 $details .= "\nVehicle Photo: [$vehicle_photo_url]";
             if ($bill_photo_url)
@@ -2058,11 +2074,23 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
     // Process items if any
     $items_json = '[]';
     if (!empty($_POST['items'])) {
-        $items_json = json_encode($_POST['items']);
+        $items_post = $_POST['items'];
+        if (is_string($items_post)) {
+            $test_json = json_decode($items_post, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $items_json = $items_post;
+            } else {
+                $items_json = json_encode($items_post);
+            }
+        } else {
+            $items_json = json_encode($items_post);
+        }
     } elseif (!empty($qr_code_data)) {
         $qr_json = json_decode($qr_code_data, true);
         if ($qr_json && isset($qr_json['items']) && is_array($qr_json['items'])) {
             $items_json = json_encode($qr_json['items']);
+        } elseif ($qr_json && isset($qr_json['decoded_items']) && is_array($qr_json['decoded_items'])) {
+            $items_json = json_encode($qr_json['decoded_items']);
         }
     }
     $items_json_escaped = mysqli_real_escape_string($conn, $items_json);
@@ -2094,10 +2122,26 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
 
     if (mysqli_query($conn, $sql)) {
         $inward_log = "Edited Inward Entry: ID: [$id]\nVehicle: [$vehicle]\nDriver: [$driver]\nLocation: [$from_loc ➔ $to_loc]";
+        $inward_log .= "\nUpdated By: [" . ($_SESSION['full_name'] ?? 'System') . "]";
         if ($old) {
             $diff = auditDiff($old, $_POST, [], ['vehicle_number' => 'Vehicle', 'driver_name' => 'Driver', 'driver_mobile' => 'Mobile', 'transporter_name' => 'Transporter', 'purpose_name' => 'Purpose', 'from_location' => 'From', 'to_location' => 'To', 'bill_number' => 'Bill No', 'security_comments' => 'Comments', 'inward_datetime' => 'Datetime']);
             if ($diff)
                 $inward_log .= "\nChanges:\n" . $diff;
+
+            // Add items summary to audit
+            if (!empty($items_json) && $items_json !== '[]') {
+                $items_arr = json_decode($items_json, true);
+                if (is_array($items_arr) && count($items_arr) > 0) {
+                    $inward_log .= "\nMaterial Items (" . count($items_arr) . "):";
+                    foreach ($items_arr as $idx => $item) {
+                        $name = $item['item_name'] ?? ($item['item_description'] ?? 'Item');
+                        $qty = $item['quantity'] ?? 0;
+                        $unit = $item['unit'] ?? '';
+                        $inward_log .= "\n  - " . $name . ": " . $qty . " " . $unit;
+                    }
+                }
+            }
+
             if ($vehicle_photo_update)
                 $inward_log .= "\nVehicle Photo: [Updated]";
             if ($bill_photo_update)

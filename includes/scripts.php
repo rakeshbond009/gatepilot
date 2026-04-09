@@ -1066,10 +1066,7 @@ endif; ?>
                     }
 
                     // Generate Summary Item if needed (matching user's format)
-                    var itemCount = parseInt(data.ItemCnt || data.item_count || 0);
-                    if (itemCount === 0 && Array.isArray(itemsArray) && itemsArray.length > 0) {
-                        itemCount = itemsArray.length;
-                    }
+                    var itemCount = (Array.isArray(itemsArray) && itemsArray.length > 0) ? itemsArray.length : parseInt(data.ItemCnt || data.item_count || 0);
 
                     var summaryItem = {
                         "item_code": "E-INV",
