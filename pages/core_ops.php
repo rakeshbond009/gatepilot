@@ -5325,6 +5325,28 @@ elseif ($page == 'reports'):
     // Get filtered entries
     $entries = mysqli_query($conn, "SELECT * FROM truck_inward $where_sql ORDER BY inward_datetime DESC LIMIT 200");
 
+    // Extract all items for the items-received report
+    $all_received_items = [];
+    if ($entries && mysqli_num_rows($entries) > 0) {
+        while ($row = mysqli_fetch_assoc($entries)) {
+            $items = !empty($row['items_json']) ? json_decode($row['items_json'], true) : [];
+            // Handle double-encoded JS string if necessary
+            if (is_string($items)) { $items = json_decode($items, true); }
+            
+            if (is_array($items)) {
+                foreach ($items as $item) {
+                    $item['parent_entry_num'] = $row['entry_number'] ?? 'N/A';
+                    $item['parent_inward_date'] = $row['inward_date'] ?? '-';
+                    $item['parent_vehicle'] = $row['vehicle_number'] ?? '-';
+                    $item['parent_transporter'] = $row['transporter_name'] ?? '-';
+                    $item['parent_id'] = $row['id'];
+                    $all_received_items[] = $item;
+                }
+            }
+        }
+        mysqli_data_seek($entries, 0); // Reset for original inward tab
+    }
+
     // Get loading/unloading entries
     $check_loading = mysqli_query($conn, "SHOW TABLES LIKE 'vehicle_loading_checklist'");
     $check_unloading = mysqli_query($conn, "SHOW TABLES LIKE 'vehicle_unloading_checklist'");
@@ -5708,6 +5730,10 @@ elseif ($page == 'reports'):
                         style="padding: 10px 15px; border: none; background: #e5e7eb; color: #666; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 13px;">
                         👤 Employees (
                         <?php echo count($employee_entries); ?>)
+                    </button>
+                    <button onclick="showTab('items-received')" id="tab-items-received" class="tab-btn"
+                        style="padding: 10px 15px; border: none; background: #fef3c7; color: #92400e; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 13px;">
+                        📦 Items (<?php echo count($all_received_items); ?>)
                     </button>
 
                 </div>
@@ -6340,7 +6366,52 @@ elseif ($page == 'reports'):
                 </div>
             </div>
 
-
+            <!-- Items Received Tab -->
+            <div id="tab-content-items-received" class="tab-content" style="display: none;">
+                <h3 style="font-size: 16px; margin-bottom: 15px; color: #92400e; display: flex; align-items: center; gap: 8px;">
+                    <span>📦</span> Material Items Received (Consolidated)
+                </h3>
+                <div class="table-wrapper">
+                    <table id="received_items_table">
+                        <thead>
+                            <tr style="background: #fffbeb;">
+                                <th style="color: #92400e;">Entry #</th>
+                                <th style="color: #92400e;">Date</th>
+                                <th style="color: #92400e;">Vehicle</th>
+                                <th style="color: #92400e;">Item Code</th>
+                                <th style="color: #92400e;">Item Name</th>
+                                <th style="color: #92400e;">Qty</th>
+                                <th style="color: #92400e;">Unit</th>
+                                <th style="color: #92400e;">Transporter</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($all_received_items)): ?>
+                                <?php foreach ($all_received_items as $item): ?>
+                                    <tr onclick="window.location='?page=inward-details&id=<?php echo intval($item['parent_id'] ?? 0); ?>'"
+                                        style="cursor: pointer; transition: background 0.2s;">
+                                        <td><strong><?php echo htmlspecialchars($item['parent_entry_num'] ?? 'N/A'); ?></strong></td>
+                                        <td><?php echo date('d/m/Y', strtotime($item['parent_inward_date'] ?? 'today')); ?></td>
+                                        <td><strong><?php echo htmlspecialchars($item['parent_vehicle'] ?? '-'); ?></strong></td>
+                                        <td style="font-family: monospace; font-size: 11px; color: #64748b;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?></td>
+                                        <td><strong><?php echo htmlspecialchars($item['item_name'] ?? $item['item_description'] ?? 'Unknown'); ?></strong></td>
+                                        <td style="font-weight: 700; color: #d97706;"><?php echo htmlspecialchars($item['quantity'] ?? '0'); ?></td>
+                                        <td style="font-size: 12px; color: #6b7280;"><?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?></td>
+                                        <td style="font-size: 11px; color: #6b7280;"><?php echo htmlspecialchars($item['parent_transporter'] ?? '-'); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="8" style="text-align: center; padding: 40px; color: #9ca3af;">
+                                        <div style="font-size: 30px; margin-bottom: 10px;">📦</div>
+                                        No material items found in the selected entries.
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             <script>
                 function updateExportLink(activeTab) {
@@ -6361,6 +6432,7 @@ elseif ($page == 'reports'):
                             case 'patrol': filename = 'Patrol_Report'; break;
                             case 'employee': filename = 'Employee_Report'; break;
                             case 'registers': filename = 'Registers_Report'; break;
+                            case 'items-received': filename = 'Material_Items_Received'; break;
                             default: filename = 'Truck_Report_' + activeTab;
                         }
                         link.setAttribute('download', filename + '.xls');
