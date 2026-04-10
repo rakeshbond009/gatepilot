@@ -486,39 +486,70 @@
             $tenant_id = (int) $_POST['edit_tenant_id'];
             $master_conn = getMasterDatabaseConnection();
 
-            $old_res = mysqli_query($master_conn, "SELECT contact_person, mobile, email, gst_no, address, db_host, db_user, db_pass FROM tenants WHERE id = $tenant_id");
+            // Fetch ALL columns to ensure auditDiff detects all changes
+            $old_res = mysqli_query($master_conn, "SELECT * FROM tenants WHERE id = $tenant_id");
             $old_row = mysqli_fetch_assoc($old_res) ?: [];
 
-            $stmt = $master_conn->prepare("UPDATE tenants SET contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=?, user_limit=? WHERE id=?");
+            // Updated query to include customer_name and db_name which were previously immutable
+            $stmt = $master_conn->prepare("UPDATE tenants SET customer_name=?, contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=?, db_name=?, user_limit=? WHERE id=?");
             $user_limit = (int) ($_POST['user_limit'] ?? 10);
-            $stmt->bind_param("ssssssssii", $_POST['contact_person'], $_POST['mobile'], $_POST['email'], $_POST['gst_no'], $_POST['address'], $_POST['db_host'], $_POST['db_user'], $_POST['db_pass'], $user_limit, $tenant_id);
+            
+            // Bind all 12 parameters (11 SET + 1 WHERE)
+            $stmt->bind_param("ssssssssssii", 
+                $_POST['customer_name'], 
+                $_POST['contact_person'], 
+                $_POST['mobile'], 
+                $_POST['email'], 
+                $_POST['gst_no'], 
+                $_POST['address'], 
+                $_POST['db_host'], 
+                $_POST['db_user'], 
+                $_POST['db_pass'], 
+                $_POST['db_name'],
+                $user_limit, 
+                $tenant_id
+            );
 
             if ($stmt->execute()) {
                 // Apply Dynamic Permissions Update to existing tenant admins if metadata is saved
-                $t_res = mysqli_query($master_conn, "SELECT db_name FROM tenants WHERE id = $tenant_id");
-                $t_row = mysqli_fetch_assoc($t_res);
-                if ($t_row) {
-                    $t_db = $t_row['db_name'];
+                $t_db = $_POST['db_name'] ?? ($old_row['db_name'] ?? '');
+                if ($t_db) {
                     $t_conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS, $t_db);
                     if ($t_conn) {
                         $latest_perms = json_encode(getAppDefaultPermissions(true));
                         $esc_perms = mysqli_real_escape_string($t_conn, $latest_perms);
-                        // Update only 'admin' role users to have the latest permissions
                         mysqli_query($t_conn, "UPDATE user_master SET permissions = '$esc_perms' WHERE role = 'admin'");
                         mysqli_close($t_conn);
                     }
                 }
 
-                $audit_str = auditDiff($old_row, $_POST, ['edit_tenant_id', 'create_tenant'], ['customer_name' => 'Customer Name', 'slug' => 'URL Slug']);
+                // Comprehensive labels for better audit logs
+                $labels = [
+                    'customer_name' => 'Customer Name',
+                    'slug' => 'URL Slug',
+                    'contact_person' => 'Contact Person',
+                    'mobile' => 'Mobile',
+                    'email' => 'Email',
+                    'gst_no' => 'GST No',
+                    'address' => 'Address',
+                    'db_host' => 'DB Host',
+                    'db_user' => 'DB User',
+                    'db_pass' => 'DB Pass',
+                    'db_name' => 'DB Name',
+                    'user_limit' => 'User Quota'
+                ];
+
+                $audit_str = auditDiff($old_row, $_POST, ['edit_tenant_id', 'create_tenant'], $labels);
                 if (!empty($audit_str)) {
                     logActivity($conn, 'TENANT_UPDATE', 'Multi-Tenancy', "Updated Tenant Metadata:\n" . $audit_str);
                 }
+
                 $_SESSION['admin_msg'] = ["type" => "success", "title" => "Updated", "msg" => "Tenant metadata updated successfully."];
                 unset($_SESSION['tenant_form_data']);
                 header("Location: index.php?page=admin&master=multi-tenancy");
                 exit;
             } else {
-                $_SESSION['tenant_error'] = "Update failed: " . $master_conn->error;
+                $_SESSION['tenant_error'] = "Update failed: " . $stmt->error;
                 $_SESSION['tenant_form_data'] = $_POST;
                 header("Location: index.php?page=admin&master=multi-tenancy");
                 exit;
