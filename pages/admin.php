@@ -484,72 +484,84 @@
         if (!empty($_POST['edit_tenant_id'])) {
             // MUST update existing instead of creating
             $tenant_id = (int) $_POST['edit_tenant_id'];
-            $master_conn = getMasterDatabaseConnection();
+            try {
+                $master_conn = getMasterDatabaseConnection();
+                // Fetch ALL columns to ensure auditDiff detects all changes
+                $old_res = mysqli_query($master_conn, "SELECT * FROM tenants WHERE id = $tenant_id");
+                $old_row = mysqli_fetch_assoc($old_res) ?: [];
 
-            // Fetch ALL columns to ensure auditDiff detects all changes
-            $old_res = mysqli_query($master_conn, "SELECT * FROM tenants WHERE id = $tenant_id");
-            $old_row = mysqli_fetch_assoc($old_res) ?: [];
+                // Use prepared statement to update all fields including name and db_name
+                $stmt = $master_conn->prepare("UPDATE tenants SET customer_name=?, contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=?, db_name=?, user_limit=? WHERE id=?");
+                $user_limit = (int) ($_POST['user_limit'] ?? 10);
+                
+                $stmt->bind_param("ssssssssssii", 
+                    $_POST['customer_name'], 
+                    $_POST['contact_person'], 
+                    $_POST['mobile'], 
+                    $_POST['email'], 
+                    $_POST['gst_no'], 
+                    $_POST['address'], 
+                    $_POST['db_host'], 
+                    $_POST['db_user'], 
+                    $_POST['db_pass'], 
+                    $_POST['db_name'],
+                    $user_limit, 
+                    $tenant_id
+                );
 
-            // Updated query to include customer_name and db_name which were previously immutable
-            $stmt = $master_conn->prepare("UPDATE tenants SET customer_name=?, contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=?, db_name=?, user_limit=? WHERE id=?");
-            $user_limit = (int) ($_POST['user_limit'] ?? 10);
-            
-            // Bind all 12 parameters (11 SET + 1 WHERE)
-            $stmt->bind_param("ssssssssssii", 
-                $_POST['customer_name'], 
-                $_POST['contact_person'], 
-                $_POST['mobile'], 
-                $_POST['email'], 
-                $_POST['gst_no'], 
-                $_POST['address'], 
-                $_POST['db_host'], 
-                $_POST['db_user'], 
-                $_POST['db_pass'], 
-                $_POST['db_name'],
-                $user_limit, 
-                $tenant_id
-            );
-
-            if ($stmt->execute()) {
-                // Apply Dynamic Permissions Update to existing tenant admins if metadata is saved
-                $t_db = $_POST['db_name'] ?? ($old_row['db_name'] ?? '');
-                if ($t_db) {
-                    $t_conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS, $t_db);
-                    if ($t_conn) {
-                        $latest_perms = json_encode(getAppDefaultPermissions(true));
-                        $esc_perms = mysqli_real_escape_string($t_conn, $latest_perms);
-                        mysqli_query($t_conn, "UPDATE user_master SET permissions = '$esc_perms' WHERE role = 'admin'");
-                        mysqli_close($t_conn);
+                if ($stmt->execute()) {
+                    // 1. Attempt Permission Sync to Tenant DB
+                    $t_db = $_POST['db_name'] ?? ($old_row['db_name'] ?? '');
+                    if ($t_db) {
+                        try {
+                            $t_conn = @mysqli_connect(DB_HOST, DB_USER, DB_PASS, $t_db);
+                            if ($t_conn) {
+                                $latest_perms = json_encode(getAppDefaultPermissions(true));
+                                $esc_perms = mysqli_real_escape_string($t_conn, $latest_perms);
+                                // This might fail if user_master doesn't exist yet or if no admin role exists
+                                @mysqli_query($t_conn, "UPDATE user_master SET permissions = '$esc_perms' WHERE role = 'admin'");
+                                @mysqli_close($t_conn);
+                            }
+                        } catch (Exception $e) {
+                            // Suppress tenant-specific connector errors to prevent master platform crash
+                            error_log("Tenant Sync Failed for $t_db: " . $e->getMessage());
+                        }
                     }
+
+                    // 2. Comprehensive Audit Trail
+                    $labels = [
+                        'customer_name' => 'Customer Name',
+                        'slug' => 'URL Slug',
+                        'contact_person' => 'Contact Person',
+                        'mobile' => 'Mobile',
+                        'email' => 'Email',
+                        'gst_no' => 'GST No',
+                        'address' => 'Address',
+                        'db_host' => 'DB Host',
+                        'db_user' => 'DB User',
+                        'db_pass' => 'DB Pass',
+                        'db_name' => 'DB Name',
+                        'user_limit' => 'User Quota'
+                    ];
+
+                    $audit_str = auditDiff($old_row, $_POST, ['edit_tenant_id', 'create_tenant'], $labels);
+                    if (!empty($audit_str)) {
+                        try {
+                            logActivity($conn, 'TENANT_UPDATE', 'Multi-Tenancy', "Updated Tenant Metadata:\n" . $audit_str);
+                        } catch (Exception $e) {
+                            error_log("Audit Log Failed: " . $e->getMessage());
+                        }
+                    }
+
+                    $_SESSION['admin_msg'] = ["type" => "success", "title" => "Updated", "msg" => "Tenant metadata updated successfully."];
+                    unset($_SESSION['tenant_form_data']);
+                    header("Location: index.php?page=admin&master=multi-tenancy");
+                    exit;
+                } else {
+                    throw new Exception($stmt->error);
                 }
-
-                // Comprehensive labels for better audit logs
-                $labels = [
-                    'customer_name' => 'Customer Name',
-                    'slug' => 'URL Slug',
-                    'contact_person' => 'Contact Person',
-                    'mobile' => 'Mobile',
-                    'email' => 'Email',
-                    'gst_no' => 'GST No',
-                    'address' => 'Address',
-                    'db_host' => 'DB Host',
-                    'db_user' => 'DB User',
-                    'db_pass' => 'DB Pass',
-                    'db_name' => 'DB Name',
-                    'user_limit' => 'User Quota'
-                ];
-
-                $audit_str = auditDiff($old_row, $_POST, ['edit_tenant_id', 'create_tenant'], $labels);
-                if (!empty($audit_str)) {
-                    logActivity($conn, 'TENANT_UPDATE', 'Multi-Tenancy', "Updated Tenant Metadata:\n" . $audit_str);
-                }
-
-                $_SESSION['admin_msg'] = ["type" => "success", "title" => "Updated", "msg" => "Tenant metadata updated successfully."];
-                unset($_SESSION['tenant_form_data']);
-                header("Location: index.php?page=admin&master=multi-tenancy");
-                exit;
-            } else {
-                $_SESSION['tenant_error'] = "Update failed: " . $stmt->error;
+            } catch (Exception $e) {
+                $_SESSION['tenant_error'] = "Critical Database Error: " . $e->getMessage();
                 $_SESSION['tenant_form_data'] = $_POST;
                 header("Location: index.php?page=admin&master=multi-tenancy");
                 exit;
@@ -7150,4 +7162,4 @@ endif; ?>
                 </div>
             </form>
         </div>
-    </div>
+    </div>
