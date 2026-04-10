@@ -1,4 +1,46 @@
+<?php
+// Pre-fetch material master for autofill
+$all_materials = [];
+if (isset($conn)) {
+    $m_res = mysqli_query($conn, "SELECT material_code, material_description FROM material_master WHERE is_active=1 ORDER BY material_code LIMIT 2000");
+    if ($m_res) {
+        while ($m_row = mysqli_fetch_assoc($m_res)) {
+            $all_materials[] = $m_row;
+        }
+    }
+}
+?>
 <script>
+    // Asset: Material Master for Autofill
+    const materialData = <?php echo json_encode($all_materials); ?>;
+
+    function handleMaterialAutofill(el) {
+        const val = el.value.trim();
+        if (!val) return;
+
+        const datalist = document.getElementById('material_datalist');
+        if (!datalist) return;
+
+        const options = datalist.getElementsByTagName('option');
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].value === val) {
+                const code = options[i].getAttribute('data-code');
+                const name = options[i].getAttribute('data-name');
+                
+                // Find relative inputs in the same row/container
+                const container = el.parentElement.parentElement;
+                const codeInput = container.querySelector('#new_item_code');
+                const nameInput = container.querySelector('#new_item_name');
+                const qtyInput = container.querySelector('#new_item_qty');
+
+                if (codeInput) codeInput.value = code;
+                if (nameInput) nameInput.value = name;
+                if (qtyInput) qtyInput.focus();
+                break;
+            }
+        }
+    }
+
     // --- Global Manual Items Management ---
     let manualItems = [];
 
@@ -465,14 +507,14 @@
                         <div>
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
-                            <input type="text" id="new_item_code" placeholder="Code"
+                            <input type="text" id="new_item_code" placeholder="Code" list="material_datalist" oninput="handleMaterialAutofill(this)"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
                         <div>
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
                                 NAME</label>
-                            <input type="text" id="new_item_name" placeholder="Name of material"
+                            <input type="text" id="new_item_name" placeholder="Search by name or code" list="material_datalist" oninput="handleMaterialAutofill(this)"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
                         <div>
@@ -506,6 +548,13 @@
                         </button>
                     </div>
                     <input type="hidden" name="items" id="items_hidden_input">
+                    <datalist id="material_datalist">
+                        <?php foreach ($all_materials as $mat): ?>
+                            <option value="<?php echo "[{$mat['material_code']}] " . htmlspecialchars($mat['material_description']); ?>" 
+                                    data-code="<?php echo htmlspecialchars($mat['material_code']); ?>" 
+                                    data-name="<?php echo htmlspecialchars($mat['material_description']); ?>">
+                        <?php endforeach; ?>
+                    </datalist>
                 </div>
             </div>
 
@@ -3786,6 +3835,14 @@ elseif ($page == 'edit-inward'):
                 <!-- Hidden Input to store JSON -->
                 <input type="hidden" name="items" id="items_hidden_input">
 
+                <datalist id="material_datalist">
+                    <?php foreach ($all_materials as $mat): ?>
+                        <option value="<?php echo "[{$mat['material_code']}] " . htmlspecialchars($mat['material_description']); ?>" 
+                                data-code="<?php echo htmlspecialchars($mat['material_code']); ?>" 
+                                data-name="<?php echo htmlspecialchars($mat['material_description']); ?>">
+                    <?php endforeach; ?>
+                </datalist>
+
                 <div id="items_list_container" style="display: none; margin-bottom: 20px;">
                     <table
                         style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 12px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
@@ -3808,14 +3865,14 @@ elseif ($page == 'edit-inward'):
                     <div>
                         <label
                             style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
-                        <input type="text" id="new_item_code" placeholder="Code"
+                        <input type="text" id="new_item_code" placeholder="Code" list="material_datalist" oninput="handleMaterialAutofill(this)"
                             style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div>
                         <label
                             style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
                             NAME</label>
-                        <input type="text" id="new_item_name" placeholder="Name/Desc"
+                        <input type="text" id="new_item_name" placeholder="Search name/code" list="material_datalist" oninput="handleMaterialAutofill(this)"
                             style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div>
