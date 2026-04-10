@@ -1730,6 +1730,7 @@ elseif ($page == 'inside'):
                                 <th>Vehicle</th>
                                 <th>Driver</th>
                                 <th>Transporter</th>
+                                <th>Purpose</th>
                                 <th>Time In</th>
                                 <th>Permit Expiry</th>
                                 <th>Duration</th>
@@ -1754,6 +1755,9 @@ elseif ($page == 'inside'):
                                     </td>
                                     <td>
                                         <?php echo $entry['transporter_name'] ?: '-'; ?>
+                                    </td>
+                                    <td>
+                                        <?php echo htmlspecialchars($entry['purpose_name'] ?: '-'); ?>
                                     </td>
                                     <td>
                                         <?php echo strtoupper(date('d-M-y h:i A', strtotime($entry['inward_datetime']))); ?>
@@ -5729,7 +5733,10 @@ elseif ($page == 'reports'):
             $loading_where[] = "transport_company_name LIKE '%$transporter_filter%'";
         }
         $loading_where_sql = $loading_where ? 'WHERE ' . implode(' AND ', $loading_where) : '';
-        $loading_query = mysqli_query($conn, "SELECT * FROM vehicle_loading_checklist $loading_where_sql ORDER BY reporting_datetime DESC LIMIT 200");
+        $loading_query = mysqli_query($conn, "SELECT lc.*, ti.purpose_name 
+                                            FROM vehicle_loading_checklist lc 
+                                            LEFT JOIN truck_inward ti ON lc.inward_id = ti.id 
+                                            $loading_where_sql ORDER BY lc.reporting_datetime DESC LIMIT 200");
         while ($row = mysqli_fetch_assoc($loading_query)) {
             $loading_entries[] = $row;
         }
@@ -5755,7 +5762,10 @@ elseif ($page == 'reports'):
             $unloading_where[] = "transport_company_name LIKE '%$transporter_filter%'";
         }
         $unloading_where_sql = $unloading_where ? 'WHERE ' . implode(' AND ', $unloading_where) : '';
-        $unloading_query = mysqli_query($conn, "SELECT * FROM vehicle_unloading_checklist $unloading_where_sql ORDER BY reporting_datetime DESC LIMIT 200");
+        $unloading_query = mysqli_query($conn, "SELECT uc.*, ti.purpose_name 
+                                            FROM vehicle_unloading_checklist uc 
+                                            LEFT JOIN truck_inward ti ON uc.inward_id = ti.id 
+                                            $unloading_where_sql ORDER BY uc.reporting_datetime DESC LIMIT 200");
         while ($row = mysqli_fetch_assoc($unloading_query)) {
             $unloading_entries[] = $row;
         }
@@ -6236,6 +6246,7 @@ elseif ($page == 'reports'):
                                 <th>Vehicle</th>
                                 <th>Driver</th>
                                 <th>Transport Company</th>
+                                <th>Purpose</th>
                                 <th>Loading for Location</th>
                                 <th>Status</th>
                             </tr>
@@ -6260,6 +6271,9 @@ elseif ($page == 'reports'):
                                         </td>
                                         <td>
                                             <?php echo htmlspecialchars($entry['transport_company_name'] ?? '-'); ?>
+                                        </td>
+                                        <td>
+                                            <?php echo htmlspecialchars($entry['purpose_name'] ?? '-'); ?>
                                         </td>
                                         <td>
                                             <?php echo htmlspecialchars($entry['loading_location'] ?? '-'); ?>
@@ -6298,6 +6312,7 @@ elseif ($page == 'reports'):
                                 <th>Vehicle</th>
                                 <th>Driver</th>
                                 <th>Transport Company</th>
+                                <th>Purpose</th>
                                 <th>Vendor</th>
                                 <th>Status</th>
                             </tr>
@@ -6322,6 +6337,9 @@ elseif ($page == 'reports'):
                                         </td>
                                         <td>
                                             <?php echo htmlspecialchars($entry['transport_company_name'] ?? '-'); ?>
+                                        </td>
+                                        <td>
+                                            <?php echo htmlspecialchars($entry['purpose_name'] ?? '-'); ?>
                                         </td>
                                         <td>
                                             <?php echo htmlspecialchars($entry['vendor_name'] ?? '-'); ?>
