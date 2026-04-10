@@ -488,6 +488,7 @@
                 $master_conn = getMasterDatabaseConnection();
                 // Fetch ALL columns to ensure auditDiff detects all changes
                 $old_res = mysqli_query($master_conn, "SELECT * FROM tenants WHERE id = $tenant_id");
+                if (!$old_res) throw new Exception("Failed to fetch old tenant data: " . mysqli_error($master_conn));
                 $old_row = mysqli_fetch_assoc($old_res) ?: [];
 
                 // Use prepared statement to update all fields including name and db_name
@@ -519,8 +520,11 @@
                                 $latest_perms = json_encode(getAppDefaultPermissions(true));
                                 $esc_perms = mysqli_real_escape_string($t_conn, $latest_perms);
                                 // This might fail if user_master doesn't exist yet or if no admin role exists
-                                @mysqli_query($t_conn, "UPDATE user_master SET permissions = '$esc_perms' WHERE role = 'admin'");
-                                @mysqli_close($t_conn);
+                                mysqli_query($t_conn, "UPDATE user_master SET permissions = '$esc_perms' WHERE role = 'admin'");
+                                mysqli_close($t_conn);
+                            } else {
+                                // Log but don't crash if tenant DB connection fails during permissions sync
+                                error_log("Admin: Could not connect to tenant DB $t_db for permission sync.");
                             }
                         } catch (Exception $e) {
                             // Suppress tenant-specific connector errors to prevent master platform crash
@@ -547,7 +551,7 @@
                     $audit_str = auditDiff($old_row, $_POST, ['edit_tenant_id', 'create_tenant'], $labels);
                     if (!empty($audit_str)) {
                         try {
-                            logActivity($conn, 'TENANT_UPDATE', 'Multi-Tenancy', "Updated Tenant Metadata:\n" . $audit_str);
+                            logActivity($master_conn, 'TENANT_UPDATE', 'Multi-Tenancy', "Updated Tenant Metadata:\n" . $audit_str);
                         } catch (Exception $e) {
                             error_log("Audit Log Failed: " . $e->getMessage());
                         }

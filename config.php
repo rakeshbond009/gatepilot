@@ -1,4 +1,7 @@
 <?php
+// Prevent mysqli from throwing exceptions by default (PHP 8.1+ compatibility)
+mysqli_report(MYSQLI_REPORT_OFF);
+
 /**
  * AUTOMATIC ENVIRONMENT DETECTION & DATABASE CONFIGURATION
  * This file automatically detects whether the application is running on:

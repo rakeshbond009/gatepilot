@@ -105,23 +105,25 @@ if ($export_tab === 'inward') {
     }
     $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-    $columns = ['Document ID', 'Reporting Date/Time', 'Vehicle Number', 'Vehicle Make', 'Capacity', 'Loading Location', 'Body Type', 'Transporter', 'Driver Name', 'Licence No', 'Status'];
+    $columns = ['Document ID', 'Reporting Date/Time', 'Vehicle Number', 'Vehicle Make', 'Capacity', 'Loading Location', 'Purpose', 'Body Type', 'Transporter', 'Driver Name', 'Licence No', 'Status'];
     $query = "
         SELECT
-            document_id as 'Document ID',
-            DATE_FORMAT(reporting_datetime, '%d-%m-%Y %H:%i') as 'Reporting Date/Time',
-            vehicle_registration_number as 'Vehicle Number',
-            vehicle_type_make as 'Vehicle Make',
-            capacity as 'Capacity',
-            loading_location as 'Loading Location',
-            body_type as 'Body Type',
-            transport_company_name as 'Transporter',
-            driver_name as 'Driver Name',
-            license_number as 'Licence No',
-            status as 'Status'
-        FROM vehicle_loading_checklist
+            lc.document_id as 'Document ID',
+            DATE_FORMAT(lc.reporting_datetime, '%d-%m-%Y %H:%i') as 'Reporting Date/Time',
+            lc.vehicle_registration_number as 'Vehicle Number',
+            lc.vehicle_type_make as 'Vehicle Make',
+            lc.capacity as 'Capacity',
+            lc.loading_location as 'Loading Location',
+            ti.purpose_name as 'Purpose',
+            lc.body_type as 'Body Type',
+            lc.transport_company_name as 'Transporter',
+            lc.driver_name as 'Driver Name',
+            lc.license_number as 'Licence No',
+            lc.status as 'Status'
+        FROM vehicle_loading_checklist lc
+        LEFT JOIN truck_inward ti ON lc.inward_id = ti.id
         $where_sql
-        ORDER BY reporting_datetime DESC
+        ORDER BY lc.reporting_datetime DESC
     ";
     $result = mysqli_query($conn, $query);
 } elseif ($export_tab === 'outward') {
@@ -145,13 +147,14 @@ if ($export_tab === 'inward') {
     }
     $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-    $columns = ['Outward Date/Time', 'Vehicle Number', 'Driver Name', 'Transporter', 'Outward By', 'Duration (hrs)', 'Remarks'];
+    $columns = ['Outward Date/Time', 'Vehicle Number', 'Driver Name', 'Transporter', 'Purpose', 'Outward By', 'Duration (hrs)', 'Remarks'];
     $query = "
         SELECT
             DATE_FORMAT(tou.outward_datetime, '%d-%m-%Y %H:%i') as 'Outward Date/Time',
             ti.vehicle_number as 'Vehicle Number',
             ti.driver_name as 'Driver Name',
             ti.transporter_name as 'Transporter',
+            ti.purpose_name as 'Purpose',
             tou.outward_by_name as 'Outward By',
             tou.duration_hours as 'Duration (hrs)',
             tou.outward_remarks as 'Remarks'
@@ -333,25 +336,27 @@ if ($export_tab === 'inward') {
     }
     $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-    $columns = ['Document ID', 'Reporting Date/Time', 'Vehicle Number', 'Vehicle Make', 'Body Type', 'Transporter', 'Driver Name', 'Driver Mobile', 'Vendor', 'Challan No', 'Invoice No', 'GST No', 'Status'];
+    $columns = ['Document ID', 'Reporting Date/Time', 'Vehicle Number', 'Vehicle Make', 'Purpose', 'Body Type', 'Transporter', 'Driver Name', 'Driver Mobile', 'Vendor', 'Challan No', 'Invoice No', 'GST No', 'Status'];
     $query = "
         SELECT
-            document_id as 'Document ID',
-            DATE_FORMAT(reporting_datetime, '%d-%m-%Y %H:%i') as 'Reporting Date/Time',
-            vehicle_registration_number as 'Vehicle Number',
-            vehicle_type as 'Vehicle Make',
-            body_type as 'Body Type',
-            transport_company_name as 'Transporter',
-            driver_name as 'Driver Name',
-            driver_mobile as 'Driver Mobile',
-            vendor_name as 'Vendor',
-            challan_no as 'Challan No',
-            invoice_no as 'Invoice No',
-            gst_number as 'GST No',
-            status as 'Status'
-        FROM vehicle_unloading_checklist
+            uc.document_id as 'Document ID',
+            DATE_FORMAT(uc.reporting_datetime, '%d-%m-%Y %H:%i') as 'Reporting Date/Time',
+            uc.vehicle_registration_number as 'Vehicle Number',
+            uc.vehicle_type as 'Vehicle Make',
+            ti.purpose_name as 'Purpose',
+            uc.body_type as 'Body Type',
+            uc.transport_company_name as 'Transporter',
+            uc.driver_name as 'Driver Name',
+            uc.driver_mobile as 'Driver Mobile',
+            uc.vendor_name as 'Vendor',
+            uc.challan_no as 'Challan No',
+            uc.invoice_no as 'Invoice No',
+            uc.gst_number as 'GST No',
+            uc.status as 'Status'
+        FROM vehicle_unloading_checklist uc
+        LEFT JOIN truck_inward ti ON uc.inward_id = ti.id
         $where_sql
-        ORDER BY reporting_datetime DESC
+        ORDER BY uc.reporting_datetime DESC
     ";
     $result = mysqli_query($conn, $query);
 }
