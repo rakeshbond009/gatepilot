@@ -771,7 +771,16 @@ endif; ?>
                             <span>🏪</span>
                             <span>Vendor Name</span>
                         </label>
-                        <input type="text" name="vendor_name" id="vendor_name" value="<?php echo $edit_data ? htmlspecialchars($edit_data['vendor_name']) : ''; ?>" placeholder="Search or select vendor" list="vendor_list" style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; width: 100%; box-sizing: border-box;" onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';" onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                        <div style="position: relative; width: 100%;">
+                            <input type="text" name="vendor_name" id="vendor_name" 
+                                value="<?php echo $edit_data ? htmlspecialchars($edit_data['vendor_name']) : ''; ?>" 
+                                placeholder="Search or select vendor" list="vendor_list" 
+                                style="padding: 12px 40px 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; width: 100%; box-sizing: border-box; background: white;" 
+                                onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';" 
+                                onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
+                                autocomplete="off">
+                            <span style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; font-size: 14px;">▼</span>
+                        </div>
                         <datalist id="vendor_list">
                             <?php
                             $v_res = mysqli_query($conn, $vendors_query);
@@ -923,7 +932,7 @@ endforeach; ?>
                     </div>
                     <div class="form-group">
                         <label>Net Weight At The Time Of Entry</label>
-                        <input type="number" name="net_weight_invoice" id="net_weight_invoice" value="<?php echo $edit_data ? $edit_data['net_weight_invoice'] : ''; ?>" step="0.01" placeholder="In kg" readonly style="background: #f9fafb;">
+                        <input type="number" name="net_weight_invoice" id="net_weight_invoice" value="<?php echo $edit_data ? $edit_data['net_weight_invoice'] : ''; ?>" step="0.01" placeholder="In kg">
                     </div>
                 </div>
             </div>

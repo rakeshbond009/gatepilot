@@ -477,6 +477,19 @@
         mysqli_query($master_conn, "ALTER TABLE tenants ADD COLUMN user_limit INT DEFAULT 10 AFTER admin_password_hash");
     }
 
+    // Ensure customer_master columns exist
+    $col_checks = [
+        'location' => "ALTER TABLE customer_master ADD COLUMN location VARCHAR(255) DEFAULT NULL AFTER address",
+        'other_compliance' => "ALTER TABLE customer_master ADD COLUMN other_compliance TEXT DEFAULT NULL AFTER pan_number",
+        'is_active' => "ALTER TABLE customer_master ADD COLUMN is_active TINYINT(1) DEFAULT 1 AFTER other_compliance"
+    ];
+    foreach ($col_checks as $col => $alter_sql) {
+        $check = mysqli_query($conn, "SHOW COLUMNS FROM customer_master LIKE '$col'");
+        if (mysqli_num_rows($check) == 0) {
+            mysqli_query($conn, $alter_sql);
+        }
+    }
+
     // Handle Create Tenant (Multi-Tenancy)
     if (isset($_POST['create_tenant'])) {
         // DEBUG: Log the arrival of a create_tenant request

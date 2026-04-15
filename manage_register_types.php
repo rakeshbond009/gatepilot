@@ -219,7 +219,8 @@ endif; ?>
                         <?php $unique_suffix = rand(10000, 99999); ?>
                         <div class="form-group-p">
                             <label>Display Title</label>
-                            <input type="text" name="title" required placeholder="e.g. Visitor Outward" oninput="document.getElementById('slug_input').value = this.value ? this.value.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_<?php echo $unique_suffix; ?>' : ''">
+                            <input type="text" name="title" id="title_input" required placeholder="e.g. Visitor Outward" oninput="handleTitleInput(this)">
+                            <small id="title_check_msg" style="display:block; margin-top:5px; font-weight:600;"></small>
                         </div>
 
                         <div class="form-group-p">
@@ -482,6 +483,68 @@ endforeach; ?>
 </style>
 
 <script>
+// ==================== REAL-TIME VALIDATION ====================
+let titleCheckTimeout = null;
+let lastCheckedTitle = "";
+
+function handleTitleInput(input) {
+    const title = input.value.trim();
+    const slugInput = document.getElementById('slug_input');
+    const msgEl = document.getElementById('title_check_msg');
+    const submitBtn = input.form.querySelector('button[type="submit"]');
+    
+    // 1. Auto-generate slug (only if title is provided)
+    if (slugInput && title && title !== lastCheckedTitle) {
+        // We append a random suffix to ensure internal uniqueness even if titles are similar
+        slugInput.value = title.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_<?php echo rand(10000, 99999); ?>';
+    }
+
+    if (!title) {
+        msgEl.innerHTML = '';
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        return;
+    }
+
+    // 2. Debounce AJAX check (Reduced to 300ms for snappier feel)
+    clearTimeout(titleCheckTimeout);
+    titleCheckTimeout = setTimeout(() => {
+        if (title === lastCheckedTitle) return;
+        
+        fetch('check_duplicate_register.php?title=' + encodeURIComponent(title))
+            .then(r => r.json())
+            .then(data => {
+                if (data.exists) {
+                    msgEl.innerHTML = '❌ Error: Duplicate Title detected.';
+                    msgEl.style.color = '#ef4444';
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.5';
+                    submitBtn.style.cursor = 'not-allowed';
+                    
+                    // Trigger POPUP as requested by user
+                    Swal.fire({
+                        title: 'Title Already Exists!',
+                        text: 'A register with the name "' + title + '" is already configured in the system. Please use a unique display title.',
+                        icon: 'warning',
+                        confirmButtonColor: '#4f46e5',
+                        allowOutsideClick: false
+                    });
+                } else {
+                    msgEl.innerHTML = '✅ Title is unique and available';
+                    msgEl.style.color = '#10b981';
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '1';
+                    submitBtn.style.cursor = 'pointer';
+                    lastCheckedTitle = title;
+                }
+            })
+            .catch(err => {
+                console.error('Validation error:', err);
+                // Fallback: assume unique if check fails but log it
+            });
+    }, 300);
+}
+
 // ==================== DELETE CONFIRMATION ====================
 function confirmDeleteRegister(btn) {
     showAppConfirm('Delete this register? This action is irreversible if no entries exist.', function(confirmed) {

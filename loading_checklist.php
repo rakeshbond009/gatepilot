@@ -896,10 +896,15 @@ endif; ?>
                                 <span>🏢</span>
                                 <span>Customer Name</span>
                             </label>
-                            <input type="text" name="customer_name" id="customer_name"
-                                value="<?php echo htmlspecialchars($edit_data['customer_name'] ?? ''); ?>"
-                                placeholder="Search or select customer" list="customer_list" autocomplete="off"
-                                style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; width: 100%;">
+                            <div style="position: relative; width: 100%;">
+                                <input type="text" name="customer_name" id="customer_name"
+                                    value="<?php echo htmlspecialchars($edit_data['customer_name'] ?? ''); ?>"
+                                    placeholder="Search or select customer" list="customer_list" autocomplete="off"
+                                    style="padding: 12px 40px 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; width: 100%; box-sizing: border-box; background: white;"
+                                    onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
+                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                                <span style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; font-size: 14px;">▼</span>
+                            </div>
                             <input type="hidden" name="customer_id" id="customer_id"
                                 value="<?php echo htmlspecialchars($edit_data['customer_id'] ?? ''); ?>">
                             <datalist id="customer_list">
