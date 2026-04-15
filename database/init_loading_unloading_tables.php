@@ -49,6 +49,15 @@ function initLoadingUnloadingTables($conn) {
                  AFTER `vehicle_type`"
             );
         }
+
+        $check_verified_items = mysqli_query($conn, "SHOW COLUMNS FROM vehicle_unloading_checklist LIKE 'verified_items_json'");
+        if ($check_verified_items && mysqli_num_rows($check_verified_items) == 0) {
+            mysqli_query(
+                $conn,
+                "ALTER TABLE `vehicle_unloading_checklist` 
+                 ADD COLUMN `verified_items_json` JSON DEFAULT NULL AFTER `safety_checks_json`"
+            );
+        }
     }
 
     // Do NOT early-return here: we also need vendor/customer masters and outgoing checklist table
@@ -125,21 +134,37 @@ function initLoadingUnloadingTables($conn) {
       `other_remarks` TEXT,
       `other_remarks_obs` ENUM('OK', 'NOT OK', 'NA') DEFAULT NULL,
       `other_remarks_action` TEXT,
-      `security_signature` VARCHAR(100),
-      `checked_by` INT,
-      `checked_by_name` VARCHAR(100),
-      `status` ENUM('draft', 'completed', 'cancelled') DEFAULT 'draft',
-      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-      `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (`transport_company_id`) REFERENCES `transporter_master`(`id`) ON DELETE SET NULL,
-      FOREIGN KEY (`checked_by`) REFERENCES `user_master`(`id`) ON DELETE SET NULL,
-      INDEX `idx_vehicle_registration` (`vehicle_registration_number`),
-      INDEX `idx_reporting_datetime` (`reporting_datetime`),
-      INDEX `idx_inward_id` (`inward_id`),
-      INDEX `idx_status` (`status`),
-      INDEX `idx_document_id` (`document_id`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-    mysqli_query($conn, $sql);
+        `customer_id` INT,
+        `customer_name` VARCHAR(200),
+        `destination` VARCHAR(200),
+        `verified_items_json` JSON,
+        `security_signature` VARCHAR(100),
+        `checked_by` INT,
+        `checked_by_name` VARCHAR(100),
+        `status` ENUM('draft', 'completed', 'cancelled') DEFAULT 'draft',
+        `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (`transport_company_id`) REFERENCES `transporter_master`(`id`) ON DELETE SET NULL,
+        FOREIGN KEY (`customer_id`) REFERENCES `customer_master`(`id`) ON DELETE SET NULL,
+        FOREIGN KEY (`checked_by`) REFERENCES `user_master`(`id`) ON DELETE SET NULL,
+        INDEX `idx_vehicle_registration` (`vehicle_registration_number`),
+        INDEX `idx_reporting_datetime` (`reporting_datetime`),
+        INDEX `idx_inward_id` (`inward_id`),
+        INDEX `idx_status` (`status`),
+        INDEX `idx_document_id` (`document_id`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+      mysqli_query($conn, $sql);
+
+      // Add missing columns if table already exists (for existing installations)
+      $check_cols = mysqli_query($conn, "SHOW COLUMNS FROM vehicle_loading_checklist LIKE 'customer_name'");
+      if ($check_cols && mysqli_num_rows($check_cols) == 0) {
+          mysqli_query($conn, "ALTER TABLE vehicle_loading_checklist 
+              ADD COLUMN `customer_id` INT AFTER `vehicle_registration_number`,
+              ADD COLUMN `customer_name` VARCHAR(200) AFTER `customer_id`,
+              ADD COLUMN `destination` VARCHAR(200) AFTER `customer_name`,
+              ADD COLUMN `verified_items_json` JSON AFTER `destination`,
+              ADD FOREIGN KEY (`customer_id`) REFERENCES `customer_master`(`id`) ON DELETE SET NULL");
+      }
     
     // Create vehicle_unloading_checklist table
     $sql = "CREATE TABLE IF NOT EXISTS `vehicle_unloading_checklist` (
@@ -175,6 +200,7 @@ function initLoadingUnloadingTables($conn) {
       `invoice_no` VARCHAR(100),
       `gst_number` VARCHAR(15),
       `safety_checks_json` JSON,
+      `verified_items_json` JSON,
       `tanker_sealing_status_obs` ENUM('OK', 'NOT OK', 'NA') DEFAULT NULL,
       `tanker_sealing_status_remarks` TEXT,
       `tanker_emergency_panel_obs` ENUM('Yes', 'No', 'NA') DEFAULT NULL,

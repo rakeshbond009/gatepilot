@@ -64,12 +64,16 @@ CREATE TABLE IF NOT EXISTS `customer_master` (
   `mobile` varchar(15) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
   `address` text DEFAULT NULL,
+  `location` varchar(255) DEFAULT NULL,
+  `gst_number` varchar(50) DEFAULT NULL,
+  `pan_number` varchar(50) DEFAULT NULL,
+  `other_compliance` text DEFAULT NULL,
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_customer_name` (`customer_name`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `department_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -288,11 +292,12 @@ CREATE TABLE IF NOT EXISTS `supplier_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `supplier` varchar(100) NOT NULL,
   `supp_code` varchar(50) NOT NULL,
+  `gst_number` varchar(15) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `is_active` tinyint(1) DEFAULT 1,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_supp_code` (`supp_code`)
-) ENGINE=InnoDB AUTO_INCREMENT=53 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `transporter_master` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -438,6 +443,10 @@ CREATE TABLE IF NOT EXISTS `vehicle_loading_checklist` (
   `transport_company_id` int(11) DEFAULT NULL,
   `transport_company_name` varchar(200) DEFAULT NULL,
   `vehicle_registration_number` varchar(20) NOT NULL,
+  `customer_id` int(11) DEFAULT NULL,
+  `customer_name` varchar(200) DEFAULT NULL,
+  `destination` varchar(200) DEFAULT NULL,
+  `verified_items_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`verified_items_json`)),
   `driver_name` varchar(100) DEFAULT NULL,
   `license_number` varchar(50) DEFAULT NULL,
   `engine_number` varchar(50) DEFAULT NULL,
@@ -598,6 +607,7 @@ CREATE TABLE IF NOT EXISTS `vehicle_unloading_checklist` (
   `invoice_no` varchar(100) DEFAULT NULL,
   `gst_number` varchar(15) DEFAULT NULL,
   `safety_checks_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`safety_checks_json`)),
+  `verified_items_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`verified_items_json`)),
   `tanker_sealing_status_obs` enum('OK','NOT OK','NA') DEFAULT NULL,
   `tanker_sealing_status_remarks` text DEFAULT NULL,
   `tanker_emergency_panel_obs` enum('Yes','No','NA') DEFAULT NULL,

@@ -26,7 +26,7 @@ if (isset($conn)) {
             if (options[i].value === val) {
                 const code = options[i].getAttribute('data-code');
                 const name = options[i].getAttribute('data-name');
-                
+
                 // Find relative inputs in the same row/container
                 const container = el.parentElement.parentElement;
                 const codeInput = container.querySelector('#new_item_code');
@@ -238,10 +238,10 @@ if (isset($conn)) {
         endif; ?>
 
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <a href="?page=dashboard" class="btn btn-secondary"
-                style="flex: 1; display: block; position: relative; z-index: 10; text-align: center; text-decoration: none; padding: 10px; border-radius: 6px; background: #6b7280; color: white;">
-                ← Back to Dashboard
-            </a>
+            <button type="button" onclick="goBack();" class="btn btn-secondary"
+                style="flex: 1; display: block; position: relative; z-index: 10; text-align: center; text-decoration: none; padding: 10px; border-radius: 6px; background: #6b7280; color: white; border: none; width: 100%;">
+                ← Back
+            </button>
         </div>
 
         <!-- Form Header with Gradient -->
@@ -395,6 +395,7 @@ if (isset($conn)) {
                             list="purpose_list"
                             style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
                             onfocus="this.style.borderColor='#f59e0b'; this.style.boxShadow='0 0 0 3px rgba(245, 158, 11, 0.1)';"
+                            oninput="toggleBillSection(this.value)"
                             onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                         <datalist id="purpose_list">
                             <?php
@@ -409,7 +410,7 @@ if (isset($conn)) {
             </div>
 
             <!-- Section 4: Bill & Location Details -->
-            <div class="card"
+            <div class="card" id="bill_location_card"
                 style="margin-bottom: 20px; border-left: 4px solid #8b5cf6; background: linear-gradient(to right, #faf5ff 0%, white 10%);">
                 <div
                     style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
@@ -507,14 +508,16 @@ if (isset($conn)) {
                         <div>
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
-                            <input type="text" id="new_item_code" placeholder="Code" list="material_datalist" oninput="handleMaterialAutofill(this)"
+                            <input type="text" id="new_item_code" placeholder="Code" list="material_datalist"
+                                oninput="handleMaterialAutofill(this)"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
                         <div>
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
                                 NAME</label>
-                            <input type="text" id="new_item_name" placeholder="Search by name or code" list="material_datalist" oninput="handleMaterialAutofill(this)"
+                            <input type="text" id="new_item_name" placeholder="Search by name or code"
+                                list="material_datalist" oninput="handleMaterialAutofill(this)"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
                         <div>
@@ -550,10 +553,11 @@ if (isset($conn)) {
                     <input type="hidden" name="items" id="items_hidden_input">
                     <datalist id="material_datalist">
                         <?php foreach ($all_materials as $mat): ?>
-                            <option value="<?php echo "[{$mat['material_code']}] " . htmlspecialchars($mat['material_description']); ?>" 
-                                    data-code="<?php echo htmlspecialchars($mat['material_code']); ?>" 
-                                    data-name="<?php echo htmlspecialchars($mat['material_description']); ?>">
-                        <?php endforeach; ?>
+                            <option
+                                value="<?php echo "[{$mat['material_code']}] " . htmlspecialchars($mat['material_description']); ?>"
+                                data-code="<?php echo htmlspecialchars($mat['material_code']); ?>"
+                                data-name="<?php echo htmlspecialchars($mat['material_description']); ?>">
+                            <?php endforeach; ?>
                     </datalist>
                 </div>
             </div>
@@ -1280,8 +1284,12 @@ elseif ($page == 'loading'):
     // Initialize tables if needed
     require_once dirname(__DIR__) . '/database/init_loading_unloading_tables.php';
     initLoadingUnloadingTables($conn);
-    // Include the form
-    include dirname(__DIR__) . '/loading_checklist.php';
+    if (!hasPermission('pages.loading')) {
+        echo "<div class='container'><div class='alert alert-error'>🚫 Access Denied: You do not have permission to access the Loading Checklist.</div></div>";
+    } else {
+        // Include the form
+        include dirname(__DIR__) . '/loading_checklist.php';
+    }
 
     // ==================== UNLOADING CHECKLIST ====================
 elseif ($page == 'unloading'):
@@ -1289,8 +1297,12 @@ elseif ($page == 'unloading'):
     // Initialize tables if needed
     require_once dirname(__DIR__) . '/database/init_loading_unloading_tables.php';
     initLoadingUnloadingTables($conn);
-    // Include the form
-    include dirname(__DIR__) . '/unloading_checklist.php';
+    if (!hasPermission('pages.unloading')) {
+        echo "<div class='container'><div class='alert alert-error'>🚫 Access Denied: You do not have permission to access the Unloading Checklist.</div></div>";
+    } else {
+        // Include the form
+        include dirname(__DIR__) . '/unloading_checklist.php';
+    }
 
     // ==================== TRUCK OUTWARD ====================
 elseif ($page == 'outward'):
@@ -1327,10 +1339,10 @@ elseif ($page == 'outward'):
         endif; ?>
 
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <a href="?page=dashboard" class="btn btn-secondary"
-                style="flex: 1; display: block; position: relative; z-index: 10; text-align: center; text-decoration: none; padding: 10px; border-radius: 6px; background: #6b7280; color: white;">
-                ← Back to Dashboard
-            </a>
+            <button type="button" onclick="goBack();" class="btn btn-secondary"
+                style="flex: 1; display: block; position: relative; z-index: 10; text-align: center; text-decoration: none; padding: 10px; border-radius: 6px; background: #6b7280; color: white; border: none; width: 100%;">
+                ← Back
+            </button>
         </div>
 
         <!-- Form Header with Gradient -->
@@ -1853,10 +1865,10 @@ elseif ($page == 'inside'):
             endif; ?>
         </div>
 
-        <a href="?page=dashboard" class="btn btn-secondary btn-full"
-            style="margin-top: 20px; margin-bottom: 20px; display: block; position: relative; z-index: 10;">
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+            style="margin-top: 20px; margin-bottom: 20px; display: block; position: relative; z-index: 10; width: 100%;">
             ← Back
-        </a>
+        </button>
     </div>
 
     <?php
@@ -1867,7 +1879,7 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
     $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
     if ($id <= 0) {
-        echo "<div class='container'><div class='alert alert-error'>Invalid entry ID!</div><a href='?page=inside' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Invalid entry ID!</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
@@ -1883,12 +1895,12 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
     $entry_result = mysqli_query($conn, "SELECT * FROM truck_inward WHERE id = $id_escaped LIMIT 1");
 
     if (!$entry_result) {
-        echo "<div class='container'><div class='alert alert-error'>Database error: " . mysqli_error($conn) . "</div><a href='?page=inside' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Database error: " . mysqli_error($conn) . "</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
     if (mysqli_num_rows($entry_result) == 0) {
-        echo "<div class='container'><div class='alert alert-error'>Entry not found! (ID: $id)</div><a href='?page=inside' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Entry not found! (ID: $id)</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
@@ -1896,7 +1908,7 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
 
     // Verify entry was fetched correctly
     if (!$entry || !isset($entry['id'])) {
-        echo "<div class='container'><div class='alert alert-error'>Error loading entry data!</div><a href='?page=inside' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Error loading entry data!</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
@@ -2330,7 +2342,7 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
                         <div>
                             <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Reporting Time
                                 (Plant)</strong><br>
@@ -2353,6 +2365,38 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                             </span>
                         </div>
                     </div>
+
+                    <!-- Verified Items Table -->
+                    <?php 
+                    $lc_items = json_decode($loading_checklist['verified_items_json'] ?? '[]', true) ?: [];
+                    if (!empty($lc_items)): ?>
+                        <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; pt: 15px;">
+                            <strong style="color: #0369a1; font-size: 14px; display: block; margin-bottom: 10px;">📦 Materials Loaded (Verified)</strong>
+                            <div class="table-wrapper">
+                                <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f1f5f9; text-align: left; border-bottom: 2px solid #e2e8f0;">
+                                            <th style="padding: 10px; width: 80px;">Code</th>
+                                            <th style="padding: 10px;">Item Description</th>
+                                            <th style="padding: 10px; text-align: right; width: 80px;">Qty</th>
+                                            <th style="padding: 10px; text-align: center; width: 80px;">Unit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($lc_items as $item): ?>
+                                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                                <td style="padding: 10px;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?></td>
+                                                <td style="padding: 10px; font-weight: 500;"><?php echo htmlspecialchars($item['item_name'] ?? 'N/A'); ?></td>
+                                                <td style="padding: 10px; text-align: right; font-weight: 600;"><?php echo number_format($item['quantity'] ?? 0, 2); ?></td>
+                                                <td style="padding: 10px; text-align: center;"><?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
                 </div>
                 <?php
             endif; ?>
@@ -2832,7 +2876,7 @@ elseif ($page == 'loading-details'):
     $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
     if ($id <= 0) {
-        echo "<div class='container'><div class='alert alert-error'>Invalid entry ID!</div><a href='?page=loading' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Invalid entry ID!</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
@@ -2845,7 +2889,7 @@ elseif ($page == 'loading-details'):
     $entry_result = mysqli_query($conn, "SELECT * FROM vehicle_loading_checklist WHERE id = $id_escaped LIMIT 1");
 
     if (!$entry_result || mysqli_num_rows($entry_result) == 0) {
-        echo "<div class='container'><div class='alert alert-error'>Loading checklist not found!</div><a href='?page=loading' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Loading checklist not found!</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
@@ -3247,6 +3291,66 @@ elseif ($page == 'loading-details'):
                 </table>
             </div>
 
+            <!-- Material Items Information -->
+            <?php 
+            $verified_items = json_decode($entry['verified_items_json'] ?? '[]', true) ?: [];
+            if (!empty($verified_items)): ?>
+                <div style="margin-top: 30px; padding: 20px; background: #f0f9ff; border-radius: 12px; border-left: 5px solid #0ea5e9;">
+                    <h3 style="margin-top: 0; margin-bottom: 15px; color: #0369a1; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                        📦 Material Items (Verified For Loading)
+                    </h3>
+                    <div class="table-wrapper">
+                        <table style="width: 100%; border-collapse: separate; border-spacing: 0 4px;">
+                            <thead>
+                                <tr style="text-align: left; background: #e0f2fe; font-size: 11px; color: #0369a1; text-transform: uppercase;">
+                                    <th style="padding: 12px; border-radius: 6px 0 0 6px;">Code</th>
+                                    <th style="padding: 12px;">Item Description</th>
+                                    <th style="padding: 12px; text-align: right;">Quantity</th>
+                                    <th style="padding: 12px; text-align: center; border-radius: 0 6px 6px 0;">Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($verified_items as $item): ?>
+                                    <tr style="background: white;">
+                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-family: monospace;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?></td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #1e293b;"><?php echo htmlspecialchars($item['item_name'] ?? 'N/A'); ?></td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 700; color: #0369a1;"><?php echo number_format($item['quantity'] ?? 0, 2); ?></td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #64748b;"><?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <!-- Inward Reference (Items recorded at Gate) -->
+            <?php 
+            if (!empty($entry['inward_id'])): 
+                $inw_id = intval($entry['inward_id']);
+                $inward_q = mysqli_query($conn, "SELECT items_json FROM truck_inward WHERE id = $inw_id LIMIT 1");
+                if ($inward_q && mysqli_num_rows($inward_q) > 0) {
+                    $inw_row = mysqli_fetch_assoc($inward_q);
+                    $inw_items = json_decode($inw_row['items_json'] ?? '[]', true) ?: [];
+                    if (!empty($inw_items)): ?>
+                        <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                            <h4 style="margin: 0 0 10px 0; color: #475569; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+                                <span>🚛</span> Items Recorded at Gate (Inward)
+                            </h4>
+                            <div style="font-size: 13px; color: #64748b;">
+                                <?php 
+                                $summaries = [];
+                                foreach ($inw_items as $i) {
+                                    $summaries[] = ($i['item_name'] ?? 'Item') . " (" . ($i['quantity'] ?? 0) . " " . ($i['unit'] ?? 'Unit') . ")";
+                                }
+                                echo implode(", ", $summaries);
+                                ?>
+                            </div>
+                        </div>
+                    <?php endif;
+                }
+            endif; ?>
+
             <!-- Additional Information -->
             <table class="entry-details-table" style="margin-top: 30px;">
                 <tr>
@@ -3270,11 +3374,18 @@ elseif ($page == 'loading-details'):
             </table>
         </div>
 
-        <button onclick="goBack()" class="btn btn-secondary btn-full"
-            style="margin-top: 20px; margin-bottom: 20px; display: block; position: relative; z-index: 10; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; border-radius: 6px; background: #6b7280; color: white; transition: all 0.2s; width: 100%;"
-            onmouseover="this.style.background='#4b5563';" onmouseout="this.style.background='#6b7280';">
-            ← Back
-        </button>
+        <div style="display: flex; gap: 10px; margin-top: 20px; margin-bottom: 20px;">
+            <button onclick="goBack()" class="btn btn-secondary"
+                style="flex: 1; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; border-radius: 8px; background: #6b7280; color: white; transition: all 0.2s;">
+                ← Back
+            </button>
+            <?php if (hasPermission('actions.edit_record')): ?>
+                <a href="?page=loading&id=<?php echo $id; ?>" class="btn btn-warning"
+                    style="flex: 1; padding: 12px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; border: none; border-radius: 8px; background: #f59e0b; color: white; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <span>✏️</span> Edit Checklist
+                </a>
+            <?php endif; ?>
+        </div>
         <script>
             function goBack() {
                 if (window.history.length > 1) {
@@ -3294,7 +3405,7 @@ elseif ($page == 'unloading-details'):
     $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
     if ($id <= 0) {
-        echo "<div class='container'><div class='alert alert-error'>Invalid entry ID!</div><a href='?page=unloading' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Invalid entry ID!</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
@@ -3644,8 +3755,262 @@ elseif ($page == 'unloading-details'):
                             <?php echo nl2br(htmlspecialchars($entry['other_remarks'])); ?>
                         </td>
                     </tr>
-                    <?php
-                endif; ?>
+                <?php endif; ?>
+
+                <?php
+                $verified_items = !empty($entry['verified_items_json']) ? json_decode($entry['verified_items_json'], true) : [];
+                if (!empty($verified_items)):
+                    ?>
+                    <tr>
+                        <th>Verified Inward Items</th>
+                        <td>
+                            <?php
+                            $total_items = count($verified_items);
+                            $mismatches = 0;
+                            $verified = 0;
+                            foreach ($verified_items as $item) {
+                                if (!empty($item['is_verified']))
+                                    $verified++;
+                                if ((trim($item['expected_quantity'] ?? $item['quantity'] ?? '') != trim($item['observed_quantity'] ?? $item['expected_quantity'] ?? $item['quantity'] ?? '')) || !empty($item['item_remarks'])) {
+                                    $mismatches++;
+                                }
+                            }
+                            ?>
+
+                            <!-- Summary Bar -->
+                            <div
+                                style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; background: #f8fafc; padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <div style="flex: 1; min-width: 120px; text-align: center; border-right: 1px solid #e2e8f0;">
+                                    <span
+                                        style="display: block; font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase;">Total
+                                        Items</span>
+                                    <span
+                                        style="font-size: 18px; font-weight: 700; color: #1e293b;"><?php echo $total_items; ?></span>
+                                </div>
+                                <div style="flex: 1; min-width: 120px; text-align: center; border-right: 1px solid #e2e8f0;">
+                                    <span
+                                        style="display: block; font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase;">Verified</span>
+                                    <span
+                                        style="font-size: 18px; font-weight: 700; color: #10b981;"><?php echo $verified; ?></span>
+                                </div>
+                                <div style="flex: 1; min-width: 120px; text-align: center;">
+                                    <span
+                                        style="display: block; font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase;">Mismatches</span>
+                                    <span
+                                        style="font-size: 18px; font-weight: 700; color: #ef4444;"><?php echo $mismatches; ?></span>
+                                </div>
+                            </div>
+
+                            <!-- Filter & View Controls -->
+                            <div
+                                style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; align-items: center; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <div style="position: relative; flex: 1; min-width: 200px;">
+                                    <span style="position: absolute; left: 10px; top: 8px; color: #94a3b8;">🔍</span>
+                                    <input type="text" id="item-search-filter" placeholder="Search items..."
+                                        style="width: 100%; padding: 8px 8px 8px 32px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px;"
+                                        onkeyup="filterVerifiedItems()">
+                                </div>
+
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <label
+                                        style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #475569; cursor: pointer; white-space: nowrap;">
+                                        <input type="checkbox" id="show-mismatches-only" onchange="filterVerifiedItems()"
+                                            style="width: 16px; height: 16px;">
+                                        Only Mismatches
+                                    </label>
+
+                                    <!-- View Toggle -->
+                                    <div
+                                        style="display: flex; background: #f1f5f9; padding: 3px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                        <button type="button" onclick="switchItemView('grid')" id="view-btn-grid"
+                                            style="padding: 5px 12px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); color: #1e293b;">
+                                            🔲 Grid
+                                        </button>
+                                        <button type="button" onclick="switchItemView('table')" id="view-btn-table"
+                                            style="padding: 5px 12px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: transparent; color: #64748b;">
+                                            📄 List
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Content Container -->
+                            <div id="verified-items-wrapper"
+                                style="max-height: 600px; overflow-y: auto; padding-right: 5px; border: 1px solid #f1f5f9; border-radius: 12px;">
+
+                                <!-- Grid View (Cards) -->
+                                <div id="items-grid-view"
+                                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; padding: 10px;">
+                                    <?php foreach ($verified_items as $index => $item):
+                                        $is_verified = !empty($item['is_verified']);
+                                        $item_code = $item['item_code'] ?? '';
+                                        $description = $item['description'] ?? $item['item_name'] ?? $item['item_description'] ?? 'N/A';
+                                        $expected = $item['expected_quantity'] ?? $item['quantity'] ?? 'N/A';
+                                        $observed = $item['observed_quantity'] ?? $expected;
+                                        $remarks = $item['item_remarks'] ?? '';
+                                        $has_mismatch = (trim($expected) != trim($observed)) || (!empty($remarks));
+                                        $badge_class = $is_verified ? ($has_mismatch ? 'warning' : 'success') : 'error';
+                                        $status_text = $is_verified ? ($has_mismatch ? 'Shortage' : 'Verified') : 'Missing';
+                                        ?>
+                                        <div class="verified-item-card"
+                                            data-mismatch="<?php echo $has_mismatch ? 'true' : 'false'; ?>"
+                                            data-search="<?php echo htmlspecialchars(strtolower($description . ' ' . $item_code)); ?>"
+                                            style="padding: 14px; background: white; border-radius: 12px; border: 1px solid #e5e7eb; border-left: 5px solid <?php echo $is_verified ? ($has_mismatch ? '#f59e0b' : '#10b981') : '#ef4444'; ?>; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                            <div
+                                                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                                                <div style="flex: 1;">
+                                                    <div
+                                                        style="font-size: 10px; font-weight: 700; color: #6366f1; text-transform: uppercase;">
+                                                        <?php echo htmlspecialchars($item_code); ?>
+                                                    </div>
+                                                    <strong
+                                                        style="color: #1e293b; font-size: 14px; display: block; line-height: 1.3;"><?php echo htmlspecialchars($description); ?></strong>
+                                                </div>
+                                                <span class="badge badge-<?php echo $badge_class; ?>"
+                                                    style="font-size: 10px; padding: 2px 6px;"><?php echo $status_text; ?></span>
+                                            </div>
+                                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                                <div
+                                                    style="font-size: 12px; color: #64748b; background: #f8fafc; padding: 5px; border-radius: 6px;">
+                                                    <span
+                                                        style="font-size: 9px; display: block; color: #94a3b8; font-weight: 600;">EXP:
+                                                        <?php echo htmlspecialchars($expected); ?></span>
+                                                    <span
+                                                        style="font-size: 9px; display: block; color: #94a3b8; font-weight: 600;">OBS:
+                                                        <strong><?php echo htmlspecialchars($observed); ?></strong></span>
+                                                </div>
+                                                <?php if (!empty($remarks)): ?>
+                                                    <div
+                                                        style="font-size: 10px; color: #ef4444; background: #fef2f2; padding: 5px; border-radius: 6px; border: 1px solid #fecaca; overflow: hidden; text-overflow: ellipsis;">
+                                                        <?php echo htmlspecialchars($remarks); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+
+                                <!-- Table View (Compact List for 100+ items) -->
+                                <div id="items-table-view" style="display: none; padding: 0;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                        <thead style="position: sticky; top: 0; background: #f8fafc; z-index: 10;">
+                                            <tr style="border-bottom: 2px solid #e2e8f0;">
+                                                <th
+                                                    style="text-align: left; padding: 12px 10px; color: #64748b; font-weight: 600;">
+                                                    Code</th>
+                                                <th
+                                                    style="text-align: left; padding: 12px 10px; color: #64748b; font-weight: 600;">
+                                                    Description</th>
+                                                <th
+                                                    style="text-align: center; padding: 12px 10px; color: #64748b; font-weight: 600;">
+                                                    Exp</th>
+                                                <th
+                                                    style="text-align: center; padding: 12px 10px; color: #64748b; font-weight: 600;">
+                                                    Obs</th>
+                                                <th
+                                                    style="text-align: center; padding: 12px 10px; color: #64748b; font-weight: 600;">
+                                                    Status</th>
+                                                <th
+                                                    style="text-align: left; padding: 12px 10px; color: #64748b; font-weight: 600;">
+                                                    Remarks</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($verified_items as $item):
+                                                $is_verified = !empty($item['is_verified']);
+                                                $item_code = $item['item_code'] ?? '';
+                                                $description = $item['description'] ?? $item['item_name'] ?? $item['item_description'] ?? 'N/A';
+                                                $expected = $item['expected_quantity'] ?? $item['quantity'] ?? 'N/A';
+                                                $observed = $item['observed_quantity'] ?? $expected;
+                                                $remarks = $item['item_remarks'] ?? '';
+                                                $has_mismatch = (trim($expected) != trim($observed)) || (!empty($remarks));
+                                                $row_bg = $has_mismatch ? '#fffbeb' : 'transparent';
+                                                ?>
+                                                <tr class="verified-item-row"
+                                                    data-mismatch="<?php echo $has_mismatch ? 'true' : 'false'; ?>"
+                                                    data-search="<?php echo htmlspecialchars(strtolower($description . ' ' . $item_code)); ?>"
+                                                    style="border-bottom: 1px solid #f1f5f9; background: <?php echo $row_bg; ?>;">
+                                                    <td
+                                                        style="padding: 10px; color: #6366f1; font-weight: 600; font-family: monospace;">
+                                                        <?php echo htmlspecialchars($item_code); ?>
+                                                    </td>
+                                                    <td style="padding: 10px; color: #1e293b; font-weight: 500;">
+                                                        <?php echo htmlspecialchars($description); ?>
+                                                    </td>
+                                                    <td style="padding: 10px; text-align: center; color: #64748b;">
+                                                        <?php echo htmlspecialchars($expected); ?>
+                                                    </td>
+                                                    <td
+                                                        style="padding: 10px; text-align: center; font-weight: 700; color: <?php echo $has_mismatch ? '#b45309' : '#1e293b'; ?>;">
+                                                        <?php echo htmlspecialchars($observed); ?>
+                                                    </td>
+                                                    <td style="padding: 10px; text-align: center;">
+                                                        <span
+                                                            class="badge badge-<?php echo $is_verified ? ($has_mismatch ? 'warning' : 'success') : 'error'; ?>"
+                                                            style="font-size: 10px; padding: 2px 6px;">
+                                                            <?php echo $is_verified ? ($has_mismatch ? 'Mismatch' : 'Verified') : 'Missing'; ?>
+                                                        </span>
+                                                    </td>
+                                                    <td style="padding: 10px; color: #ef4444; font-size: 11px;">
+                                                        <?php echo htmlspecialchars($remarks); ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <script>
+                                function filterVerifiedItems() {
+                                    const searchQuery = document.getElementById('item-search-filter')?.value.toLowerCase() || '';
+                                    const showMismatchesOnly = document.getElementById('show-mismatches-only')?.checked || false;
+
+                                    // Filter Cards
+                                    document.querySelectorAll('.verified-item-card').forEach(card => {
+                                        const matchesSearch = card.getAttribute('data-search').includes(searchQuery);
+                                        const matchesMismatch = !showMismatchesOnly || card.getAttribute('data-mismatch') === 'true';
+                                        card.style.display = (matchesSearch && matchesMismatch) ? 'block' : 'none';
+                                    });
+
+                                    // Filter Table Rows
+                                    document.querySelectorAll('.verified-item-row').forEach(row => {
+                                        const matchesSearch = row.getAttribute('data-search').includes(searchQuery);
+                                        const matchesMismatch = !showMismatchesOnly || row.getAttribute('data-mismatch') === 'true';
+                                        row.style.display = (matchesSearch && matchesMismatch) ? 'table-row' : 'none';
+                                    });
+                                }
+
+                                function switchItemView(view) {
+                                    const gridView = document.getElementById('items-grid-view');
+                                    const tableView = document.getElementById('items-table-view');
+                                    const btnGrid = document.getElementById('view-btn-grid');
+                                    const btnTable = document.getElementById('view-btn-table');
+
+                                    if (view === 'grid') {
+                                        gridView.style.display = 'grid';
+                                        tableView.style.display = 'none';
+                                        btnGrid.style.background = 'white';
+                                        btnGrid.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+                                        btnGrid.style.color = '#1e293b';
+                                        btnTable.style.background = 'transparent';
+                                        btnTable.style.boxShadow = 'none';
+                                        btnTable.style.color = '#64748b';
+                                    } else {
+                                        gridView.style.display = 'none';
+                                        tableView.style.display = 'block';
+                                        btnTable.style.background = 'white';
+                                        btnTable.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+                                        btnTable.style.color = '#1e293b';
+                                        btnGrid.style.background = 'transparent';
+                                        btnGrid.style.boxShadow = 'none';
+                                        btnGrid.style.color = '#64748b';
+                                    }
+                                }
+                            </script>
+                        </td>
+                    </tr>
+                <?php endif; ?>
                 <tr>
                     <th>Checked By</th>
                     <td>
@@ -3661,10 +4026,19 @@ elseif ($page == 'unloading-details'):
             </table>
         </div>
 
-        <div style="margin-top: 30px; margin-bottom: 100px;">
-            <button onclick="goBack()" class="btn btn-secondary btn-full"
-                style="display: block; position: relative; z-index: 10; padding: 12px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; border-radius: 6px; background: #6b7280; color: white; transition: all 0.2s; width: 100%;"
-                onmouseover="this.style.background='#4b5563';" onmouseout="this.style.background='#6b7280';">
+        <div style="margin-top: 30px; margin-bottom: 20px; display: flex; gap: 15px;">
+            <?php if (hasPermission('actions.edit_record')): ?>
+                <a href="?page=unloading&id=<?php echo $entry['id']; ?>" class="btn btn-primary"
+                    style="flex: 1; text-align: center; text-decoration: none; padding: 12px 20px; font-size: 14px; font-weight: 600; border-radius: 6px; background: #3b82f6; color: white;">
+                    ✏️ Edit Checklist
+                </a>
+            <?php endif; ?>
+            <button type="button" onclick="window.print()" class="btn btn-secondary"
+                style="flex: 1; text-align: center; text-decoration: none; padding: 12px 20px; font-size: 14px; font-weight: 600; border-radius: 6px; background: #6b7280; color: white;">
+                🖨️ Print Checklist
+            </button>
+            <button onclick="goBack()" class="btn btn-secondary"
+                style="flex: 1; padding: 12px 20px; font-size: 14px; font-weight: 600; border-radius: 6px; background: #6b7280; color: white; border: none; cursor: pointer;">
                 ← Back
             </button>
         </div>
@@ -3780,7 +4154,7 @@ elseif ($page == 'edit-inward'):
                         value="<?php echo $entry['purpose_id']; ?>">
                     <input type="text" name="purpose_name" id="edit_purpose_name"
                         value="<?php echo htmlspecialchars($entry['purpose_name']); ?>" list="edit_purpose_list"
-                        autocomplete="off"
+                        autocomplete="off" oninput="toggleBillSection(this.value, 'edit')"
                         style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; width: 100%;">
                     <datalist id="edit_purpose_list">
                         <?php
@@ -3793,7 +4167,7 @@ elseif ($page == 'edit-inward'):
                 </div>
             </div>
 
-            <div class="card" style="margin-bottom: 20px;">
+            <div class="card" id="edit_bill_location_card" style="margin-bottom: 20px;">
                 <h3 style="margin-bottom: 15px;">Bill & Location Details</h3>
 
                 <div class="form-group">
@@ -3837,10 +4211,11 @@ elseif ($page == 'edit-inward'):
 
                 <datalist id="material_datalist">
                     <?php foreach ($all_materials as $mat): ?>
-                        <option value="<?php echo "[{$mat['material_code']}] " . htmlspecialchars($mat['material_description']); ?>" 
-                                data-code="<?php echo htmlspecialchars($mat['material_code']); ?>" 
-                                data-name="<?php echo htmlspecialchars($mat['material_description']); ?>">
-                    <?php endforeach; ?>
+                        <option
+                            value="<?php echo "[{$mat['material_code']}] " . htmlspecialchars($mat['material_description']); ?>"
+                            data-code="<?php echo htmlspecialchars($mat['material_code']); ?>"
+                            data-name="<?php echo htmlspecialchars($mat['material_description']); ?>">
+                        <?php endforeach; ?>
                 </datalist>
 
                 <div id="items_list_container" style="display: none; margin-bottom: 20px;">
@@ -3865,14 +4240,16 @@ elseif ($page == 'edit-inward'):
                     <div>
                         <label
                             style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
-                        <input type="text" id="new_item_code" placeholder="Code" list="material_datalist" oninput="handleMaterialAutofill(this)"
+                        <input type="text" id="new_item_code" placeholder="Code" list="material_datalist"
+                            oninput="handleMaterialAutofill(this)"
                             style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div>
                         <label
                             style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
                             NAME</label>
-                        <input type="text" id="new_item_name" placeholder="Search name/code" list="material_datalist" oninput="handleMaterialAutofill(this)"
+                        <input type="text" id="new_item_name" placeholder="Search name/code" list="material_datalist"
+                            oninput="handleMaterialAutofill(this)"
                             style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div>
@@ -5213,10 +5590,8 @@ elseif ($page == 'transporter-detail'):
             endif; ?>
         </div>
 
-        <a href="?page=admin&master=transporters" class="btn btn-secondary btn-full"
-            style="margin-top: 20px; margin-bottom: 20px; display: block; position: relative; z-index: 10;">← Back
-            to
-            Transporters</a>
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+            style="margin-top: 20px; margin-bottom: 20px;">← Back</button>
     </div>
 
     <?php
@@ -5374,10 +5749,8 @@ elseif ($page == 'user-detail'):
             endif; ?>
         </div>
 
-        <a href="?page=admin&master=users" class="btn btn-secondary btn-full"
-            style="margin-top: 20px; margin-bottom: 20px; display: block; position: relative; z-index: 10;">← Back
-            to
-            Users</a>
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+            style="margin-top: 20px; margin-bottom: 20px;">← Back</button>
     </div>
 
     <?php
@@ -5994,12 +6367,26 @@ elseif ($page == 'reports'):
     $vehicles = mysqli_query($conn, "SELECT DISTINCT vehicle_number FROM truck_inward WHERE vehicle_number IS NOT NULL ORDER BY vehicle_number LIMIT 100");
     ?>
     <div class="container">
-        <a href="?page=dashboard" class="btn btn-secondary btn-full"
-            style="margin-bottom: 15px; display: block; position: relative; z-index: 10;">
-            ← Back
-        </a>
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+            style="margin-bottom: 20px; text-align: left;">← Back</button>
         <div class="card">
             <h2>📊 Reports & Analytics</h2>
+
+            <!-- Quick Access to Mismatch Report -->
+            <div style="margin: 15px 0; display: grid; grid-template-columns: 1fr; gap: 10px;">
+                <a href="?page=unloading-mismatch-report"
+                    style="background: #fff1f2; border: 2px solid #fecaca; padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 15px; text-decoration: none; transition: transform 0.2s;">
+                    <div
+                        style="background: #ef4444; width: 45px; height: 45px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                        ⚠️</div>
+                    <div>
+                        <div style="color: #991b1b; font-weight: 800; font-size: 16px;">Unloading Mismatch Audit</div>
+                        <div style="color: #b91c1c; font-size: 12px; opacity: 0.8;">Detect shortages, damages, and item
+                            discrepancies across all trips.</div>
+                    </div>
+                    <div style="margin-left: auto; color: #ef4444; font-weight: 800;">OPEN →</div>
+                </a>
+            </div>
 
             <!-- Vehicle-wise timeline shortcut -->
             <div
@@ -6130,6 +6517,10 @@ elseif ($page == 'reports'):
                         style="padding: 10px 15px; border: none; background: #e5e7eb; color: #666; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 13px;">
                         📥 Unloading (
                         <?php echo count($unloading_entries); ?>)
+                    </button>
+                    <button onclick="window.location='?page=unloading-mismatch-report'"
+                        style="padding: 10px 15px; border: none; background: #fff1f2; color: #e11d48; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 800; white-space: nowrap; font-size: 13px; border-bottom: 2px solid #e11d48;">
+                        ⚠️ Mismatches Audit
                     </button>
                     <button onclick="showTab('patrol')" id="tab-patrol" class="tab-btn"
                         style="padding: 10px 15px; border: none; background: #e5e7eb; color: #666; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 13px;">
@@ -7270,10 +7661,8 @@ elseif ($page == 'vehicle-history'):
     } // End if ($vehicle_number)
     ?>
     <div class="container" style="padding-bottom: 120px;">
-        <a href="?page=dashboard" class="btn btn-secondary btn-full"
-            style="margin-bottom: 15px; display: block; position: relative; z-index: 10;">
-            ← Back
-        </a>
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+            style="margin-bottom: 20px; text-align: left;">← Back</button>
         <div class="card">
             <h2>🧭 Vehicle History (Gate Entry → Loading/Unloading → Exit)</h2>
 
@@ -7858,15 +8247,7 @@ elseif ($page == 'document-expiry-alerts'):
     </div>
 
     <script>
-        function goBack() {
-            // Check if there's a previous page in history
-            if (window.history.length > 1) {
-                window.history.back();
-            } else {
-                // Fallback to dashboard if no history
-                window.location.href = '?page=dashboard';
-            }
-        }
+        // function goBack() removed - now global in scripts.php
     </script>
 
     <?php
@@ -9242,8 +9623,7 @@ elseif ($page == 'management'):
                                                 <div style="font-size: 10px; color: #999;">
                                                     <?php echo htmlspecialchars($row['license_number']); ?>
                                                 </div>
-                                                <?php
-                                            endif; ?>
+                                            <?php endif; ?>
                                         </div>
                                         <div style="text-align: right; min-width: 70px;">
                                             <span
@@ -9253,20 +9633,313 @@ elseif ($page == 'management'):
                                             </span>
                                         </div>
                                     </div>
-                                    <?php
-                                endwhile; ?>
-                                <?php
-                            else: ?>
-                                <p style="padding: 20px; text-align: center; color: #666; font-size: 12px;">No expiring
-                                    driver
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <p style="padding: 20px; text-align: center; color: #666; font-size: 12px;">No expiring driver
                                     licenses</p>
-                                <?php
-                            endif; ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <?php
-endif; ?>
+    <?php elseif ($page === 'unloading-mismatch-report'): ?>
+        <style>
+            @media print {
+
+                .btn,
+                .bottom-nav,
+                .card:has(form),
+                .alert {
+                    display: none !important;
+                }
+
+                .container {
+                    width: 100% !important;
+                    max-width: none !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                }
+
+                .card {
+                    box-shadow: none !important;
+                    border: 1px solid #eee !important;
+                }
+
+                table {
+                    border-collapse: collapse !important;
+                }
+
+                th,
+                td {
+                    border: 1px solid #ddd !important;
+                }
+
+                body {
+                    background: white !important;
+                }
+            }
+        </style>
+        <div class="container" style="max-width: 1200px; padding-bottom: 150px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;" class="no-print">
+                <button type="button" onclick="goBack();" class="btn btn-secondary" style="flex: 1;">← Back</button>
+                <button onclick="window.print()" class="btn btn-primary" style="flex: 1;">🖨️ Print Report (A4)</button>
+            </div>
+
+            <div
+                style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(239, 68, 68, 0.25);">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div
+                        style="background: white; width: 60px; height: 60px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                        ⚠️</div>
+                    <div>
+                        <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Items Mismatch Report</h1>
+                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9);">Audit log of item shortages, excess, and
+                            damages during unloading.</p>
+                    </div>
+                </div>
+            </div>
+
+            <?php
+            $start_date = $_GET['start_date'] ?? date('Y-m-01');
+            $end_date = $_GET['end_date'] ?? date('Y-m-d');
+            $start_date_esc = mysqli_real_escape_string($conn, $start_date);
+            $end_date_esc = mysqli_real_escape_string($conn, $end_date);
+
+            $sql = "SELECT id, document_id, vehicle_registration_number, transport_company_name, vendor_name, reporting_datetime, verified_items_json, checked_by_name 
+                    FROM vehicle_unloading_checklist 
+                    WHERE verified_items_json IS NOT NULL 
+                    AND DATE(reporting_datetime) BETWEEN '$start_date_esc' AND '$end_date_esc'
+                    ORDER BY reporting_datetime DESC";
+            $res = mysqli_query($conn, $sql);
+            $mismatch_data = [];
+            $total_mismatched_items = 0;
+            $damaged_count = 0;
+
+            if ($res) {
+                while ($row = mysqli_fetch_assoc($res)) {
+                    $items = json_decode($row['verified_items_json'], true);
+                    if (!is_array($items))
+                        continue;
+                    $mismatch_in_this_vehicle = [];
+                    foreach ($items as $item) {
+                        $expected = trim($item['expected_quantity'] ?? $item['quantity'] ?? '0');
+                        $observed = trim($item['observed_quantity'] ?? '0');
+                        $remarks = trim($item['item_remarks'] ?? '');
+                        if ($expected != $observed || !empty($remarks)) {
+                            $mismatch_in_this_vehicle[] = [
+                                'name' => $item['description'] ?? 'Unknown Item',
+                                'expected' => $expected,
+                                'observed' => $observed,
+                                'remarks' => $remarks
+                            ];
+                            $total_mismatched_items++;
+                            if (stripos($remarks, 'damage') !== false || stripos($remarks, 'broken') !== false)
+                                $damaged_count++;
+                        }
+                    }
+                    if (!empty($mismatch_in_this_vehicle)) {
+                        $row['mismatches'] = $mismatch_in_this_vehicle;
+                        $mismatch_data[] = $row;
+                    }
+                }
+            }
+            ?>
+
+            <!-- Summary Dashboard -->
+            <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                <div
+                    style="background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div
+                        style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px;">
+                        Total Vehicles Affected</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span
+                            style="font-size: 28px; font-weight: 800; color: #1e293b;"><?php echo count($mismatch_data); ?></span>
+                        <span
+                            style="background: #f1f5f9; padding: 2px 8px; border-radius: 20px; font-size: 11px; color: #475569;">In
+                            this period</span>
+                    </div>
+                </div>
+                <div
+                    style="background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div
+                        style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px;">
+                        Total Mismatched Items</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span
+                            style="font-size: 28px; font-weight: 800; color: #d97706;"><?php echo $total_mismatched_items; ?></span>
+                        <span
+                            style="background: #fffbeb; padding: 2px 8px; border-radius: 20px; font-size: 11px; color: #b45309;">Quantity
+                            mismatch</span>
+                    </div>
+                </div>
+                <div
+                    style="background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div
+                        style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px;">
+                        Damaged/Broken Items</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span
+                            style="font-size: 28px; font-weight: 800; color: #ef4444;"><?php echo $damaged_count; ?></span>
+                        <span
+                            style="background: #fef2f2; padding: 2px 8px; border-radius: 20px; font-size: 11px; color: #991b1b;">Quality
+                            issues</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 25px;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+                    <form method="GET" style="display: flex; gap: 15px; align-items: flex-end; flex: 2; min-width: 300px;">
+                        <input type="hidden" name="page" value="unloading-mismatch-report">
+                        <div class="form-group" style="margin: 0; flex: 1;">
+                            <label
+                                style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 5px; display: block;">From</label>
+                            <input type="date" name="start_date" value="<?php echo $start_date; ?>"
+                                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                        </div>
+                        <div class="form-group" style="margin: 0; flex: 1;">
+                            <label
+                                style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 5px; display: block;">To</label>
+                            <input type="date" name="end_date" value="<?php echo $end_date; ?>"
+                                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;">
+                        </div>
+                        <button type="submit" class="btn btn-primary"
+                            style="padding: 10px 20px; border-radius: 8px; background: #ef4444; border: none;">Filter
+                            Date</button>
+                    </form>
+
+                    <div style="flex: 1; min-width: 250px; position: relative;">
+                        <span style="position: absolute; left: 12px; top: 11px; color: #94a3b8;">🔍</span>
+                        <input type="text" id="report-search-filter" onkeyup="filterMismatchReport()"
+                            placeholder="Search vehicle, vendor, or item..."
+                            style="width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 0; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 16px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 14px; min-width: 800px;">
+                    <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                        <tr>
+                            <th style="padding: 15px; text-align: left; color: #475569;">Vehicle & Timestamp</th>
+                            <th style="padding: 15px; text-align: left; color: #475569;">Vendor / Transporter</th>
+                            <th style="padding: 15px; text-align: left; color: #475569;">Discrepancy Details</th>
+                            <th style="padding: 15px; text-align: center; color: #475569;">Audit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($mismatch_data)): ?>
+                            <tr>
+                                <td colspan="4" style="padding: 60px; text-align: center; color: #64748b;">No item mismatches
+                                    found for the selected period.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($mismatch_data as $row):
+                                $search_text = strtolower($row['vehicle_registration_number'] . ' ' . $row['vendor_name'] . ' ' . $row['transport_company_name']);
+                                foreach ($row['mismatches'] as $m)
+                                    $search_text .= ' ' . strtolower($m['name']);
+                                ?>
+                                <tr class="mismatch-report-row" data-search="<?php echo htmlspecialchars($search_text); ?>"
+                                    style="border-bottom: 1px solid #f1f5f9; vertical-align: top; background: white;">
+                                    <td style="padding: 15px;">
+                                        <div style="font-weight: 800; color: #1e293b;">
+                                            <?php echo htmlspecialchars($row['vehicle_registration_number']); ?>
+                                        </div>
+                                        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">📅
+                                            <?php echo date('d M Y, h:i A', strtotime($row['reporting_datetime'])); ?>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 15px;">
+                                        <div style="font-weight: 700; color: #334155;">
+                                            <?php echo htmlspecialchars($row['vendor_name']); ?>
+                                        </div>
+                                        <div style="font-size: 11px; color: #64748b;">
+                                            <?php echo htmlspecialchars($row['transport_company_name']); ?>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 15px;">
+                                        <div style="max-height: 200px; overflow-y: auto;">
+                                            <?php foreach ($row['mismatches'] as $m): ?>
+                                                <div
+                                                    style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 10px; margin-bottom: 10px;">
+                                                    <div style="font-weight: 800; color: #92400e; font-size: 13px;">
+                                                        <?php echo htmlspecialchars($m['name']); ?>
+                                                    </div>
+                                                    <div style="display: flex; gap: 20px; font-size: 12px; margin: 4px 0;">
+                                                        <span>Exp: <strong><?php echo $m['expected']; ?></strong></span>
+                                                        <span>Obs: <strong
+                                                                style="color: #d946ef;"><?php echo $m['observed']; ?></strong></span>
+                                                    </div>
+                                                    <?php if ($m['remarks']): ?>
+                                                        <div
+                                                            style="font-size: 11px; color: #ef4444; border-top: 1px dashed #fcd34d; padding-top: 6px; margin-top: 6px; font-weight: 600;">
+                                                            📝 REMARK: <?php echo htmlspecialchars($m['remarks']); ?></div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 15px; text-align: center;">
+                                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                                            <?php if (hasPermission('actions.view_buttons')): ?>
+                                                <a href="?page=unloading-details&id=<?php echo $row['id']; ?>" class="btn btn-primary"
+                                                    style="padding: 8px 12px; font-size: 12px; text-decoration: none; display: inline-block; background: #1e293b; color: white; border-radius: 6px;">Audit
+                                                    Specs</a>
+                                            <?php endif; ?>
+                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                <a href="?page=unloading&id=<?php echo $row['id']; ?>" class="btn btn-sm"
+                                                    style="padding: 8px 12px; font-size: 12px; text-decoration: none; display: inline-block; background: #3b82f6; color: white; border-radius: 6px;">✏️
+                                                    Edit Info</a>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <script>
+                function filterMismatchReport() {
+                    const query = document.getElementById('report-search-filter').value.toLowerCase();
+                    document.querySelectorAll('.mismatch-report-row').forEach(row => {
+                        const text = row.getAttribute('data-search');
+                        row.style.display = text.includes(query) ? 'table-row' : 'none';
+                    });
+                }
+                function toggleBillSection(val, formType = 'inward') {
+                    const cardId = formType === 'edit' ? 'edit_bill_location_card' : 'bill_location_card';
+                    const card = document.getElementById(cardId);
+                    if (!card) return;
+
+                    if (val && val.trim().toUpperCase() === 'BO TANKER') {
+                        card.style.display = 'none';
+                        if (formType === 'edit') {
+                            const itemsCard = document.getElementById('manual_items_section');
+                            if (itemsCard) itemsCard.style.display = 'none';
+                        }
+                    } else {
+                        card.style.display = 'block';
+                        if (formType === 'edit') {
+                            const itemsCard = document.getElementById('manual_items_section');
+                            if (itemsCard) itemsCard.style.display = 'block';
+                        }
+                    }
+                }
+
+                // Handle initial state for Edit mode
+                document.addEventListener('DOMContentLoaded', function () {
+                    const editPurpose = document.getElementById('edit_purpose_name');
+                    if (editPurpose) {
+                        toggleBillSection(editPurpose.value, 'edit');
+                    }
+                });
+            </script>
+        </div>
+    <?php endif; ?>

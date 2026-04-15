@@ -22,10 +22,10 @@
             <?php
         endif; ?>
 
-        <a href="?page=dashboard" class="btn btn-secondary btn-full"
-            style="margin-bottom: 15px; display: block; position: relative; z-index: 10;">
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+            style="margin-bottom: 15px; display: block; position: relative; z-index: 10; width: 100%; text-align: left;">
             ← Back
-        </a>
+        </button>
 
         <!-- Header -->
         <div
@@ -647,8 +647,8 @@ elseif ($page == 'tickets'):
     $all_locations = mysqli_query($conn, "SELECT id, location_name FROM patrol_locations ORDER BY location_name");
     ?>
     <div class="container">
-        <button onclick="if(history.length>1){history.back();}else{location.href='?page=tickets';}"
-            class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: center;">
+        <button type="button" onclick="goBack();"
+            class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">
             ← Back
         </button>
         <!-- Header -->
@@ -1181,6 +1181,12 @@ elseif ($page == 'edit-material-inward'):
         }
     }
 
+    // Check permission
+    if (!hasPermission('actions.edit_record')) {
+        echo "<div class='container'><div class='alert alert-error'>🚫 Access Denied: You do not have permission to edit records.</div><a href='?page=view-material-inward' class='btn btn-secondary'>Back</a></div>";
+        exit;
+    }
+
     // Fetch Data
     if ($edit_id) {
         $res = mysqli_query($conn, "SELECT * FROM material_inward WHERE id=$edit_id");
@@ -1204,9 +1210,7 @@ elseif ($page == 'edit-material-inward'):
         }
         ?>
         <div class="container">
-            <a href="?page=view-material-inward" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back
-                to
-                Report</a>
+            <button type="button" onclick="goBack();" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">← Back</button>
             <div class="card">
                 <h2 style="margin-bottom: 20px;">✏️ Edit Material Inward Entry</h2>
                 <form method="POST">
@@ -1444,7 +1448,7 @@ elseif ($page == 'material-inward'):
             <?php
         endif; ?>
 
-        <a href="?page=inward" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back to Inward</a>
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">← Back</button>
 
         <div
             style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
@@ -1644,6 +1648,12 @@ elseif ($page == 'material-inward'):
     <?php
     // ==================== EDIT REGISTER ENTRY ====================
 elseif ($page == 'edit-register-entry'):
+    // Check permission
+    if (!hasPermission('actions.edit_record')) {
+        echo "<div class='container'><div class='alert alert-error'>🚫 Access Denied: You do not have permission to edit records.</div><a href='?page=register' class='btn btn-secondary'>Back</a></div>";
+        exit;
+    }
+
     $edit_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
     if (isset($_GET['delete_register_id'])) {
@@ -1685,8 +1695,7 @@ elseif ($page == 'edit-register-entry'):
 
         ?>
         <div class="container">
-            <a href="?page=view-registers" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back to
-                Report</a>
+            <button type="button" onclick="goBack();" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">← Back</button>
             <div class="card">
                 <h2 style="margin-bottom: 20px;">✏️ Edit Register Entry
                     (
@@ -1865,7 +1874,7 @@ elseif ($page == 'register-entry'):
             const masterSuppliers = <?php echo json_encode($suppliers_js); ?>;
         </script>
 
-        <a href="?page=dashboard" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back to Dashboard</a>
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">← Back</button>
 
         <div
             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">

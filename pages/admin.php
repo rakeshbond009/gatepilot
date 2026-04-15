@@ -282,6 +282,7 @@
             if (m.patrol) document.getElementById("m_patrol").checked = true;
             if (m.materials) document.getElementById("m_materials").checked = true;
             if (m.suppliers) document.getElementById("m_suppliers").checked = true;
+            if (m.customers) document.getElementById("m_customers").checked = true;
             if (m.users) document.getElementById("m_users").checked = true;
         }
 
@@ -488,25 +489,27 @@
                 $master_conn = getMasterDatabaseConnection();
                 // Fetch ALL columns to ensure auditDiff detects all changes
                 $old_res = mysqli_query($master_conn, "SELECT * FROM tenants WHERE id = $tenant_id");
-                if (!$old_res) throw new Exception("Failed to fetch old tenant data: " . mysqli_error($master_conn));
+                if (!$old_res)
+                    throw new Exception("Failed to fetch old tenant data: " . mysqli_error($master_conn));
                 $old_row = mysqli_fetch_assoc($old_res) ?: [];
 
                 // Use prepared statement to update all fields including name and db_name
                 $stmt = $master_conn->prepare("UPDATE tenants SET customer_name=?, contact_person=?, mobile=?, email=?, gst_no=?, address=?, db_host=?, db_user=?, db_pass=?, db_name=?, user_limit=? WHERE id=?");
                 $user_limit = (int) ($_POST['user_limit'] ?? 10);
-                
-                $stmt->bind_param("ssssssssssii", 
-                    $_POST['customer_name'], 
-                    $_POST['contact_person'], 
-                    $_POST['mobile'], 
-                    $_POST['email'], 
-                    $_POST['gst_no'], 
-                    $_POST['address'], 
-                    $_POST['db_host'], 
-                    $_POST['db_user'], 
-                    $_POST['db_pass'], 
+
+                $stmt->bind_param(
+                    "ssssssssssii",
+                    $_POST['customer_name'],
+                    $_POST['contact_person'],
+                    $_POST['mobile'],
+                    $_POST['email'],
+                    $_POST['gst_no'],
+                    $_POST['address'],
+                    $_POST['db_host'],
+                    $_POST['db_user'],
+                    $_POST['db_pass'],
                     $_POST['db_name'],
-                    $user_limit, 
+                    $user_limit,
                     $tenant_id
                 );
 
@@ -827,6 +830,7 @@
     $total_vehicles = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM vehicle_master"));
 
     $total_employees = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM employee_master"));
+    $total_customers = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM customer_master"));
 
     // Check if table exists before counting to avoid error on first run
     $check_dept_table = mysqli_query($conn, "SHOW TABLES LIKE 'department_master'");
@@ -865,10 +869,10 @@
             <?php
         endif; ?>
 
-        <a href="?page=dashboard" class="btn btn-secondary btn-full"
-            style="margin-bottom: 15px; display: block; position: relative; z-index: 10;">
+        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+            style="margin-bottom: 15px; display: block; position: relative; z-index: 10; width: 100%; text-align: left;">
             ← Back
-        </a>
+        </button>
         <!-- Master Menu -->
         <div class="card">
             <h2>⚙️ Master Data Management</h2>
@@ -993,6 +997,18 @@
                         <div class="icon">🧱</div>
                         <strong>Materials (
                             <?php echo $total_materials; ?>)
+                        </strong>
+                    </a>
+                    <?php
+                endif; ?>
+
+                <?php if (hasPermission('masters.customers')): ?>
+                    <a href="?page=admin&master=customers#master-content"
+                        class="action-card <?php echo $master_page == 'customers' ? 'active' : ''; ?>"
+                        style="<?php echo $master_page == 'customers' ? 'background: #EEF2FF;' : ''; ?>">
+                        <div class="icon">🤝</div>
+                        <strong>Customers (
+                            <?php echo $total_customers; ?>)
                         </strong>
                     </a>
                     <?php
@@ -2551,6 +2567,369 @@
                             }
                         });
                 });
+            </script>
+        </div>
+
+        <?php
+            // ========== CUSTOMERS MASTER ==========
+        elseif ($master_page == 'customers' && (hasPermission('masters.customers') || (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1))):
+
+            // Handle Delete
+            if (isset($_GET['delete_customer'])) {
+                if (!hasPermission('actions.delete_record')) {
+                    $error_msg = "❌ Access Denied: You do not have permission to delete records.";
+                } else {
+                    $id = (int) $_GET['delete_customer'];
+
+                    // Get customer name for log
+                    $c_res = mysqli_query($conn, "SELECT customer_name FROM customer_master WHERE id=$id");
+                    $c_row = mysqli_fetch_assoc($c_res);
+                    $c_name = $c_row['customer_name'] ?? 'Unknown';
+
+                    // Delete the customer
+                    if (mysqli_query($conn, "DELETE FROM customer_master WHERE id=$id")) {
+                        logActivity($conn, 'CUSTOMER_DELETE', 'Customers', "Deleted customer: ['$c_name'] (ID: [$id])");
+                        $_SESSION['success_msg'] = "✅ Customer deleted successfully!";
+                        session_write_close();
+                        header("Location: ?page=admin&master=customers&t=" . time());
+                        exit;
+                    } else {
+                        $error_msg = "❌ Error deleting customer: " . mysqli_error($conn);
+                    }
+                }
+            }
+
+            // Handle Add/Edit
+            if (isset($_POST['save_customer'])) {
+                if (!hasPermission('actions.edit_record')) {
+                    $error_msg = "❌ Access Denied: You do not have permission to edit records.";
+                } else {
+                    $name = mysqli_real_escape_string($conn, $_POST['customer_name']);
+                    $person = mysqli_real_escape_string($conn, $_POST['contact_person']);
+                    $mobile = mysqli_real_escape_string($conn, $_POST['mobile']);
+                    $email = mysqli_real_escape_string($conn, $_POST['email']);
+                    $address = mysqli_real_escape_string($conn, $_POST['address']);
+                    $location = mysqli_real_escape_string($conn, $_POST['location']);
+                    $gst = mysqli_real_escape_string($conn, $_POST['gst_number']);
+                    $pan = mysqli_real_escape_string($conn, $_POST['pan_number']);
+                    $compliance = mysqli_real_escape_string($conn, $_POST['other_compliance']);
+
+                    try {
+                        if (!empty($_POST['customer_id'])) {
+                            $id = (int) $_POST['customer_id'];
+                            $current_res = mysqli_query($conn, "SELECT * FROM customer_master WHERE id=$id");
+                            $current = mysqli_fetch_assoc($current_res);
+
+                            if ($current) {
+                                $changes_list = auditDiff($current, $_POST, ['customer_id', 'save_customer'], [
+                                    'customer_name' => 'Name',
+                                    'contact_person' => 'Contact',
+                                    'mobile' => 'Mobile',
+                                    'email' => 'Email',
+                                    'location' => 'Location',
+                                    'gst_number' => 'GST',
+                                    'pan_number' => 'PAN',
+                                    'other_compliance' => 'Other Compliance'
+                                ]);
+                                $changes = $changes_list ? explode("\n", $changes_list) : [];
+                                if ($current['address'] != $_POST['address'])
+                                    $changes[] = "Address: [Updated]";
+
+                                $sql = "UPDATE customer_master SET 
+                                customer_name='$name', 
+                                contact_person='$person', 
+                                mobile='$mobile', 
+                                email='$email', 
+                                address='$address', 
+                                location='$location', 
+                                gst_number='$gst', 
+                                pan_number='$pan', 
+                                other_compliance='$compliance' 
+                                WHERE id=$id";
+
+                                if (mysqli_query($conn, $sql)) {
+                                    $details = "Updated Customer: Name: [$name] (ID: [$id])";
+                                    if (!empty($changes)) {
+                                        $details .= "\nChanges:\n" . implode("\n", $changes);
+                                    }
+                                    logActivity($conn, 'CUSTOMER_UPDATE', 'Customers', $details);
+                                    $success_msg = "✅ Customer updated successfully!";
+                                    $_SESSION['success_msg'] = $success_msg;
+                                    session_write_close();
+                                    header("Location: ?page=admin&master=customers&t=" . time());
+                                    exit;
+                                } else {
+                                    $error_msg = "❌ Error updating customer: " . mysqli_error($conn);
+                                }
+                            }
+                        } else {
+                            $sql = "INSERT INTO customer_master (customer_name, contact_person, mobile, email, address, location, gst_number, pan_number, other_compliance) 
+                            VALUES ('$name', '$person', '$mobile', '$email', '$address', '$location', '$gst', '$pan', '$compliance')";
+
+                            if (mysqli_query($conn, $sql)) {
+                                logActivity($conn, 'CUSTOMER_CREATE', 'Customers', "Created Customer:\n" . auditFromPost($_POST, ['save_customer'], ['customer_name' => 'Name', 'contact_person' => 'Contact', 'mobile' => 'Mobile', 'gst_number' => 'GST']));
+                                $success_msg = "✅ Customer added successfully!";
+                                $_SESSION['success_msg'] = $success_msg;
+                                session_write_close();
+                                header("Location: ?page=admin&master=customers&t=" . time());
+                                exit;
+                            }
+                        }
+                    } catch (mysqli_sql_exception $e) {
+                        $error_msg = "❌ Database Error: " . $e->getMessage();
+                    }
+                }
+            }
+
+            $customers = mysqli_query($conn, "SELECT * FROM customer_master WHERE is_active=1 ORDER BY customer_name");
+            ?>
+        <!-- Customer Master UI -->
+        <div
+            style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">🤝</div>
+                <div>
+                    <h2
+                        style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                        Customers Management</h2>
+                    <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage
+                        business customers and compliance details</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 20px;">
+            <?php if (isset($_SESSION['success_msg'])): ?>
+                <div class="alert alert-success"><?php echo $_SESSION['success_msg'];
+                unset($_SESSION['success_msg']); ?></div>
+            <?php endif; ?>
+            <?php if (isset($error_msg)): ?>
+                <div class="alert alert-error"><?php echo $error_msg; ?></div>
+            <?php endif; ?>
+
+            <?php if (hasPermission('actions.edit_record')): ?>
+                <button
+                    onclick="document.getElementById('custForm').style.display='block'; document.getElementById('custForm').scrollIntoView({ behavior: 'smooth' });"
+                    class="btn btn-primary"
+                    style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);">
+                    ➕ Add New Customer
+                </button>
+            <?php endif; ?>
+
+            <div id="custForm" style="display: none; margin-bottom: 20px;">
+                <form method="POST">
+                    <input type="hidden" name="customer_id" id="customer_id">
+
+                    <!-- Section 1: Basic Information -->
+                    <div class="card"
+                        style="margin-bottom: 20px; border-left: 4px solid #6366f1; background: linear-gradient(to right, #eef2ff 0%, white 10%);">
+                        <div
+                            style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                            <div
+                                style="background: #6366f1; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                1</div>
+                            <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📋 Basic
+                                Information</h3>
+                        </div>
+                        <div class="master-form-grid">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">Company/Customer Name *</label>
+                                <input type="text" name="customer_name" id="customer_name_field" required
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                    onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99, 102, 241, 0.1)';"
+                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">Contact Person *</label>
+                                <input type="text" name="contact_person" id="contact_person_field" required
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                    onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99, 102, 241, 0.1)';"
+                                    onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Contact Details -->
+                    <div class="card"
+                        style="margin-bottom: 20px; border-left: 4px solid #10b981; background: linear-gradient(to right, #f0fdf4 0%, white 10%);">
+                        <div
+                            style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                            <div
+                                style="background: #10b981; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                2</div>
+                            <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">📞 Contact & Location
+                            </h3>
+                        </div>
+                        <div class="master-form-grid">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">Mobile *</label>
+                                <input type="tel" name="mobile" id="customer_mobile" pattern="[0-9]{10}" required
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">Email</label>
+                                <input type="email" name="email" id="customer_email"
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">City / Location *</label>
+                                <input type="text" name="location" id="customer_location" required
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">Full Address</label>
+                                <textarea name="address" id="customer_address" rows="2"
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; width: 100%;"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Compliance Details -->
+                    <div class="card"
+                        style="margin-bottom: 20px; border-left: 4px solid #f59e0b; background: linear-gradient(to right, #fffbeb 0%, white 10%);">
+                        <div
+                            style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+                            <div
+                                style="background: #f59e0b; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold;">
+                                3</div>
+                            <h3 style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 700;">⚖️ Compliance Info</h3>
+                        </div>
+                        <div class="master-form-grid">
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">GST Number</label>
+                                <input type="text" name="gst_number" id="customer_gst"
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                    placeholder="27AAAAA0000A1Z5">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 600; color: #374151;">PAN Number</label>
+                                <input type="text" name="pan_number" id="customer_pan"
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                    placeholder="ABCDE1234F">
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label style="font-weight: 600; color: #374151;">Other Compliance Details / Notes</label>
+                                <textarea name="other_compliance" id="customer_compliance" rows="3"
+                                    style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; width: 100%;"
+                                    placeholder="MSME, ISO certification, or other compliance notes..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" name="save_customer" class="btn btn-success">💾 Save Customer</button>
+                        <button type="button" onclick="closeCustForm()" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="search-container" style="margin-bottom: 20px;">
+                <input type="text" id="custSearch" placeholder="🔍 Search Customers (Name, Location, GST...)"
+                    oninput="filterTable('custSearch', 'custTable')"
+                    style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px;">
+            </div>
+
+            <div class="table-wrapper" id="custTable">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Customer Name</th>
+                            <th>Contact Person</th>
+                            <th>Mobile / Email</th>
+                            <th>Location</th>
+                            <th>Compliance</th>
+                            <?php if (hasPermission('actions.edit_record') || hasPermission('actions.delete_record')): ?>
+                                <th>Action</th>
+                            <?php endif; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while ($c = mysqli_fetch_assoc($customers)): ?>
+                            <tr>
+                                <td><strong>
+                                        <?php echo htmlspecialchars($c['customer_name']); ?>
+                                    </strong></td>
+                                <td>
+                                    <?php echo htmlspecialchars($c['contact_person'] ?? ''); ?>
+                                </td>
+                                <td>
+                                    <?php echo htmlspecialchars($c['mobile'] ?? ''); ?><br>
+                                    <small style="color: #666;">
+                                        <?php echo htmlspecialchars($c['email'] ?? ''); ?>
+                                    </small>
+                                </td>
+                                <td>
+                                    <?php echo htmlspecialchars($c['location'] ?? ''); ?>
+                                </td>
+                                <td>
+                                    <?php if ($c['gst_number']): ?>
+                                        <div style="font-size: 11px;">GST: <strong>
+                                                <?php echo $c['gst_number']; ?>
+                                            </strong></div>
+                                    <?php endif; ?>
+                                    <?php if ($c['pan_number']): ?>
+                                        <div style="font-size: 11px;">PAN: <strong>
+                                                <?php echo $c['pan_number']; ?>
+                                            </strong></div>
+                                    <?php endif; ?>
+                                </td>
+                                <?php if (hasPermission('actions.edit_record') || hasPermission('actions.delete_record')): ?>
+                                    <td>
+                                        <?php if (hasPermission('actions.edit_record')): ?>
+                                            <button onclick='editCustomer(<?php echo json_encode($c); ?>)' class="btn btn-sm"
+                                                style="background: #3b82f6; color: white;">✏️ Edit</button>
+                                        <?php endif; ?>
+                                        <?php if (hasPermission('actions.delete_record')): ?>
+                                            <button onclick="deleteCustomer(<?php echo $c['id']; ?>)" class="btn btn-sm"
+                                                style="background: #ef4444; color: white;">🗑️ Delete</button>
+                                        <?php endif; ?>
+                                    </td>
+                                <?php endif; ?>
+                            </tr>
+                            <?php
+                        endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <script>
+                function editCustomer(data) {
+                    document.getElementById('customer_id').value = data.id;
+                    document.getElementById('customer_name_field').value = data.customer_name;
+                    document.getElementById('contact_person_field').value = data.contact_person;
+                    document.getElementById('customer_mobile').value = data.mobile;
+                    document.getElementById('customer_email').value = data.email;
+                    document.getElementById('customer_location').value = data.location;
+                    document.getElementById('customer_address').value = data.address;
+                    document.getElementById('customer_gst').value = data.gst_number;
+                    document.getElementById('customer_pan').value = data.pan_number;
+                    document.getElementById('customer_compliance').value = data.other_compliance;
+
+                    document.getElementById('custForm').style.display = 'block';
+                    document.getElementById('custForm').scrollIntoView({ behavior: 'smooth' });
+                }
+
+                function closeCustForm() {
+                    document.getElementById('custForm').style.display = 'none';
+                    document.getElementById('customer_id').value = '';
+                    document.querySelector('#custForm form').reset();
+                }
+
+                function deleteCustomer(id) {
+                    Swal.fire({
+                        title: 'Are you sure?',
+                        text: "You want to delete this customer record?",
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#ef4444',
+                        cancelButtonColor: '#6b7280',
+                        confirmButtonText: 'Yes, delete it!'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = '?page=admin&master=customers&delete_customer=' + id;
+                        }
+                    });
+                }
             </script>
         </div>
 
@@ -6228,7 +6607,7 @@
                     }
                 </script>
                 <?php
-        elseif ($master_page == 'suppliers'):
+        elseif ($master_page == 'suppliers' && (hasPermission('masters.suppliers') || (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1))):
             // ========== SUPPLIERS MASTER ==========
     
             // Create supplier_master table if it doesn't exist
@@ -6239,11 +6618,18 @@
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         supplier VARCHAR(100) NOT NULL,
                         supp_code VARCHAR(50) NOT NULL,
+                        gst_number VARCHAR(20) DEFAULT NULL,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         is_active TINYINT(1) DEFAULT 1,
                         UNIQUE KEY unique_supp_code (supp_code)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 ");
+            } else {
+                // Column check for existing table
+                $check_col = mysqli_query($conn, "SHOW COLUMNS FROM supplier_master LIKE 'gst_number'");
+                if (mysqli_num_rows($check_col) == 0) {
+                    mysqli_query($conn, "ALTER TABLE supplier_master ADD COLUMN gst_number VARCHAR(20) DEFAULT NULL AFTER supp_code");
+                }
             }
 
 
@@ -6263,14 +6649,15 @@
                             continue;
                         } // Skip header
     
-                        // Expected Format: Name, Code
+                        // Expected Format: Name, Code, GST
                         $name = mysqli_real_escape_string($conn, $data[0] ?? '');
                         $code = mysqli_real_escape_string($conn, $data[1] ?? '');
+                        $gst = mysqli_real_escape_string($conn, $data[2] ?? '');
 
                         if (!empty($code) && !empty($name)) {
                             try {
-                                $sql = "INSERT INTO supplier_master (supplier, supp_code) 
-                                            VALUES ('$name', '$code')";
+                                $sql = "INSERT INTO supplier_master (supplier, supp_code, gst_number) 
+                                            VALUES ('$name', '$code', '$gst')";
                                 if (mysqli_query($conn, $sql)) {
                                     $success_count++;
                                 } else {
@@ -6317,6 +6704,7 @@
             if (isset($_POST['save_supplier'])) {
                 $supp = mysqli_real_escape_string($conn, $_POST['supplier']);
                 $supp_code = mysqli_real_escape_string($conn, $_POST['supp_code']);
+                $gst_number = mysqli_real_escape_string($conn, $_POST['gst_number']);
 
                 try {
                     if ($_POST['supplier_id']) {
@@ -6329,9 +6717,11 @@
                                 $changes[] = "Name: [{$current['supplier']} -> $supp]";
                             if (trim($current['supp_code'] ?? '') != trim($supp_code ?? ''))
                                 $changes[] = "Code: [{$current['supp_code']} -> $supp_code]";
+                            if (trim($current['gst_number'] ?? '') != trim($gst_number ?? ''))
+                                $changes[] = "GST: [{$current['gst_number']} -> $gst_number]";
                         }
 
-                        $sql = "UPDATE supplier_master SET supplier='$supp', supp_code='$supp_code' WHERE id=$id";
+                        $sql = "UPDATE supplier_master SET supplier='$supp', supp_code='$supp_code', gst_number='$gst_number' WHERE id=$id";
                         if (mysqli_query($conn, $sql)) {
                             $details = "Updated Supplier: Name: [$supp] (Code: $supp_code)";
                             if (!empty($changes)) {
@@ -6344,10 +6734,10 @@
                             exit;
                         }
                     } else {
-                        $sql = "INSERT INTO supplier_master (supplier, supp_code) 
-                                VALUES ('$supp', '$supp_code')";
+                        $sql = "INSERT INTO supplier_master (supplier, supp_code, gst_number) 
+                                VALUES ('$supp', '$supp_code', '$gst_number')";
                         if (mysqli_query($conn, $sql)) {
-                            logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier:\n" . auditFromPost($_POST, [], ['supplier' => 'Name', 'supp_code' => 'Code']));
+                            logActivity($conn, 'SUPPLIER_CREATE', 'Suppliers', "Created Supplier:\n" . auditFromPost($_POST, [], ['supplier' => 'Name', 'supp_code' => 'Code', 'gst_number' => 'GST']));
                             $_SESSION['success_msg'] = "✅ Supplier added successfully!";
                             session_write_close();
                             header("Location: ?page=admin&master=suppliers&t=" . time());
@@ -6370,6 +6760,7 @@
             // Initialize form values
             $form_supp = isset($_POST['supplier']) ? htmlspecialchars($_POST['supplier']) : '';
             $form_supp_code = isset($_POST['supp_code']) ? htmlspecialchars($_POST['supp_code']) : '';
+            $form_gst = isset($_POST['gst_number']) ? htmlspecialchars($_POST['gst_number']) : '';
             $form_id = isset($_POST['supplier_id']) ? htmlspecialchars($_POST['supplier_id']) : '';
 
             // Keep form open if there is an error
@@ -6437,8 +6828,15 @@
                                             style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
                                             onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
                                             onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                        <small style="color: #666; display: block; margin-top: 5px;">Must be
-                                            unique.</small>
+                                        <small style="color: #666; display: block; margin-top: 5px;">Must be unique.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 600; color: #374151;">GST Number</label>
+                                        <input type="text" name="gst_number" id="gst_number" value="<?php echo $form_gst; ?>"
+                                            placeholder="e.g. 27AAAAA0000A1Z5"
+                                            style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;"
+                                            onfocus="this.style.borderColor='#06b6d4'; this.style.boxShadow='0 0 0 3px rgba(6, 182, 212, 0.1)';"
+                                            onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
                                     </div>
                                 </div>
                             </div>
@@ -6480,6 +6878,7 @@
                                 <tr>
                                     <th>Supplier Name</th>
                                     <th>Supplier Code</th>
+                                    <th>GST Number</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -6487,15 +6886,18 @@
                                 <?php while ($item = mysqli_fetch_assoc($suppliers)): ?>
                                     <tr>
                                         <td><strong>
-                                                <?php echo htmlspecialchars($item['supplier']); ?>
+                                                <?php echo htmlspecialchars($item['supplier'] ?? ''); ?>
                                             </strong></td>
-                                        <td><code><?php echo htmlspecialchars($item['supp_code']); ?></code></td>
+                                        <td><code><?php echo htmlspecialchars($item['supp_code'] ?? ''); ?></code></td>
+                                        <td><code><?php echo htmlspecialchars($item['gst_number'] ?? '-'); ?></code></td>
                                         <td>
                                             <?php if (hasPermission('actions.view_buttons')): ?>
                                                 <?php if (hasPermission('actions.edit_record')): ?>
                                                     <button onclick='editSupplier(<?php echo $item["id"]; ?>, 
                                                     <?php echo json_encode($item["supplier"]); ?>, 
-                                                    <?php echo json_encode($item["supp_code"]); ?>)' class="btn btn-sm"
+                                                    <?php echo json_encode($item["supp_code"]); ?>,
+                                                    <?php echo json_encode($item["gst_number"]); ?>)'
+                                                        class="btn btn-sm"
                                                         style="background: #3b82f6; color: white; padding: 5px 10px; font-size: 12px; margin-right: 5px;">✏️
                                                         Edit</button>
                                                     <?php
@@ -6522,11 +6924,13 @@
                                 document.getElementById('supp_code').readOnly = false;
                                 document.getElementById('supplier').value = '';
                                 document.getElementById('supp_code').value = '';
+                                document.getElementById('gst_number').value = '';
                             }
-                            function editSupplier(id, supp, code) {
+                            function editSupplier(id, supp, code, gst) {
                                 document.getElementById('supplier_id').value = id;
                                 document.getElementById('supplier').value = supp;
                                 document.getElementById('supp_code').value = code;
+                                document.getElementById('gst_number').value = gst || '';
                                 // On edit, do we allow code change? Usually yes, but with check.
                                 // For consistency with material, maybe just uniqueness check on save.
                                 // Let's keep it editable but we rely on DB unique constraint.
@@ -6805,8 +7209,8 @@ endif; ?>
                         <?php
                     endif; ?>
 
-                    <a href="?page=admin" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back to
-                        Admin</a>
+                    <button type="button" onclick="goBack();" class="btn btn-secondary btn-full"
+                        style="margin-bottom: 20px; text-align: left;">← Back</button>
 
                     <div
                         style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);">
@@ -7041,6 +7445,9 @@ endif; ?>
                         </label>
                         <label class="perm-card"><input type="checkbox" name="perm_master_suppliers" id="m_suppliers">
                             <div class="perm-card-content">Suppliers</div>
+                        </label>
+                        <label class="perm-card"><input type="checkbox" name="perm_master_customers" id="m_customers">
+                            <div class="perm-card-content">Customers</div>
                         </label>
                         <label class="perm-card"><input type="checkbox" name="perm_master_users" id="m_users">
                             <div class="perm-card-content">Users</div>

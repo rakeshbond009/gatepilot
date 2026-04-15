@@ -1,120 +1,6 @@
-<?php if ($page == 'reports-center'): ?>
-                    <div class="container">
-                        <a href="?page=dashboard" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">← Back
-                            to
-                            Dashboard</a>
-
-                        <div
-                            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(245, 158, 11, 0.25);">
-                            <div style="display: flex; align-items: center; gap: 15px;">
-                                <div style="font-size: 40px;">📊</div>
-                                <div>
-                                    <h1 style="margin: 0; color: white; font-size: 28px; font-weight: 700;">Reports
-                                        Center
-                                    </h1>
-                                    <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9);">Access all system
-                                        reports
-                                        and
-                                        registers
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <h3 style="margin-bottom: 15px; color: #374151;">Available Reports</h3>
-                        <div
-                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
-
-                            <!-- Manual Registers Reports -->
-                            <a href="?page=view-registers" class="card"
-                                style="display: flex; gap: 15px; align-items: center; text-decoration: none; color: inherit; transition: transform 0.2s;">
-                                <div
-                                    style="background: #eef2ff; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                                    📝</div>
-                                <div>
-                                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #1f2937;">Registers Report
-                                    </h4>
-                                    <p style="margin: 0; font-size: 13px; color: #6b7280;">Scrap & Hazardous Material
-                                        Outward
-                                    </p>
-                                </div>
-                            </a>
-
-                            <!-- Material Inward Report -->
-                            <!-- Material Inward Report -->
-                            <!-- Material Inward Report -->
-                            <a href="?page=view-registers&type=material_inward_reg" class="card"
-                                style="display: flex; gap: 15px; align-items: center; text-decoration: none; color: inherit; transition: transform 0.2s;">
-                                <div
-                                    style="background: #ecfdf5; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                                    📦</div>
-                                <div>
-                                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #1f2937;">Material Inward
-                                        Register
-                                    </h4>
-                                    <p style="margin: 0; font-size: 13px; color: #6b7280;">View Incoming Material
-                                        Entries
-                                    </p>
-                                </div>
-                            </a>
-
-                            <!-- Document Expiry Report -->
-                            <a href="?page=document-expiry-alerts" class="card"
-                                style="display: flex; gap: 15px; align-items: center; text-decoration: none; color: inherit; transition: transform 0.2s;">
-                                <div
-                                    style="background: #fef2f2; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                                    ⚠️</div>
-                                <div>
-                                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #1f2937;">Document Alerts</h4>
-                                    <p style="margin: 0; font-size: 13px; color: #6b7280;">Expiring Vehicles Documents
-                                    </p>
-                                </div>
-                            </a>
-
-                            <!-- Truck Activity Report -->
-                            <a href="?page=reports" class="card"
-                                style="display: flex; gap: 15px; align-items: center; text-decoration: none; color: inherit; transition: transform 0.2s;">
-                                <div
-                                    style="background: #eff6ff; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                                    🚚</div>
-                                <div>
-                                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #1f2937;">Advance Truck Report</h4>
-                                    <p style="margin: 0; font-size: 13px; color: #6b7280;">Inward, Outward & Checklists
-                                    </p>
-                                </div>
-                            </a>
-
-                            <!-- Employee Movement Report -->
-                            <a href="?page=reports" class="card"
-                                style="display: flex; gap: 15px; align-items: center; text-decoration: none; color: inherit; transition: transform 0.2s;">
-                                <div
-                                    style="background: #fdf2f8; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                                    👥</div>
-                                <div>
-                                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #1f2937;">Employee Movement</h4>
-                                    <p style="margin: 0; font-size: 13px; color: #6b7280;">Staff Vehicle Entries/Exits
-                                    </p>
-                                </div>
-                            </a>
-
-                            <!-- Patrol Log Report -->
-                            <a href="?page=reports" class="card"
-                                style="display: flex; gap: 15px; align-items: center; text-decoration: none; color: inherit; transition: transform 0.2s;">
-                                <div
-                                    style="background: #fff7ed; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                                    🔦</div>
-                                <div>
-                                    <h4 style="margin: 0 0 5px 0; font-size: 16px; color: #1f2937;">Security Patrols</h4>
-                                    <p style="margin: 0; font-size: 13px; color: #6b7280;">Watchman Scan History
-                                    </p>
-                                </div>
-                            </a>
-
-                        </div>
-                    </div>
-                    <?php
+<?php
 // ==================== VIEW REGISTERS ====================
-elseif ($page == 'view-registers'):
+if ($page == 'view-registers'):
     // Handle Delete
     if (isset($_POST['delete_register_id'])) {
         $del_id = intval($_POST['delete_register_id']);
@@ -172,9 +58,9 @@ elseif ($page == 'view-registers'):
     }
 ?>
                     <div class="container">
-                        <a href="?page=reports" class="btn btn-secondary btn-full" style="margin-bottom: 20px;">
-                            ← Back to Reports Center
-                        </a>
+                        <button type="button" onclick="goBack();" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">
+                            ← Back
+                        </button>
 
                         <div
                             style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);">
@@ -320,13 +206,17 @@ elseif ($page == 'view-registers'):
             endforeach; ?>
                                                     <td style="padding: 12px 15px; white-space: nowrap;">
                                                         <div style="display: flex; gap: 5px;">
-                                                            <a href="?page=edit-register-entry&id=<?php echo $row['id']; ?>"
-                                                                class="btn btn-sm"
-                                                                style="background: #3b82f6; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none;">✏️</a>
-                                                            <button type="button"
-                                                                onclick="showDeleteModal('register', <?php echo $row['id']; ?>)"
-                                                                class="btn btn-sm"
-                                                                style="background: #ef4444; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer;">🗑️</button>
+                                                            <?php if (hasPermission('actions.edit_record')): ?>
+                                                                <a href="?page=edit-register-entry&id=<?php echo $row['id']; ?>"
+                                                                    class="btn btn-sm"
+                                                                    style="background: #3b82f6; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none;">✏️</a>
+                                                            <?php endif; ?>
+                                                            <?php if (hasPermission('actions.delete_record')): ?>
+                                                                <button type="button"
+                                                                    onclick="showDeleteModal('register', <?php echo $row['id']; ?>)"
+                                                                    class="btn btn-sm"
+                                                                    style="background: #ef4444; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer;">🗑️</button>
+                                                            <?php endif; ?>
                                                         </div>
                                                     </td>
                                                 </tr>

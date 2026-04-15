@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.10.1352');
+    define('APP_VERSION', '26.04.16.0048');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -283,9 +283,9 @@ if ($conn) {
             fputcsv($output, array('MAT001', 'Cement', 'Raw Material'));
             fputcsv($output, array('MAT002', 'Steel Bars', 'Construction'));
         } elseif ($template == 'suppliers') {
-            fputcsv($output, array('Supplier Name', 'Supplier Code'));
-            fputcsv($output, array('Acme Corp', 'SUP001'));
-            fputcsv($output, array('Global Logistics', 'SUP002'));
+            fputcsv($output, array('Supplier Name', 'Supplier Code', 'GST Number'));
+            fputcsv($output, array('Acme Corp', 'SUP001', '27AAAAA0000A1Z5'));
+            fputcsv($output, array('Global Logistics', 'SUP002', '27BBBBB0000B1Z6'));
         }
 
         fclose($output);
@@ -501,9 +501,9 @@ function hasPermission($key)
     global $conn;
     if (!isset($_SESSION['user_id']))
         return false;
+    // Only Super Admin has total bypass. 
+    // Regular admins should have their permissions checked from the JSON data.
     if (isset($_SESSION['super_admin']) && $_SESSION['super_admin'] == 1)
-        return true;
-    if (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'admin')
         return true;
 
     // Always fetch fresh permissions to ensure updates apply immediately
@@ -890,6 +890,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
                 'patrol' => isset($_POST['perm_master_patrol']),
                 'materials' => isset($_POST['perm_master_materials']),
                 'suppliers' => isset($_POST['perm_master_suppliers']),
+                'customers' => isset($_POST['perm_master_customers']),
                 'users' => isset($_POST['perm_master_users']),
             ],
             'actions' => [
@@ -934,6 +935,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
             'masters.patrol' => 'Master Patrol QR',
             'masters.materials' => 'Master Materials',
             'masters.suppliers' => 'Master Suppliers',
+            'masters.customers' => 'Master Customers',
             'masters.users' => 'Master Users',
             'masters.settings' => 'Master Settings',
             'actions.edit_record' => 'Action Edit',
@@ -2021,7 +2023,7 @@ if ($page == 'edit-inward' && isset($_POST['update_inward'])) {
 
     // Check if user is admin
     if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
-        echo "<div class='container'><div class='alert alert-error'>Access denied! Admin privileges required.</div><a href='?page=inside' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Access denied! Admin privileges required.</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 
@@ -2215,7 +2217,7 @@ if ($page == 'edit-outward' && isset($_POST['update_outward'])) {
 
     // Check if user is admin
     if (!isset($_SESSION['role']) || $_SESSION['role'] != 'admin') {
-        echo "<div class='container'><div class='alert alert-error'>Access denied! Admin privileges required.</div><a href='?page=inside' class='btn btn-secondary'>Back</a></div>";
+        echo "<div class='container'><div class='alert alert-error'>Access denied! Admin privileges required.</div><a href='javascript:goBack()' class='btn btn-secondary'>Back</a></div>";
         exit;
     }
 

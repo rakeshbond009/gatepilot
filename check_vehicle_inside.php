@@ -22,24 +22,31 @@ if (!$conn) {
     exit;
 }
 
-// Get vehicle number from query parameter
+// Get vehicle number or inward id from query parameters
 $vehicle_number = isset($_GET['vehicle_number']) ? strtoupper(trim($_GET['vehicle_number'])) : '';
+$inward_id = isset($_GET['inward_id']) ? intval($_GET['inward_id']) : 0;
 
-if (empty($vehicle_number) || strlen($vehicle_number) < 4) {
+if ($inward_id > 0) {
+    // Check by inward_id directly (used for edit mode)
+    $query = "SELECT id, entry_number, inward_datetime, driver_name, status, items_json 
+              FROM truck_inward 
+              WHERE id = $inward_id 
+              LIMIT 1";
+} elseif (!empty($vehicle_number) && strlen($vehicle_number) >= 4) {
+    // Escape vehicle number for SQL
+    $vehicle_number = mysqli_real_escape_string($conn, $vehicle_number);
+
+    // Check if vehicle is already inside
+    $query = "SELECT id, entry_number, inward_datetime, driver_name, status, items_json 
+              FROM truck_inward 
+              WHERE vehicle_number = '$vehicle_number' AND status = 'inside' 
+              ORDER BY inward_datetime DESC 
+              LIMIT 1";
+} else {
     header('Content-Type: application/json');
-    echo json_encode(['isInside' => false, 'message' => 'Invalid vehicle number']);
+    echo json_encode(['isInside' => false, 'message' => 'Invalid parameters']);
     exit;
 }
-
-// Escape vehicle number for SQL
-$vehicle_number = mysqli_real_escape_string($conn, $vehicle_number);
-
-// Check if vehicle is already inside
-$query = "SELECT id, entry_number, inward_datetime, driver_name, status 
-          FROM truck_inward 
-          WHERE vehicle_number = '$vehicle_number' AND status = 'inside' 
-          ORDER BY inward_datetime DESC 
-          LIMIT 1";
 
 $result = mysqli_query($conn, $query);
 
@@ -70,10 +77,10 @@ if (mysqli_num_rows($result) > 0) {
         'inward_date' => $inward_date,
         'inward_time' => $inward_time,
         'inward_time_12' => $inward_time_12,
-        'driver_name' => $entry['driver_name']
+        'driver_name' => $entry['driver_name'],
+        'items_json' => $entry['items_json']
     ]);
-}
-else {
+} else {
     header('Content-Type: application/json');
     echo json_encode([
         'isInside' => false,

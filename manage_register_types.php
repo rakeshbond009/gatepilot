@@ -178,7 +178,7 @@ $types = $registers_manager->getAllTypes(false);
 
 <div class="container" style="padding-top: 20px;">
     <!-- Standard Back Button -->
-    <a href="?page=admin" class="btn btn-secondary btn-full" style="margin-bottom: 20px; display: block;">← Back to Admin</a>
+    <button type="button" onclick="goBack();" class="btn btn-secondary btn-full" style="margin-bottom: 20px; text-align: left;">← Back</button>
     
     <!-- Hero Header Card -->
     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 30px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">

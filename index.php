@@ -31,11 +31,11 @@ elseif (in_array($page, ['guard-patrol', 'tickets', 'edit-register-entry', 'regi
     include 'pages/patrol_and_registers.php';
 elseif ($page == 'manage-register-types'):
     include 'manage_register_types.php';
-elseif (in_array($page, ['reports', 'inward', 'outward', 'details', 'inward-details', 'outward-details', 'edit-inward', 'edit-outward', 'inside', 'vehicle-history', 'loading', 'unloading', 'loading-details', 'unloading-details', 'driver-detail', 'vehicle-detail', 'transporter-detail', 'user-detail', 'document-expiry-alerts', 'management', 'qr-scanner'])):
+elseif (in_array($page, ['reports', 'inward', 'outward', 'details', 'inward-details', 'outward-details', 'edit-inward', 'edit-outward', 'inside', 'vehicle-history', 'loading', 'unloading', 'loading-details', 'unloading-details', 'unloading-mismatch-report', 'driver-detail', 'vehicle-detail', 'transporter-detail', 'user-detail', 'document-expiry-alerts', 'management', 'qr-scanner'])):
     include 'pages/core_ops.php';
 elseif (in_array($page, ['admin', 'user-permissions'])):
     include 'pages/admin.php';
-elseif (in_array($page, ['reports-center', 'view-registers', 'view-material-inward'])):
+elseif (in_array($page, ['view-registers', 'view-material-inward'])):
     include 'pages/reports.php';
 elseif ($page == 'privacy'):
     include 'pages/privacy.php';
