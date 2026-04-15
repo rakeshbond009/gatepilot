@@ -2264,18 +2264,6 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                                 <?php echo htmlspecialchars($loading_checklist['body_type'] ?? 'N/A'); ?>
                             </span>
                         </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Customer Name</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($loading_checklist['customer_name'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Destination</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($loading_checklist['destination'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
                     </div>
 
                     <div style="margin-bottom: 20px;">
@@ -2996,6 +2984,18 @@ elseif ($page == 'loading-details'):
                     <th>Driver Name</th>
                     <td>
                         <?php echo htmlspecialchars($entry['driver_name'] ?? 'N/A'); ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Customer Name</th>
+                    <td>
+                        <?php echo htmlspecialchars($entry['customer_name'] ?? 'N/A'); ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Destination</th>
+                    <td>
+                        <?php echo htmlspecialchars($entry['destination'] ?? 'N/A'); ?>
                     </td>
                 </tr>
                 <tr>
