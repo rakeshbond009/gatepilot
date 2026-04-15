@@ -1383,10 +1383,11 @@ elseif ($page == 'outward'):
                         <span>🚚</span>
                         <span>Select Truck to Exit *</span>
                     </label>
-                    <select name="inward_id" required
+                    <select name="inward_id" id="outward_inward_id" required
                         style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; font-size: 14px;"
                         onfocus="this.style.borderColor='#10b981'; this.style.boxShadow='0 0 0 3px rgba(16, 185, 129, 0.1)';"
-                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
+                        onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';"
+                        onchange="fetchOutwardAutofill(this.value)">
                         <option value="">-- Select Vehicle --</option>
                         <?php
                         mysqli_data_seek($inside_trucks, 0);
@@ -1397,6 +1398,9 @@ elseif ($page == 'outward'):
                             <?php
                         endwhile; ?>
                     </select>
+                    <div id="outward-autofill-message"
+                        style="display: none; margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 500; border-left: 4px solid;">
+                    </div>
                 </div>
             </div>
 
@@ -1477,7 +1481,7 @@ elseif ($page == 'outward'):
 
                 <div class="form-group">
                     <label style="font-weight: 600; color: #374151;">Destination</label>
-                    <input type="text" name="outgoing_destination" placeholder="Destination"
+                    <input type="text" name="outgoing_destination" id="outgoing_destination" placeholder="Destination"
                         style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; width: 100%;">
                 </div>
 
@@ -1690,6 +1694,60 @@ elseif ($page == 'outward'):
                 </button>
             </div>
         </form>
+
+        <script>
+            function fetchOutwardAutofill(inwardId) {
+                if (!inwardId) return;
+
+                const messageDiv = document.getElementById('outward-autofill-message');
+                messageDiv.style.display = 'block';
+                messageDiv.innerHTML = '🕒 Fetching loading details...';
+                messageDiv.style.background = '#eff6ff';
+                messageDiv.style.color = '#1e40af';
+                messageDiv.style.borderLeftColor = '#3b82f6';
+
+                fetch('fetch_outward_autofill.php?inward_id=' + inwardId)
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success && result.found) {
+                            const data = result.data;
+                            
+                            // Fill Customer
+                            if (data.customer_id) {
+                                document.getElementById('outgoing_customer_id').value = data.customer_id;
+                                document.getElementById('outgoing_customer_name').value = data.customer_name;
+                            }
+                            
+                            // Fill Destination
+                            if (data.destination) {
+                                document.getElementById('outgoing_destination').value = data.destination;
+                            }
+
+                            messageDiv.innerHTML = '✅ Details autofilled from loading checklist!';
+                            messageDiv.style.background = '#f0fdf4';
+                            messageDiv.style.color = '#065f46';
+                            messageDiv.style.borderLeftColor = '#10b981';
+                        } else {
+                            messageDiv.innerHTML = 'ℹ️ No loading details found for this vehicle. Please fill manually.';
+                            messageDiv.style.background = '#fef3c7';
+                            messageDiv.style.color = '#92400e';
+                            messageDiv.style.borderLeftColor = '#f59e0b';
+                        }
+                        
+                        // Hide after 5 seconds
+                        setTimeout(() => {
+                            messageDiv.style.display = 'none';
+                        }, 5000);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching outward autofill:', error);
+                        messageDiv.innerHTML = '❌ Error fetching details';
+                        messageDiv.style.background = '#fef2f2';
+                        messageDiv.style.color = '#991b1b';
+                        messageDiv.style.borderLeftColor = '#ef4444';
+                    });
+            }
+        </script>
 
         <!-- Show trucks inside -->
         <div class="card">
