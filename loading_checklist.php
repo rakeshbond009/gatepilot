@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
             $conn,
             "SELECT id 
              FROM truck_inward 
-             WHERE vehicle_number = '$vehicle_registration_number' AND status = 'inside'
+             WHERE vehicle_number = '$vehicle_registration_number' AND status != 'exited'
              ORDER BY inward_datetime DESC
              LIMIT 1"
         );
@@ -123,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
             $conn,
             "SELECT id 
              FROM truck_inward 
-             WHERE id = $inward_id_int AND vehicle_number = '$vehicle_registration_number' AND status = 'inside'
+             WHERE id = $inward_id_int AND vehicle_number = '$vehicle_registration_number' AND status != 'exited'
              LIMIT 1"
         );
         if (!$verify_q || mysqli_num_rows($verify_q) == 0) {
@@ -131,13 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
             if ($inside_inward_id) {
                 $inward_id = $inside_inward_id;
             } else {
-                $error = "Cannot save loading entry: Vehicle $vehicle_registration_number does not have an inward entry with status INSIDE. Please do Inward entry first.";
+                $error = "Cannot save loading entry: Vehicle $vehicle_registration_number does not have an active inward record. Please do Inward entry first.";
             }
         }
     } else {
         // No inward_id and no inside entry found
         if (!$inside_inward_id) {
-            $error = "Cannot save loading entry: Vehicle $vehicle_registration_number does not have an inward entry with status INSIDE. Please do Inward entry first.";
+            $error = "Cannot save loading entry: Vehicle $vehicle_registration_number does not have an active inward record. Please do Inward entry first.";
         }
     }
 
@@ -779,10 +779,13 @@ endif; ?>
                             style="display:none; margin-top: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; border-left: 4px solid;">
                         </div>
                         <!-- Inward Materials Summary Display -->
-                        <div id="inward-items-summary" 
-                             style="display:none; margin-top: 10px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px;">
-                            <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 5px;">📦 Items Recorded at Gate (Inward)</div>
-                            <div id="inward-items-content" style="font-size: 13px; color: #1e293b; line-height: 1.4;"></div>
+                        <div id="inward-items-summary"
+                            style="display:none; margin-top: 10px; padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px;">
+                            <div
+                                style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 5px;">
+                                📦 Items Recorded at Gate (Inward)</div>
+                            <div id="inward-items-content" style="font-size: 13px; color: #1e293b; line-height: 1.4;">
+                            </div>
                         </div>
                         <small
                             style="color: #6b7280; font-size: 12px; display: flex; align-items: center; gap: 5px; margin-top: 8px;">
@@ -920,7 +923,8 @@ endif; ?>
                                     style="padding: 12px 40px 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; width: 100%; box-sizing: border-box; background: white;"
                                     onfocus="this.style.borderColor='#8b5cf6'; this.style.boxShadow='0 0 0 3px rgba(139, 92, 246, 0.1)';"
                                     onblur="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none';">
-                                <span style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; font-size: 14px;">▼</span>
+                                <span
+                                    style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; font-size: 14px;">▼</span>
                             </div>
                             <input type="hidden" name="customer_id" id="customer_id"
                                 value="<?php echo htmlspecialchars($edit_data['customer_id'] ?? ''); ?>">
@@ -981,15 +985,42 @@ endif; ?>
                             </table>
                         </div>
 
-                        <div
-                            style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 2px solid #e2e8f0; display: grid; grid-template-columns: 100px 1fr 80px 80px 40px; gap: 10px; align-items: end;">
-                            <div>
+                        <style>
+                            .item-entry-wrapper {
+                                background: #f8fafc; 
+                                padding: 18px; 
+                                border-radius: 12px; 
+                                border: 2px solid #e2e8f0; 
+                                display: grid; 
+                                grid-template-columns: 80px 1fr 60px 80px 40px; 
+                                gap: 10px; 
+                                align-items: end;
+                            }
+                            @media (max-width: 600px) {
+                                .item-entry-wrapper {
+                                    grid-template-columns: 1fr 1fr 1fr;
+                                    grid-template-areas: 
+                                        "name name name"
+                                        "code qty unit"
+                                        "btn btn btn";
+                                    gap: 12px;
+                                }
+                                .item-name-area { grid-area: name; }
+                                .item-code-area { grid-area: code; }
+                                .item-qty-area { grid-area: qty; }
+                                .item-unit-area { grid-area: unit; }
+                                .item-btn-area { grid-area: btn; }
+                            }
+                        </style>
+                        <div class="item-entry-wrapper">
+                            <div class="item-code-area">
                                 <label
                                     style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
-                                <input type="text" id="new_item_code" placeholder="Code" list="material_datalist" oninput="handleMaterialAutofill(this)"
+                                <input type="text" id="new_item_code" placeholder="Code" list="material_datalist"
+                                    oninput="handleMaterialAutofill(this)"
                                     style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                             </div>
-                            <div>
+                            <div class="item-name-area">
                                 <label
                                     style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
                                     NAME</label>
@@ -997,13 +1028,13 @@ endif; ?>
                                     list="material_datalist" oninput="handleMaterialAutofill(this)"
                                     style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                             </div>
-                            <div>
+                            <div class="item-qty-area">
                                 <label
                                     style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QTY</label>
                                 <input type="number" id="new_item_qty" step="any" placeholder="0"
                                     style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                             </div>
-                            <div>
+                            <div class="item-unit-area">
                                 <label
                                     style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
                                 <select id="new_item_unit"
@@ -1015,11 +1046,14 @@ endif; ?>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <button type="button" onclick="addItemManually()" id="addItemBtn"
-                                style="background: #8b5cf6; color: white; border: none; padding: 0; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; height: 40px; width: 40px;">
-                                <span style="font-size: 20px; font-weight: bold;">+</span>
-                            </button>
+                            <div class="item-btn-area">
+                                <button type="button" onclick="addItemManually()" id="addItemBtn"
+                                    style="background: #8b5cf6; color: white; border: none; padding: 0; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; height: 40px; width: 40px;">
+                                    <span style="font-size: 20px; font-weight: bold;">+</span>
+                                </button>
+                            </div>
                         </div>
+                        <div style="display:none;">
                         <input type="hidden" name="verified_items_json" id="items_hidden_input">
                         <datalist id="material_datalist">
                             <?php
@@ -1484,7 +1518,7 @@ endif; ?>
 
             // --- Function Definitions (Global Scope) ---
 
-            window.renderItems = function() {
+            window.renderItems = function () {
                 const tbody = document.getElementById('items_tbody');
                 const container = document.getElementById('items_list_container');
                 const badge = document.getElementById('items_count_badge');
@@ -1524,12 +1558,12 @@ endif; ?>
                 }
             };
 
-            window.deleteItem = function(index) {
+            window.deleteItem = function (index) {
                 window.manualItems.splice(index, 1);
                 window.renderItems();
             };
 
-            window.addItemManually = function() {
+            window.addItemManually = function () {
                 const code = document.getElementById('new_item_code').value.trim();
                 const nameInput = document.getElementById('new_item_name');
                 const name = nameInput.value.trim();
@@ -1537,7 +1571,7 @@ endif; ?>
                 const unit = document.getElementById('new_item_unit').value;
 
                 if (!name || !qty) {
-                    alert('Item Name and Quantity are required!');
+                    showCustomAlert('Item Name and Quantity are required!', 'Missing Info');
                     return;
                 }
 
@@ -1559,7 +1593,7 @@ endif; ?>
                 nameInput.focus();
             };
 
-            window.handleMaterialAutofill = function(el) {
+            window.handleMaterialAutofill = function (el) {
                 const val = el.value.trim();
                 if (!val) return;
 
@@ -1583,10 +1617,10 @@ endif; ?>
                 }
             };
 
-            window.fetchVehicleDetailsForLoading = function() {
+            window.fetchVehicleDetailsForLoading = function () {
                 const vehicleNumberInput = document.getElementById('vehicle_registration_number');
                 if (!vehicleNumberInput) return;
-                
+
                 const vehicleNumber = vehicleNumberInput.value.trim().toUpperCase();
                 const messageDiv = document.getElementById('vehicle-fetch-message');
                 const inwardIdField = document.getElementById('inward_id');
@@ -1628,9 +1662,9 @@ endif; ?>
                                 insideMsg.style.background = '#d1fae5';
                                 insideMsg.style.color = '#065f46';
                                 insideMsg.style.borderLeft = '4px solid #10b981';
-                                insideMsg.textContent = '✅ Vehicle is INSIDE (Entry No: ' + (data.entry_number || data.entry_id) + '). Loading allowed.';
+                                insideMsg.textContent = '✅ Vehicle is ON PREMISES (Entry No: ' + (data.entry_number || data.entry_id) + '). Loading allowed.';
                                 if (submitBtn) submitBtn.disabled = false;
-                                
+
                                 // Auto-fill Entry Time
                                 const gateDate = document.querySelector('input[name="gate_entry_date"]');
                                 const gateTime = document.querySelector('input[name="gate_entry_time"]');
@@ -1643,7 +1677,7 @@ endif; ?>
                                         const items = JSON.parse(data.items_json);
                                         if (items && items.length > 0) {
                                             inwardItemsSummary.style.display = 'block';
-                                            inwardItemsContent.innerHTML = items.map(i => 
+                                            inwardItemsContent.innerHTML = items.map(i =>
                                                 `• <strong>${i.item_name || 'Item'}</strong>: ${i.quantity || 0} ${i.unit || 'Unit'}`
                                             ).join('<br>');
                                         } else {
@@ -1658,7 +1692,7 @@ endif; ?>
                                 insideMsg.style.background = '#fee2e2';
                                 insideMsg.style.color = '#991b1b';
                                 insideMsg.style.borderLeft = '4px solid #ef4444';
-                                insideMsg.textContent = '❌ Vehicle is NOT INSIDE. Please perform Inward entry first. Loading blocked.';
+                                insideMsg.textContent = '❌ Vehicle is NOT ON PREMISES. Please perform Inward entry first. Loading blocked.';
                                 if (submitBtn) submitBtn.disabled = true;
                                 if (inwardItemsSummary) inwardItemsSummary.style.display = 'none';
                             }
@@ -1679,7 +1713,7 @@ endif; ?>
                             if (typeMakeInput && data.vehicle) {
                                 typeMakeInput.value = (data.vehicle.maker + ' ' + (data.vehicle.model || '')).trim();
                             }
-                            
+
                             // Capacity
                             const capacityInput = document.getElementById('capacity');
                             if (capacityInput && data.vehicle && data.vehicle.capacity) {
@@ -1691,7 +1725,7 @@ endif; ?>
                             if (driverInput && data.driver && data.driver.driver_name) {
                                 driverInput.value = data.driver.driver_name;
                             }
-                            
+
                             // License
                             const licenseInput = document.getElementById('license_number');
                             if (licenseInput && data.driver && data.driver.license_number) {
@@ -1737,7 +1771,7 @@ endif; ?>
                 const destField = document.getElementById('destination');
                 const customerIdField = document.getElementById('customer_id');
 
-                const handleCustomerSelection = function() {
+                const handleCustomerSelection = function () {
                     const val = customerInput.value;
                     let found = false;
                     if (list) {
@@ -1762,7 +1796,7 @@ endif; ?>
                 const transportSelect = document.getElementById('transport_company_id');
                 const transportNameHidden = document.getElementById('transport_company_name');
                 if (transportSelect && transportNameHidden) {
-                    transportSelect.addEventListener('change', function() {
+                    transportSelect.addEventListener('change', function () {
                         const selectedOption = this.options[this.selectedIndex];
                         transportNameHidden.value = (selectedOption && selectedOption.value) ? selectedOption.text.trim() : '';
                     });
@@ -1782,9 +1816,9 @@ endif; ?>
                             insideMsg.style.background = '#fee2e2';
                             insideMsg.style.color = '#991b1b';
                             insideMsg.style.borderLeft = '4px solid #ef4444';
-                            insideMsg.textContent = '❌ Submission Blocked: Vehicle "' + vehicleNum + '" must be INSIDE. Please do Inward first.';
+                            insideMsg.textContent = '❌ Submission Blocked: Vehicle "' + vehicleNum + '" must have an active inward entry. Please do Inward first.';
                         }
-                        alert('Error: Vehicle must have an active "INSIDE" status to proceed with loading.');
+                        alert('Error: Vehicle must have an active inward entry to proceed with loading.');
                         return false;
                     }
 
@@ -1859,6 +1893,6 @@ endif; ?>
 
     </html>
     <?php
-    endif;
-    // End of loading_checklist.php
-    ?>
+        endif;
+        // End of loading_checklist.php
+        ?>

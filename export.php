@@ -1,11 +1,17 @@
 <?php
-/**
- * Excel Export for Reports
- */
-
-// Include config for database connection
+ob_start(); 
+// Include config for database connection (sets session paths and cookie params)
 require_once 'config.php';
+
+// Start session AFTER config sets the custom session path
+session_start();
+
 $conn = getDatabaseConnection();
+
+// Basic security check
+if (!isset($_SESSION['user_id'])) {
+    die("Unauthorized access. Please login first.");
+}
 
 // Get filter parameters
 $start_date = $_GET['start_date'] ?? date('Y-m-01');
@@ -412,82 +418,51 @@ if ($export_tab === 'inward' && $status_filter)
 $filename = implode('_', $filename_parts) . '.xls';
 $filename_encoded = rawurlencode($filename);
 
-// Detect mobile user agent
-$is_mobile = preg_match('/(android|iphone|ipad|ipod|mobile)/i', $_SERVER['HTTP_USER_AGENT'] ?? '');
-
 ob_clean(); // Ensure no stray output
 
-if ($is_mobile) {
-    // For mobile: Output CSV format (using fputcsv for reliability)
-    $filename = str_replace('.xls', '.csv', $filename);
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
+// Output CSV format (using fputcsv for reliability and universal compatibility)
+$filename = str_replace('.xls', '.csv', $filename);
+if (substr($filename, -4) !== '.csv') $filename .= '.csv';
 
-    $output = fopen('php://output', 'w');
-    // Output UTF-8 BOM for Excel compatibility if needed, but fputcsv is safer without for some mobile apps
-    // fwrite($output, "\xEF\xBB\xBF"); 
+header('Content-Type: text/csv; charset=utf-8');
+header('Content-Disposition: attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . rawurlencode($filename));
+header('Pragma: no-cache');
+header('Expires: 0');
 
-    // Header row
-    fputcsv($output, $columns);
+$output = fopen('php://output', 'w');
 
-    // Data rows
-    if ($result) {
-        $data_array = is_array($result) ? $result : [];
-        if (!is_array($result) && mysqli_num_rows($result) > 0) {
-            while ($row = mysqli_fetch_assoc($result))
-                $data_array[] = $row;
-        }
+// Output UTF-8 BOM for Excel compatibility (Ensures correct characters and avoids blank data in some readers)
+fwrite($output, "\xEF\xBB\xBF"); 
 
-        foreach ($data_array as $row) {
-            $csv_row = [];
-            foreach ($columns as $col) {
-                $csv_row[] = $row[$col] ?? '';
-            }
-            fputcsv($output, $csv_row);
-        }
-    }
-    fclose($output);
-} else {
-    // For desktop: Output Excel HTML format
-    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $filename_encoded);
-    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-    header('Pragma: public');
-    header('Expires: 0');
+// Header row
+fputcsv($output, $columns);
 
-    // Output UTF-8 BOM for Excel compatibility
-    echo "\xEF\xBB\xBF";
-
-    echo '<html xmlns:x="urn:schemas-microsoft-com:office:excel">';
-    echo '<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">';
-    echo '<style>table { border-collapse: collapse; } th { background: #4F46E5; color: white; border: 1px solid #ccc; } td { border: 1px solid #ccc; }</style>';
-    echo '</head><body>';
-    echo '<table border="1">';
-    echo '<thead><tr>';
-    foreach ($columns as $col) {
-        echo '<th>' . htmlspecialchars($col) . '</th>';
-    }
-    echo '</tr></thead><tbody>';
-
-    if ($result) {
-        $data_array = is_array($result) ? $result : [];
-        if (!is_array($result) && mysqli_num_rows($result) > 0) {
-            while ($row = mysqli_fetch_assoc($result))
-                $data_array[] = $row;
-        }
-
-        foreach ($data_array as $row) {
-            echo '<tr>';
-            foreach ($columns as $col) {
-                echo '<td>' . htmlspecialchars($row[$col] ?? '') . '</td>';
-            }
-            echo '</tr>';
-        }
+// Data rows
+if ($result) {
+    if (is_array($result)) {
+        $data_array = $result;
     } else {
-        echo '<tr><td colspan="' . count($columns) . '" style="text-align: center;">No records found.</td></tr>';
+        $data_array = [];
+        if (mysqli_num_rows($result) > 0) {
+            while ($row = mysqli_fetch_assoc($result))
+                $data_array[] = $row;
+        }
     }
-    echo '</tbody></table></body></html>';
+
+    foreach ($data_array as $row) {
+        $csv_row = [];
+        foreach ($columns as $col) {
+            // Use cell value or empty string if not found
+            $csv_row[] = $row[$col] ?? '';
+        }
+        fputcsv($output, $csv_row);
+    }
+} else {
+    // If no results, but we still want to show a message in the export
+    fputcsv($output, ["No records found matching filters."]);
 }
+
+fclose($output);
 
 
 mysqli_close($conn);

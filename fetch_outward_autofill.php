@@ -4,11 +4,9 @@
  * Given an inward_id, it finds the associated loading checklist details
  */
 
-header('Content-Type: application/json');
-require_once 'config.php';
+require_once 'includes/init.php';
 
-$conn = getDatabaseConnection();
-
+// The connection is already established by init.php as $conn
 if (!$conn) {
     echo json_encode(['success' => false, 'message' => 'Database connection failed']);
     exit;
@@ -21,7 +19,6 @@ if ($inward_id <= 0) {
     exit;
 }
 
-// Fetch the most recent completed loading checklist for this inward entry
 $query = "
     SELECT 
         customer_id,
@@ -29,15 +26,40 @@ $query = "
         destination
     FROM vehicle_loading_checklist
     WHERE inward_id = $inward_id 
-    AND status = 'completed'
     ORDER BY created_at DESC
     LIMIT 1
 ";
 
 $result = mysqli_query($conn, $query);
+$data = mysqli_fetch_assoc($result);
 
-if ($result && mysqli_num_rows($result) > 0) {
-    $data = mysqli_fetch_assoc($result);
+$debug_query_type = 'inward_id';
+
+// Fallback: If no loading checklist found by specific inward_id, try by vehicle number
+if (!$data && $inward_id > 0) {
+    $v_res = mysqli_query($conn, "SELECT vehicle_number FROM truck_inward WHERE id = $inward_id");
+    if ($v_row = mysqli_fetch_assoc($v_res)) {
+        $v_num = trim($v_row['vehicle_number']);
+        $v_clean = mysqli_real_escape_string($conn, str_replace(' ', '', $v_num));
+        
+        $debug_query_type = 'vehicle_number_fuzzy';
+        
+        $query = "
+            SELECT 
+                customer_id,
+                customer_name,
+                destination
+            FROM vehicle_loading_checklist
+            WHERE REPLACE(vehicle_registration_number, ' ', '') = '$v_clean'
+            ORDER BY created_at DESC
+            LIMIT 1
+        ";
+        $result = mysqli_query($conn, $query);
+        $data = mysqli_fetch_assoc($result);
+    }
+}
+
+if ($data) {
     echo json_encode([
         'success' => true,
         'found' => true,

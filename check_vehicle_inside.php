@@ -39,7 +39,7 @@ if ($inward_id > 0) {
     // Check if vehicle is already inside
     $query = "SELECT id, entry_number, inward_datetime, driver_name, status, items_json 
               FROM truck_inward 
-              WHERE vehicle_number = '$vehicle_number' AND status = 'inside' 
+              WHERE vehicle_number = '$vehicle_number' AND status != 'exited' 
               ORDER BY inward_datetime DESC 
               LIMIT 1";
 } else {

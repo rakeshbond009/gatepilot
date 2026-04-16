@@ -548,16 +548,58 @@ if (isset($conn)) {
                         </table>
                     </div>
 
-                    <div
-                        style="background: #f8fafc; padding: 18px; border-radius: 12px; border: 2px solid #e2e8f0; display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 10px; align-items: end;">
-                        <div>
+                    <style>
+                        .item-entry-wrapper {
+                            background: #f8fafc;
+                            padding: 18px;
+                            border-radius: 12px;
+                            border: 2px solid #e2e8f0;
+                            display: grid;
+                            grid-template-columns: 1fr 2fr 1fr 1fr auto;
+                            gap: 10px;
+                            align-items: end;
+                        }
+
+                        @media (max-width: 600px) {
+                            .item-entry-wrapper {
+                                grid-template-columns: 1fr 1fr 1fr;
+                                grid-template-areas:
+                                    "name name name"
+                                    "code qty unit"
+                                    "btn btn btn";
+                                gap: 12px;
+                            }
+
+                            .item-name-area {
+                                grid-area: name;
+                            }
+
+                            .item-code-area {
+                                grid-area: code;
+                            }
+
+                            .item-qty-area {
+                                grid-area: qty;
+                            }
+
+                            .item-unit-area {
+                                grid-area: unit;
+                            }
+
+                            .item-btn-area {
+                                grid-area: btn;
+                            }
+                        }
+                    </style>
+                    <div class="item-entry-wrapper">
+                        <div class="item-code-area">
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">CODE</label>
                             <input type="text" id="new_item_code" placeholder="Code" list="material_datalist"
                                 oninput="handleMaterialAutofill(this)"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
-                        <div>
+                        <div class="item-name-area">
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">ITEM
                                 NAME</label>
@@ -565,13 +607,13 @@ if (isset($conn)) {
                                 list="material_datalist" oninput="handleMaterialAutofill(this)"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
-                        <div>
+                        <div class="item-qty-area">
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">QUANTITY</label>
                             <input type="number" id="new_item_qty" step="any" placeholder="0"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         </div>
-                        <div>
+                        <div class="item-unit-area">
                             <label
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
                             <select id="new_item_unit"
@@ -583,11 +625,12 @@ if (isset($conn)) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <button type="button" onclick="addItemManually()" id="addItemBtn"
-                            style="background: #8b5cf6; color: white; border: none; padding: 12px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; height: 40px; width: 40px;"
-                            onmouseover="this.style.background='#7c3aed'" onmouseout="this.style.background='#8b5cf6'">
-                            <span style="font-size: 20px; font-weight: bold;">+</span>
-                        </button>
+                        <div class="item-btn-area">
+                            <button type="button" onclick="addItemManually()" id="addItemBtn"
+                                style="background: #8b5cf6; color: white; border: none; padding: 0; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; height: 40px; width: 40px;">
+                                <span style="font-size: 20px; font-weight: bold;">+</span>
+                            </button>
+                        </div>
                     </div>
                     <input type="hidden" name="items" id="items_hidden_input">
                     <datalist id="material_datalist">
@@ -1350,8 +1393,8 @@ elseif ($page == 'outward'):
     require_once dirname(__DIR__) . '/database/init_loading_unloading_tables.php';
     initLoadingUnloadingTables($conn);
 
-    // Get trucks inside
-    $inside_trucks = mysqli_query($conn, "SELECT * FROM truck_inward WHERE status = 'inside' ORDER BY inward_datetime DESC");
+    // Get trucks inside (including those in loading/unloading stages)
+    $inside_trucks = mysqli_query($conn, "SELECT * FROM truck_inward WHERE status != 'exited' ORDER BY inward_datetime DESC");
 
     // Get customers for OUT-GOING CHECK dropdown
     $customers_query = "SELECT id, customer_name FROM customer_master WHERE is_active = 1 ORDER BY customer_name";
@@ -1501,7 +1544,7 @@ elseif ($page == 'outward'):
                         <label style="font-weight: 600; color: #374151;">Customer</label>
                         <select name="outgoing_customer_id" id="outgoing_customer_id"
                             style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px;"
-                            onchange="const sel = this.options[this.selectedIndex]; document.getElementById('outgoing_customer_name').value = sel.text;">
+                            onchange="updateCustomerNameAndDestination(this, 'outgoing_customer_name', 'outgoing_destination')">
                             <option value="">Select Customer</option>
                             <?php
                             if ($customers_result) {
@@ -1735,55 +1778,120 @@ elseif ($page == 'outward'):
         </form>
 
         <script>
+            function updateCustomerNameAndDestination(selectNode, nameHiddenId, destFieldId) {
+                const sel = selectNode.options[selectNode.selectedIndex];
+                const customerName = sel.text;
+                const customerId = selectNode.value;
+
+                // Update hidden name
+                if (nameHiddenId) {
+                    document.getElementById(nameHiddenId).value = customerName;
+                }
+
+                if (!customerId) return;
+
+                // Fetch destination automatically
+                fetch('?page=get-customer-destination&customer_id=' + customerId)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.destination) {
+                            const destInput = document.getElementById(destFieldId);
+                            if (destInput) {
+                                destInput.value = data.destination;
+                                // Visual feedback
+                                destInput.style.backgroundColor = '#f0fdf4';
+                                setTimeout(() => { destInput.style.backgroundColor = ''; }, 1000);
+                            }
+                        }
+                    })
+                    .catch(err => console.error('Error fetching destination:', err));
+            }
+
             function fetchOutwardAutofill(inwardId) {
                 if (!inwardId) return;
 
+                // Clear previous values first
+                const customerSelect = document.getElementById('outgoing_customer_id');
+                const destInput = document.getElementById('outgoing_destination');
+                const nameInput = document.getElementById('outgoing_customer_name');
+                if (customerSelect) customerSelect.selectedIndex = 0;
+                if (destInput) destInput.value = '';
+                if (nameInput) nameInput.value = '';
+
                 const messageDiv = document.getElementById('outward-autofill-message');
-                messageDiv.style.display = 'block';
-                messageDiv.innerHTML = '🕒 Fetching loading details...';
-                messageDiv.style.background = '#eff6ff';
-                messageDiv.style.color = '#1e40af';
-                messageDiv.style.borderLeftColor = '#3b82f6';
+                if (messageDiv) {
+                    messageDiv.style.display = 'block';
+                    messageDiv.innerHTML = '🕒 Fetching loading details...';
+                    messageDiv.style.background = '#eff6ff';
+                    messageDiv.style.color = '#1e40af';
+                    messageDiv.style.borderLeftColor = '#3b82f6';
+                }
 
                 fetch('fetch_outward_autofill.php?inward_id=' + inwardId)
                     .then(response => response.json())
                     .then(result => {
                         if (result.success && result.found) {
                             const data = result.data;
-                            
-                            // Fill Customer
-                            if (data.customer_id) {
-                                document.getElementById('outgoing_customer_id').value = data.customer_id;
-                                document.getElementById('outgoing_customer_name').value = data.customer_name;
-                            }
-                            
-                            // Fill Destination
-                            if (data.destination) {
-                                document.getElementById('outgoing_destination').value = data.destination;
+                            const customerSelect = document.getElementById('outgoing_customer_id');
+                            const destInput = document.getElementById('outgoing_destination');
+                            const nameInput = document.getElementById('outgoing_customer_name');
+
+                            if (customerSelect) {
+                                // 1. Set by ID
+                                if (data.customer_id) {
+                                    customerSelect.value = data.customer_id;
+                                }
+
+                                // 2. Fallback: Match by name
+                                if (customerSelect.selectedIndex <= 0 && data.customer_name) {
+                                    const searchName = data.customer_name.toLowerCase().trim();
+                                    for (let i = 0; i < customerSelect.options.length; i++) {
+                                        const optText = customerSelect.options[i].text.toLowerCase().trim();
+                                        if (optText === searchName) {
+                                            customerSelect.selectedIndex = i;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // 3. Sync hidden name field
+                                const selectedText = customerSelect.options[customerSelect.selectedIndex]?.text;
+                                if (selectedText && selectedText !== 'Select Customer' && nameInput) {
+                                    nameInput.value = selectedText;
+                                }
                             }
 
-                            messageDiv.innerHTML = '✅ Details autofilled from loading checklist!';
-                            messageDiv.style.background = '#f0fdf4';
-                            messageDiv.style.color = '#065f46';
-                            messageDiv.style.borderLeftColor = '#10b981';
+                            // 4. Set Destination (Priority: Loading Checklist > Master Default)
+                            if (data.destination && destInput) {
+                                destInput.value = data.destination;
+                            } else if (customerSelect && customerSelect.value && typeof updateCustomerNameAndDestination === 'function') {
+                                updateCustomerNameAndDestination(customerSelect, 'outgoing_customer_name', 'outgoing_destination');
+                            }
+
+                            if (messageDiv) {
+                                messageDiv.innerHTML = '✅ Details autofilled from loading checklist!';
+                                messageDiv.style.background = '#f0fdf4';
+                                messageDiv.style.color = '#065f46';
+                                messageDiv.style.borderLeftColor = '#10b981';
+                            }
                         } else {
-                            messageDiv.innerHTML = 'ℹ️ No loading details found for this vehicle. Please fill manually.';
-                            messageDiv.style.background = '#fef3c7';
-                            messageDiv.style.color = '#92400e';
-                            messageDiv.style.borderLeftColor = '#f59e0b';
+                            if (messageDiv) messageDiv.style.display = 'none';
                         }
-                        
-                        // Hide after 5 seconds
-                        setTimeout(() => {
-                            messageDiv.style.display = 'none';
-                        }, 5000);
+
+                        if (messageDiv) {
+                            setTimeout(() => {
+                                messageDiv.style.display = 'none';
+                            }, 5000);
+                        }
                     })
                     .catch(error => {
                         console.error('Error fetching outward autofill:', error);
-                        messageDiv.innerHTML = '❌ Error fetching details';
-                        messageDiv.style.background = '#fef2f2';
-                        messageDiv.style.color = '#991b1b';
-                        messageDiv.style.borderLeftColor = '#ef4444';
+                        if (messageDiv) {
+                            messageDiv.innerHTML = '❌ Error fetching details';
+                            messageDiv.style.background = '#fef2f2';
+                            messageDiv.style.color = '#991b1b';
+                            messageDiv.style.borderLeftColor = '#ef4444';
+                        }
                     });
             }
         </script>
@@ -1842,7 +1950,7 @@ elseif ($page == 'inside'):
 
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
-    $where = ["ti.status = 'inside'"];
+    $where = ["ti.status != 'exited'"];
     if ($search) {
         $where[] = "(ti.vehicle_number LIKE '%$search%' OR ti.driver_name LIKE '%$search%' OR ti.bill_number LIKE '%$search%' OR ti.transporter_name LIKE '%$search%')";
     }
@@ -2439,7 +2547,8 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
                         <div>
                             <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Reporting Time
                                 (Plant)</strong><br>
@@ -2464,11 +2573,12 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                     </div>
 
                     <!-- Verified Items Table -->
-                    <?php 
+                    <?php
                     $lc_items = json_decode($loading_checklist['verified_items_json'] ?? '[]', true) ?: [];
                     if (!empty($lc_items)): ?>
                         <div style="margin-top: 20px; border-top: 1px solid #e2e8f0; pt: 15px;">
-                            <strong style="color: #0369a1; font-size: 14px; display: block; margin-bottom: 10px;">📦 Materials Loaded (Verified)</strong>
+                            <strong style="color: #0369a1; font-size: 14px; display: block; margin-bottom: 10px;">📦 Materials
+                                Loaded (Verified)</strong>
                             <div class="table-wrapper">
                                 <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
                                     <thead>
@@ -2482,10 +2592,17 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                                     <tbody>
                                         <?php foreach ($lc_items as $item): ?>
                                             <tr style="border-bottom: 1px solid #f1f5f9;">
-                                                <td style="padding: 10px;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?></td>
-                                                <td style="padding: 10px; font-weight: 500;"><?php echo htmlspecialchars($item['item_name'] ?? 'N/A'); ?></td>
-                                                <td style="padding: 10px; text-align: right; font-weight: 600;"><?php echo number_format($item['quantity'] ?? 0, 2); ?></td>
-                                                <td style="padding: 10px; text-align: center;"><?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?></td>
+                                                <td style="padding: 10px;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?>
+                                                </td>
+                                                <td style="padding: 10px; font-weight: 500;">
+                                                    <?php echo htmlspecialchars($item['item_name'] ?? 'N/A'); ?>
+                                                </td>
+                                                <td style="padding: 10px; text-align: right; font-weight: 600;">
+                                                    <?php echo number_format($item['quantity'] ?? 0, 2); ?>
+                                                </td>
+                                                <td style="padding: 10px; text-align: center;">
+                                                    <?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?>
+                                                </td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -2494,475 +2611,473 @@ elseif ($page == 'details' || $page == 'inward-details' || $page == 'outward-det
                         </div>
                     <?php endif; ?>
                 </div>
-                </div>
-                <?php
+            </div>
+            <?php
             endif; ?>
 
-            <!-- Unloading Checklist Details -->
-            <?php if (!$is_outward_view && $unloading_checklist): ?>
+        <!-- Unloading Checklist Details -->
+        <?php if (!$is_outward_view && $unloading_checklist): ?>
+            <div
+                style="margin-top: 30px; padding: 20px; background: #fdf2f8; border-radius: 12px; border-left: 5px solid #db2777;">
+                <h3
+                    style="margin-top: 0; margin-bottom: 20px; color: #9d174d; font-size: 20px; display: flex; align-items: center; gap: 10px;">
+                    <span>📥</span> Unloading Checklist (VCPL/STORE/FR/01)
+                </h3>
+
                 <div
-                    style="margin-top: 30px; padding: 20px; background: #fdf2f8; border-radius: 12px; border-left: 5px solid #db2777;">
-                    <h3
-                        style="margin-top: 0; margin-bottom: 20px; color: #9d174d; font-size: 20px; display: flex; align-items: center; gap: 10px;">
-                        <span>📥</span> Unloading Checklist (VCPL/STORE/FR/01)
-                    </h3>
-
-                    <div
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Vehicle
-                                Type</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($unloading_checklist['vehicle_type'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Body
-                                Type</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($unloading_checklist['body_type'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Vendor
-                                Name</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($unloading_checklist['vendor_name'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong
-                                style="color: #64748b; font-size: 11px; text-transform: uppercase;">Challan/Invoice</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars(($unloading_checklist['challan_no'] ?: $unloading_checklist['invoice_no']) ?: 'N/A'); ?>
-                            </span>
-                        </div>
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Vehicle
+                            Type</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($unloading_checklist['vehicle_type'] ?? 'N/A'); ?>
+                        </span>
                     </div>
-
-                    <div style="margin-bottom: 20px;">
-                        <strong
-                            style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Safety
-                            & Document Checks</strong>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
-                            <?php
-                            $safety_checks = json_decode($unloading_checklist['safety_checks_json'] ?? '[]', true) ?: [];
-                            $unloading_labels = [
-                                'driver_cleaner_safety_induction' => 'Driver & Cleaner Safety Induction',
-                                'ppe_provided' => 'PPE Provided',
-                                'wheel_chocks_provided' => 'Wheel Chocks Provided',
-                                'fire_extinguisher_available' => 'Fire Extinguisher Available',
-                                'first_aid_box_available' => 'First Aid Box Available',
-                                'cleaner_available' => 'Cleaner Available',
-                                'no_oil_leakage' => 'No Oil Leakage',
-                                'reverse_horn_available' => 'Reverse Horn Available',
-                                'tyre_condition_good' => 'Tyre Condition',
-                                'indicators_horn_lights_working' => 'Indicators/Horn/Lights',
-                                'seat_belt_available' => 'Seat Belt Available',
-                                'hazard_warning_triangle_available' => 'Hazard Warning Triangle',
-                                'rear_view_mirrors_good' => 'Rear View Mirrors',
-                                'tailgate_rear_guard_condition' => 'Tailgate/Rear Guard'
-                            ];
-                            foreach ($safety_checks as $check):
-                                $observation = $check['observation'] ?? $check['status'] ?? 'N/A';
-                                $badge_color = ($observation == 'OK' || $observation == 'Yes' || $observation == 'Valid') ? 'success' : (($observation == 'NOT OK' || $observation == 'No' || $observation == 'Expired') ? 'error' : 'secondary');
-                                $item_key = $check['type'] ?? $check['item'] ?? '';
-                                $label = $check['label'] ?? $unloading_labels[$item_key] ?? ucwords(str_replace('_', ' ', $item_key));
-                                ?>
-                                <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 13px; font-weight: 600;">
-                                            <?php echo htmlspecialchars($label); ?>
-                                        </span>
-                                        <span class="badge badge-<?php echo $badge_color; ?>" style="font-size: 10px;">
-                                            <?php echo $observation; ?>
-                                        </span>
-                                    </div>
-                                    <?php if (!empty($check['remarks'])): ?>
-                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                                            <?php echo htmlspecialchars($check['remarks']); ?>
-                                        </div>
-                                        <?php
-                                    endif; ?>
-                                </div>
-                                <?php
-                            endforeach; ?>
-
-                            <!-- Tanker Specific Checks if applicable -->
-                            <?php if ($unloading_checklist['tanker_sealing_status_obs']): ?>
-                                <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 13px; font-weight: 600;">Tanker Sealing Status</span>
-                                        <span
-                                            class="badge badge-<?php echo $unloading_checklist['tanker_sealing_status_obs'] == 'OK' ? 'success' : 'error'; ?>"
-                                            style="font-size: 10px;">
-                                            <?php echo $unloading_checklist['tanker_sealing_status_obs']; ?>
-                                        </span>
-                                    </div>
-                                    <?php if (!empty($unloading_checklist['tanker_sealing_status_remarks'])): ?>
-                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                                            <?php echo htmlspecialchars($unloading_checklist['tanker_sealing_status_remarks']); ?>
-                                        </div>
-                                        <?php
-                                    endif; ?>
-                                </div>
-                                <?php
-                            endif; ?>
-
-                            <?php if ($unloading_checklist['tanker_emergency_panel_obs']): ?>
-                                <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 13px; font-weight: 600;">Emergency Info Panel</span>
-                                        <span
-                                            class="badge badge-<?php echo ($unloading_checklist['tanker_emergency_panel_obs'] == 'Yes' || $unloading_checklist['tanker_emergency_panel_obs'] == 'OK') ? 'success' : 'error'; ?>"
-                                            style="font-size: 10px;">
-                                            <?php echo $unloading_checklist['tanker_emergency_panel_obs']; ?>
-                                        </span>
-                                    </div>
-                                    <?php if (!empty($unloading_checklist['tanker_emergency_panel_remarks'])): ?>
-                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                                            <?php echo htmlspecialchars($unloading_checklist['tanker_emergency_panel_remarks']); ?>
-                                        </div>
-                                        <?php
-                                    endif; ?>
-                                </div>
-                                <?php
-                            endif; ?>
-
-                            <?php if ($unloading_checklist['tanker_fall_protection_obs']): ?>
-                                <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 13px; font-weight: 600;">Fall Protection Railing</span>
-                                        <span
-                                            class="badge badge-<?php echo ($unloading_checklist['tanker_fall_protection_obs'] == 'Yes' || $unloading_checklist['tanker_fall_protection_obs'] == 'OK') ? 'success' : 'error'; ?>"
-                                            style="font-size: 10px;">
-                                            <?php echo $unloading_checklist['tanker_fall_protection_obs']; ?>
-                                        </span>
-                                    </div>
-                                    <?php if (!empty($unloading_checklist['tanker_fall_protection_remarks'])): ?>
-                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                                            <?php echo htmlspecialchars($unloading_checklist['tanker_fall_protection_remarks']); ?>
-                                        </div>
-                                        <?php
-                                    endif; ?>
-                                </div>
-                                <?php
-                            endif; ?>
-                        </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Body
+                            Type</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($unloading_checklist['body_type'] ?? 'N/A'); ?>
+                        </span>
                     </div>
-
-                    <div
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Gross
-                                Weight</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo $unloading_checklist['gross_weight_invoice'] ?: 'N/A'; ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Tare
-                                Weight</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo $unloading_checklist['tare_weight_invoice'] ?: 'N/A'; ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Net
-                                Weight</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo $unloading_checklist['net_weight_invoice'] ?: 'N/A'; ?>
-                            </span>
-                        </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Vendor
+                            Name</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($unloading_checklist['vendor_name'] ?? 'N/A'); ?>
+                        </span>
                     </div>
-
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Reporting
-                                Time</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo $unloading_checklist['reporting_datetime'] ? date('d/m/Y h:i A', strtotime($unloading_checklist['reporting_datetime'])) : 'N/A'; ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Checked
-                                By</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($unloading_checklist['checked_by_name'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Challan/Invoice</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars(($unloading_checklist['challan_no'] ?: $unloading_checklist['invoice_no']) ?: 'N/A'); ?>
+                        </span>
                     </div>
+                </div>
 
-                    <?php if (!empty($unloading_checklist['other_remarks'])): ?>
-                        <div
-                            style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Other
-                                Remarks</strong><br>
-                            <div style="font-size: 13px; margin-top: 5px;">
-                                <?php echo nl2br(htmlspecialchars($unloading_checklist['other_remarks'])); ?>
-                            </div>
-                        </div>
+                <div style="margin-bottom: 20px;">
+                    <strong
+                        style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Safety
+                        & Document Checks</strong>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
                         <?php
-                    endif; ?>
-                </div>
-                <?php
-            endif; ?>
-
-            <!-- Outgoing Checklist Details -->
-            <?php if (!$is_inward_view && $outgoing_checklist): ?>
-                <div
-                    style="margin-top: 30px; padding: 20px; background: #f5f3ff; border-radius: 12px; border-left: 5px solid #8b5cf6;">
-                    <h3
-                        style="margin-top: 0; margin-bottom: 5px; color: #6d28d9; font-size: 20px; display: flex; align-items: center; gap: 10px;">
-                        <span>🚚</span> Outgoing Check (VCPL/LOG/FR/02)
-                    </h3>
-                    <p style="color: #666; font-size: 12px; margin-bottom: 20px;">
-                        Document ID:
-                        <?php echo htmlspecialchars($outgoing_checklist['document_id'] ?? 'VCPL/LOG/FR/02'); ?>
-                        |
-                        Date:
-                        <?php echo $outgoing_checklist['document_date'] ? date('d-M-y', strtotime($outgoing_checklist['document_date'])) : 'N/A'; ?>
-                    </p>
-
-                    <div
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Customer</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($outgoing_checklist['customer_name'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Destination</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($outgoing_checklist['destination'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Reporting
-                                Time</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo $outgoing_checklist['reporting_datetime'] ? date('d/m/Y h:i A', strtotime($outgoing_checklist['reporting_datetime'])) : 'N/A'; ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Leaving
-                                Time</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo $outgoing_checklist['leaving_datetime'] ? date('d/m/Y h:i A', strtotime($outgoing_checklist['leaving_datetime'])) : 'N/A'; ?>
-                            </span>
-                        </div>
-                    </div>
-
-                    <div style="margin-bottom: 20px;">
-                        <strong
-                            style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Dispatch
-                            Checks</strong>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
-                            <?php
-                            $out_checks = [
-                                'Tarpaulin Condition' => ['obs' => $outgoing_checklist['tarpaulin_condition_obs'], 'act' => $outgoing_checklist['tarpaulin_condition_action'], 'rem' => $outgoing_checklist['tarpaulin_condition_remarks']],
-                                'Wooden Blocks Used' => ['obs' => $outgoing_checklist['wooden_blocks_used_obs'], 'act' => $outgoing_checklist['wooden_blocks_used_action'], 'rem' => $outgoing_checklist['wooden_blocks_used_remarks']],
-                                'Rope Tightening' => ['obs' => $outgoing_checklist['rope_tightening_obs'], 'act' => $outgoing_checklist['rope_tightening_action'], 'rem' => $outgoing_checklist['rope_tightening_remarks']],
-                                'Sealing Status' => ['obs' => $outgoing_checklist['sealing_obs'], 'act' => $outgoing_checklist['sealing_action'], 'rem' => $outgoing_checklist['sealing_remarks']],
-                                'Naaviq Trip Started' => ['obs' => $outgoing_checklist['naaviq_trip_started'], 'act' => $outgoing_checklist['naaviq_trip_action'], 'rem' => $outgoing_checklist['naaviq_trip_remarks']]
-                            ];
-                            foreach ($out_checks as $label => $check):
-                                $badge_color = ($check['obs'] == 'OK' || $check['obs'] == 'Yes') ? 'success' : (($check['obs'] == 'NOT OK' || $check['obs'] == 'No') ? 'error' : 'secondary');
-                                ?>
-                                <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-size: 13px; font-weight: 600;">
-                                            <?php echo $label; ?>
-                                        </span>
-                                        <span class="badge badge-<?php echo $badge_color; ?>" style="font-size: 10px;">
-                                            <?php echo $check['obs'] ?? 'N/A'; ?>
-                                        </span>
-                                    </div>
-                                    <?php if (!empty($check['act'])): ?>
-                                        <div style="font-size: 11px; color: #059669; margin-top: 4px;"><strong>Action:</strong>
-                                            <?php echo htmlspecialchars($check['act']); ?>
-                                        </div>
-                                        <?php
-                                    endif; ?>
-                                    <?php if (!empty($check['rem'])): ?>
-                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;"><strong>Remarks:</strong>
-                                            <?php echo htmlspecialchars($check['rem']); ?>
-                                        </div>
-                                        <?php
-                                    endif; ?>
+                        $safety_checks = json_decode($unloading_checklist['safety_checks_json'] ?? '[]', true) ?: [];
+                        $unloading_labels = [
+                            'driver_cleaner_safety_induction' => 'Driver & Cleaner Safety Induction',
+                            'ppe_provided' => 'PPE Provided',
+                            'wheel_chocks_provided' => 'Wheel Chocks Provided',
+                            'fire_extinguisher_available' => 'Fire Extinguisher Available',
+                            'first_aid_box_available' => 'First Aid Box Available',
+                            'cleaner_available' => 'Cleaner Available',
+                            'no_oil_leakage' => 'No Oil Leakage',
+                            'reverse_horn_available' => 'Reverse Horn Available',
+                            'tyre_condition_good' => 'Tyre Condition',
+                            'indicators_horn_lights_working' => 'Indicators/Horn/Lights',
+                            'seat_belt_available' => 'Seat Belt Available',
+                            'hazard_warning_triangle_available' => 'Hazard Warning Triangle',
+                            'rear_view_mirrors_good' => 'Rear View Mirrors',
+                            'tailgate_rear_guard_condition' => 'Tailgate/Rear Guard'
+                        ];
+                        foreach ($safety_checks as $check):
+                            $observation = $check['observation'] ?? $check['status'] ?? 'N/A';
+                            $badge_color = ($observation == 'OK' || $observation == 'Yes' || $observation == 'Valid') ? 'success' : (($observation == 'NOT OK' || $observation == 'No' || $observation == 'Expired') ? 'error' : 'secondary');
+                            $item_key = $check['type'] ?? $check['item'] ?? '';
+                            $label = $check['label'] ?? $unloading_labels[$item_key] ?? ucwords(str_replace('_', ' ', $item_key));
+                            ?>
+                            <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; font-weight: 600;">
+                                        <?php echo htmlspecialchars($label); ?>
+                                    </span>
+                                    <span class="badge badge-<?php echo $badge_color; ?>" style="font-size: 10px;">
+                                        <?php echo $observation; ?>
+                                    </span>
                                 </div>
-                                <?php
-                            endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- Outgoing Documents Check -->
-                    <?php
-                    $out_docs = json_decode($outgoing_checklist['documents_json'] ?? '[]', true) ?: [];
-                    if (!empty($out_docs)):
-                        ?>
-                        <div style="margin-bottom: 20px;">
-                            <strong
-                                style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Outgoing
-                                Documents Checklist</strong>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
-                                <?php foreach ($out_docs as $doc):
-                                    $badge_color = $doc['status'] == 'OK' ? 'success' : ($doc['status'] == 'NOT OK' ? 'error' : 'secondary');
-                                    ?>
-                                    <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                                            <span style="font-size: 13px; font-weight: 600;">
-                                                <?php echo htmlspecialchars($doc['label'] ?? ucwords(str_replace('_', ' ', $doc['type']))); ?>
-                                            </span>
-                                            <span class="badge badge-<?php echo $badge_color; ?>" style="font-size: 10px;">
-                                                <?php echo $doc['status']; ?>
-                                            </span>
-                                        </div>
-                                        <?php if (!empty($doc['remarks'])): ?>
-                                            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-                                                <?php echo htmlspecialchars($doc['remarks']); ?>
-                                            </div>
-                                            <?php
-                                        endif; ?>
+                                <?php if (!empty($check['remarks'])): ?>
+                                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                                        <?php echo htmlspecialchars($check['remarks']); ?>
                                     </div>
                                     <?php
-                                endforeach; ?>
+                                endif; ?>
                             </div>
-                        </div>
-                        <?php
-                    endif; ?>
+                            <?php
+                        endforeach; ?>
 
-                    <div
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">No. of
-                                Seals</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo $outgoing_checklist['number_of_seals'] ?: '0'; ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Sealing
-                                Method</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($outgoing_checklist['sealing_method'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                        <div>
-                            <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Sealing Done
-                                By</strong><br>
-                            <span style="font-weight: 600;">
-                                <?php echo htmlspecialchars($outgoing_checklist['sealing_done_by'] ?? 'N/A'); ?>
-                            </span>
-                        </div>
-                    </div>
+                        <!-- Tanker Specific Checks if applicable -->
+                        <?php if ($unloading_checklist['tanker_sealing_status_obs']): ?>
+                            <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; font-weight: 600;">Tanker Sealing Status</span>
+                                    <span
+                                        class="badge badge-<?php echo $unloading_checklist['tanker_sealing_status_obs'] == 'OK' ? 'success' : 'error'; ?>"
+                                        style="font-size: 10px;">
+                                        <?php echo $unloading_checklist['tanker_sealing_status_obs']; ?>
+                                    </span>
+                                </div>
+                                <?php if (!empty($unloading_checklist['tanker_sealing_status_remarks'])): ?>
+                                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                                        <?php echo htmlspecialchars($unloading_checklist['tanker_sealing_status_remarks']); ?>
+                                    </div>
+                                    <?php
+                                endif; ?>
+                            </div>
+                            <?php
+                        endif; ?>
 
-                    <div style="background: white; border-radius: 10px; padding: 15px; border: 1px solid #e2e8f0;">
-                        <strong
-                            style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Authorized
-                            Signatures (Confirming dispatch)</strong>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
-                            <div>
-                                <span style="font-size: 11px; color: #64748b;">Driver:</span><br>
-                                <span style="font-size: 13px; font-weight: 600;">
-                                    <?php echo htmlspecialchars($outgoing_checklist['driver_signature'] ?: '-'); ?>
-                                </span>
+                        <?php if ($unloading_checklist['tanker_emergency_panel_obs']): ?>
+                            <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; font-weight: 600;">Emergency Info Panel</span>
+                                    <span
+                                        class="badge badge-<?php echo ($unloading_checklist['tanker_emergency_panel_obs'] == 'Yes' || $unloading_checklist['tanker_emergency_panel_obs'] == 'OK') ? 'success' : 'error'; ?>"
+                                        style="font-size: 10px;">
+                                        <?php echo $unloading_checklist['tanker_emergency_panel_obs']; ?>
+                                    </span>
+                                </div>
+                                <?php if (!empty($unloading_checklist['tanker_emergency_panel_remarks'])): ?>
+                                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                                        <?php echo htmlspecialchars($unloading_checklist['tanker_emergency_panel_remarks']); ?>
+                                    </div>
+                                    <?php
+                                endif; ?>
                             </div>
-                            <div>
-                                <span style="font-size: 11px; color: #64748b;">Transporter:</span><br>
-                                <span style="font-size: 13px; font-weight: 600;">
-                                    <?php echo htmlspecialchars($outgoing_checklist['transporter_signature'] ?: '-'); ?>
-                                </span>
+                            <?php
+                        endif; ?>
+
+                        <?php if ($unloading_checklist['tanker_fall_protection_obs']): ?>
+                            <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; font-weight: 600;">Fall Protection Railing</span>
+                                    <span
+                                        class="badge badge-<?php echo ($unloading_checklist['tanker_fall_protection_obs'] == 'Yes' || $unloading_checklist['tanker_fall_protection_obs'] == 'OK') ? 'success' : 'error'; ?>"
+                                        style="font-size: 10px;">
+                                        <?php echo $unloading_checklist['tanker_fall_protection_obs']; ?>
+                                    </span>
+                                </div>
+                                <?php if (!empty($unloading_checklist['tanker_fall_protection_remarks'])): ?>
+                                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                                        <?php echo htmlspecialchars($unloading_checklist['tanker_fall_protection_remarks']); ?>
+                                    </div>
+                                    <?php
+                                endif; ?>
                             </div>
-                            <div>
-                                <span style="font-size: 11px; color: #64748b;">Security:</span><br>
-                                <span style="font-size: 13px; font-weight: 600;">
-                                    <?php echo htmlspecialchars($outgoing_checklist['security_signature'] ?: '-'); ?>
-                                </span>
-                            </div>
-                            <div>
-                                <span style="font-size: 11px; color: #64748b;">Logistic:</span><br>
-                                <span style="font-size: 13px; font-weight: 600;">
-                                    <?php echo htmlspecialchars($outgoing_checklist['logistic_signature'] ?: '-'); ?>
-                                </span>
-                            </div>
-                        </div>
+                            <?php
+                        endif; ?>
                     </div>
                 </div>
-                <?php
-            endif; ?>
 
-            <!-- Photos Section -->
-            <div style="margin-top: 20px;">
-                <?php if (!$is_outward_view && !empty($entry['vehicle_photo_url'])): ?>
-                    <div style="margin-bottom: 20px;">
-                        <strong>🚛 Vehicle Photo:</strong><br>
-                        <img src="<?php echo $entry['vehicle_photo_url']; ?>"
-                            style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 10px; border: 2px solid #3b82f6; cursor: pointer;"
-                            onclick="window.open(this.src, '_blank')" title="Click to open in new tab">
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Gross
+                            Weight</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo $unloading_checklist['gross_weight_invoice'] ?: 'N/A'; ?>
+                        </span>
                     </div>
-                    <?php
-                endif; ?>
-
-                <?php if (!empty($driver_photo)): ?>
-                    <div style="margin-bottom: 20px;">
-                        <strong>👤 Driver Photo (from Driver Master):</strong><br>
-                        <img src="<?php echo $driver_photo; ?>"
-                            style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 10px; border: 2px solid #8b5cf6; cursor: pointer;"
-                            onclick="window.open(this.src, '_blank')" title="Click to open in new tab">
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Tare
+                            Weight</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo $unloading_checklist['tare_weight_invoice'] ?: 'N/A'; ?>
+                        </span>
                     </div>
-                    <?php
-                endif; ?>
-
-                <?php if (!$is_outward_view && !empty($entry['bill_photo_url'])): ?>
-                    <div style="margin-bottom: 20px;">
-                        <strong>📄 Bill/Challan Photo:</strong><br>
-                        <img src="<?php echo $entry['bill_photo_url']; ?>"
-                            style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 10px; border: 2px solid #10b981; cursor: pointer;"
-                            onclick="window.open(this.src, '_blank')" title="Click to open in new tab">
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Net
+                            Weight</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo $unloading_checklist['net_weight_invoice'] ?: 'N/A'; ?>
+                        </span>
                     </div>
-                    <?php
-                endif; ?>
-            </div>
-        </div>
+                </div>
 
-        <?php if (hasPermission('actions.edit_record')): ?>
-            <div style="display: flex; gap: 10px; margin-top: 20px; margin-bottom: 20px;">
-                <a href="?page=edit-inward&id=<?php echo $entry['id']; ?>" class="btn btn-primary"
-                    style="flex: 1; padding: 12px 20px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; border-radius: 6px; background: #3b82f6; color: white; transition: all 0.2s;"
-                    onmouseover="this.style.background='#2563eb'; this.style.transform='translateY(-2px)';"
-                    onmouseout="this.style.background='#3b82f6'; this.style.transform='translateY(0)';">
-                    ✏️ Edit Inward Entry
-                </a>
-                <?php if ($outward && is_array($outward)): ?>
-                    <a href="?page=edit-outward&id=<?php echo $outward['id']; ?>" class="btn btn-success"
-                        style="flex: 1; padding: 12px 20px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; border-radius: 6px; background: #10b981; color: white; transition: all 0.2s;"
-                        onmouseover="this.style.background='#059669'; this.style.transform='translateY(-2px)';"
-                        onmouseout="this.style.background='#10b981'; this.style.transform='translateY(0)';">
-                        ✏️ Edit Outward Entry
-                    </a>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Reporting
+                            Time</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo $unloading_checklist['reporting_datetime'] ? date('d/m/Y h:i A', strtotime($unloading_checklist['reporting_datetime'])) : 'N/A'; ?>
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Checked
+                            By</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($unloading_checklist['checked_by_name'] ?? 'N/A'); ?>
+                        </span>
+                    </div>
+                </div>
+
+                <?php if (!empty($unloading_checklist['other_remarks'])): ?>
+                    <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Other
+                            Remarks</strong><br>
+                        <div style="font-size: 13px; margin-top: 5px;">
+                            <?php echo nl2br(htmlspecialchars($unloading_checklist['other_remarks'])); ?>
+                        </div>
+                    </div>
                     <?php
                 endif; ?>
             </div>
             <?php
         endif; ?>
 
-        <button onclick="goBack()" class="btn btn-secondary btn-full"
-            style="margin-top: 20px; margin-bottom: 20px; display: block; position: relative; z-index: 10; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; border-radius: 6px; background: #6b7280; color: white; transition: all 0.2s; width: 100%;"
-            onmouseover="this.style.background='#4b5563';" onmouseout="this.style.background='#6b7280';">
-            ← Back
-        </button>
-        <script>
-            function goBack() {
-                // Check if there's a previous page in history
-                if (window.history.length > 1) {
-                    window.history.back();
-                } else {
-                    // Fallback to trucks inside page if no history
-                    window.location.href = '?page=inside';
-                }
+        <!-- Outgoing Checklist Details -->
+        <?php if (!$is_inward_view && $outgoing_checklist): ?>
+            <div
+                style="margin-top: 30px; padding: 20px; background: #f5f3ff; border-radius: 12px; border-left: 5px solid #8b5cf6;">
+                <h3
+                    style="margin-top: 0; margin-bottom: 5px; color: #6d28d9; font-size: 20px; display: flex; align-items: center; gap: 10px;">
+                    <span>🚚</span> Outgoing Check (VCPL/LOG/FR/02)
+                </h3>
+                <p style="color: #666; font-size: 12px; margin-bottom: 20px;">
+                    Document ID:
+                    <?php echo htmlspecialchars($outgoing_checklist['document_id'] ?? 'VCPL/LOG/FR/02'); ?>
+                    |
+                    Date:
+                    <?php echo $outgoing_checklist['document_date'] ? date('d-M-y', strtotime($outgoing_checklist['document_date'])) : 'N/A'; ?>
+                </p>
+
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Customer</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($outgoing_checklist['customer_name'] ?? 'N/A'); ?>
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Destination</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($outgoing_checklist['destination'] ?? 'N/A'); ?>
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Reporting
+                            Time</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo $outgoing_checklist['reporting_datetime'] ? date('d/m/Y h:i A', strtotime($outgoing_checklist['reporting_datetime'])) : 'N/A'; ?>
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Leaving
+                            Time</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo $outgoing_checklist['leaving_datetime'] ? date('d/m/Y h:i A', strtotime($outgoing_checklist['leaving_datetime'])) : 'N/A'; ?>
+                        </span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <strong
+                        style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Dispatch
+                        Checks</strong>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
+                        <?php
+                        $out_checks = [
+                            'Tarpaulin Condition' => ['obs' => $outgoing_checklist['tarpaulin_condition_obs'], 'act' => $outgoing_checklist['tarpaulin_condition_action'], 'rem' => $outgoing_checklist['tarpaulin_condition_remarks']],
+                            'Wooden Blocks Used' => ['obs' => $outgoing_checklist['wooden_blocks_used_obs'], 'act' => $outgoing_checklist['wooden_blocks_used_action'], 'rem' => $outgoing_checklist['wooden_blocks_used_remarks']],
+                            'Rope Tightening' => ['obs' => $outgoing_checklist['rope_tightening_obs'], 'act' => $outgoing_checklist['rope_tightening_action'], 'rem' => $outgoing_checklist['rope_tightening_remarks']],
+                            'Sealing Status' => ['obs' => $outgoing_checklist['sealing_obs'], 'act' => $outgoing_checklist['sealing_action'], 'rem' => $outgoing_checklist['sealing_remarks']],
+                            'Naaviq Trip Started' => ['obs' => $outgoing_checklist['naaviq_trip_started'], 'act' => $outgoing_checklist['naaviq_trip_action'], 'rem' => $outgoing_checklist['naaviq_trip_remarks']]
+                        ];
+                        foreach ($out_checks as $label => $check):
+                            $badge_color = ($check['obs'] == 'OK' || $check['obs'] == 'Yes') ? 'success' : (($check['obs'] == 'NOT OK' || $check['obs'] == 'No') ? 'error' : 'secondary');
+                            ?>
+                            <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; font-weight: 600;">
+                                        <?php echo $label; ?>
+                                    </span>
+                                    <span class="badge badge-<?php echo $badge_color; ?>" style="font-size: 10px;">
+                                        <?php echo $check['obs'] ?? 'N/A'; ?>
+                                    </span>
+                                </div>
+                                <?php if (!empty($check['act'])): ?>
+                                    <div style="font-size: 11px; color: #059669; margin-top: 4px;"><strong>Action:</strong>
+                                        <?php echo htmlspecialchars($check['act']); ?>
+                                    </div>
+                                    <?php
+                                endif; ?>
+                                <?php if (!empty($check['rem'])): ?>
+                                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;"><strong>Remarks:</strong>
+                                        <?php echo htmlspecialchars($check['rem']); ?>
+                                    </div>
+                                    <?php
+                                endif; ?>
+                            </div>
+                            <?php
+                        endforeach; ?>
+                    </div>
+                </div>
+
+                <!-- Outgoing Documents Check -->
+                <?php
+                $out_docs = json_decode($outgoing_checklist['documents_json'] ?? '[]', true) ?: [];
+                if (!empty($out_docs)):
+                    ?>
+                    <div style="margin-bottom: 20px;">
+                        <strong
+                            style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Outgoing
+                            Documents Checklist</strong>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
+                            <?php foreach ($out_docs as $doc):
+                                $badge_color = $doc['status'] == 'OK' ? 'success' : ($doc['status'] == 'NOT OK' ? 'error' : 'secondary');
+                                ?>
+                                <div style="padding: 10px; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-size: 13px; font-weight: 600;">
+                                            <?php echo htmlspecialchars($doc['label'] ?? ucwords(str_replace('_', ' ', $doc['type']))); ?>
+                                        </span>
+                                        <span class="badge badge-<?php echo $badge_color; ?>" style="font-size: 10px;">
+                                            <?php echo $doc['status']; ?>
+                                        </span>
+                                    </div>
+                                    <?php if (!empty($doc['remarks'])): ?>
+                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                                            <?php echo htmlspecialchars($doc['remarks']); ?>
+                                        </div>
+                                        <?php
+                                    endif; ?>
+                                </div>
+                                <?php
+                            endforeach; ?>
+                        </div>
+                    </div>
+                    <?php
+                endif; ?>
+
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">No. of
+                            Seals</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo $outgoing_checklist['number_of_seals'] ?: '0'; ?>
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Sealing
+                            Method</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($outgoing_checklist['sealing_method'] ?? 'N/A'); ?>
+                        </span>
+                    </div>
+                    <div>
+                        <strong style="color: #64748b; font-size: 11px; text-transform: uppercase;">Sealing Done
+                            By</strong><br>
+                        <span style="font-weight: 600;">
+                            <?php echo htmlspecialchars($outgoing_checklist['sealing_done_by'] ?? 'N/A'); ?>
+                        </span>
+                    </div>
+                </div>
+
+                <div style="background: white; border-radius: 10px; padding: 15px; border: 1px solid #e2e8f0;">
+                    <strong
+                        style="color: #64748b; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 10px;">Authorized
+                        Signatures (Confirming dispatch)</strong>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        <div>
+                            <span style="font-size: 11px; color: #64748b;">Driver:</span><br>
+                            <span style="font-size: 13px; font-weight: 600;">
+                                <?php echo htmlspecialchars($outgoing_checklist['driver_signature'] ?: '-'); ?>
+                            </span>
+                        </div>
+                        <div>
+                            <span style="font-size: 11px; color: #64748b;">Transporter:</span><br>
+                            <span style="font-size: 13px; font-weight: 600;">
+                                <?php echo htmlspecialchars($outgoing_checklist['transporter_signature'] ?: '-'); ?>
+                            </span>
+                        </div>
+                        <div>
+                            <span style="font-size: 11px; color: #64748b;">Security:</span><br>
+                            <span style="font-size: 13px; font-weight: 600;">
+                                <?php echo htmlspecialchars($outgoing_checklist['security_signature'] ?: '-'); ?>
+                            </span>
+                        </div>
+                        <div>
+                            <span style="font-size: 11px; color: #64748b;">Logistic:</span><br>
+                            <span style="font-size: 13px; font-weight: 600;">
+                                <?php echo htmlspecialchars($outgoing_checklist['logistic_signature'] ?: '-'); ?>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php
+        endif; ?>
+
+        <!-- Photos Section -->
+        <div style="margin-top: 20px;">
+            <?php if (!$is_outward_view && !empty($entry['vehicle_photo_url'])): ?>
+                <div style="margin-bottom: 20px;">
+                    <strong>🚛 Vehicle Photo:</strong><br>
+                    <img src="<?php echo $entry['vehicle_photo_url']; ?>"
+                        style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 10px; border: 2px solid #3b82f6; cursor: pointer;"
+                        onclick="window.open(this.src, '_blank')" title="Click to open in new tab">
+                </div>
+                <?php
+            endif; ?>
+
+            <?php if (!empty($driver_photo)): ?>
+                <div style="margin-bottom: 20px;">
+                    <strong>👤 Driver Photo (from Driver Master):</strong><br>
+                    <img src="<?php echo $driver_photo; ?>"
+                        style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 10px; border: 2px solid #8b5cf6; cursor: pointer;"
+                        onclick="window.open(this.src, '_blank')" title="Click to open in new tab">
+                </div>
+                <?php
+            endif; ?>
+
+            <?php if (!$is_outward_view && !empty($entry['bill_photo_url'])): ?>
+                <div style="margin-bottom: 20px;">
+                    <strong>📄 Bill/Challan Photo:</strong><br>
+                    <img src="<?php echo $entry['bill_photo_url']; ?>"
+                        style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 10px; border: 2px solid #10b981; cursor: pointer;"
+                        onclick="window.open(this.src, '_blank')" title="Click to open in new tab">
+                </div>
+                <?php
+            endif; ?>
+        </div>
+    </div>
+
+    <?php if (hasPermission('actions.edit_record')): ?>
+        <div style="display: flex; gap: 10px; margin-top: 20px; margin-bottom: 20px;">
+            <a href="?page=edit-inward&id=<?php echo $entry['id']; ?>" class="btn btn-primary"
+                style="flex: 1; padding: 12px 20px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; border-radius: 6px; background: #3b82f6; color: white; transition: all 0.2s;"
+                onmouseover="this.style.background='#2563eb'; this.style.transform='translateY(-2px)';"
+                onmouseout="this.style.background='#3b82f6'; this.style.transform='translateY(0)';">
+                ✏️ Edit Inward Entry
+            </a>
+            <?php if ($outward && is_array($outward)): ?>
+                <a href="?page=edit-outward&id=<?php echo $outward['id']; ?>" class="btn btn-success"
+                    style="flex: 1; padding: 12px 20px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; border-radius: 6px; background: #10b981; color: white; transition: all 0.2s;"
+                    onmouseover="this.style.background='#059669'; this.style.transform='translateY(-2px)';"
+                    onmouseout="this.style.background='#10b981'; this.style.transform='translateY(0)';">
+                    ✏️ Edit Outward Entry
+                </a>
+                <?php
+            endif; ?>
+        </div>
+        <?php
+    endif; ?>
+
+    <button onclick="goBack()" class="btn btn-secondary btn-full"
+        style="margin-top: 20px; margin-bottom: 20px; display: block; position: relative; z-index: 10; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; border-radius: 6px; background: #6b7280; color: white; transition: all 0.2s; width: 100%;"
+        onmouseover="this.style.background='#4b5563';" onmouseout="this.style.background='#6b7280';">
+        ← Back
+    </button>
+    <script>
+        function goBack() {
+            // Check if there's a previous page in history
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                // Fallback to trucks inside page if no history
+                window.location.href = '?page=inside';
             }
-        </script>
+        }
+    </script>
     </div>
 
     <?php
@@ -3401,17 +3516,20 @@ elseif ($page == 'loading-details'):
             </div>
 
             <!-- Material Items Information -->
-            <?php 
+            <?php
             $verified_items = json_decode($entry['verified_items_json'] ?? '[]', true) ?: [];
             if (!empty($verified_items)): ?>
-                <div style="margin-top: 30px; padding: 20px; background: #f0f9ff; border-radius: 12px; border-left: 5px solid #0ea5e9;">
-                    <h3 style="margin-top: 0; margin-bottom: 15px; color: #0369a1; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                <div
+                    style="margin-top: 30px; padding: 20px; background: #f0f9ff; border-radius: 12px; border-left: 5px solid #0ea5e9;">
+                    <h3
+                        style="margin-top: 0; margin-bottom: 15px; color: #0369a1; font-size: 18px; display: flex; align-items: center; gap: 8px;">
                         📦 Material Items (Verified For Loading)
                     </h3>
                     <div class="table-wrapper">
                         <table style="width: 100%; border-collapse: separate; border-spacing: 0 4px;">
                             <thead>
-                                <tr style="text-align: left; background: #e0f2fe; font-size: 11px; color: #0369a1; text-transform: uppercase;">
+                                <tr
+                                    style="text-align: left; background: #e0f2fe; font-size: 11px; color: #0369a1; text-transform: uppercase;">
                                     <th style="padding: 12px; border-radius: 6px 0 0 6px;">Code</th>
                                     <th style="padding: 12px;">Item Description</th>
                                     <th style="padding: 12px; text-align: right;">Quantity</th>
@@ -3421,10 +3539,21 @@ elseif ($page == 'loading-details'):
                             <tbody>
                                 <?php foreach ($verified_items as $item): ?>
                                     <tr style="background: white;">
-                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-family: monospace;"><?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?></td>
-                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #1e293b;"><?php echo htmlspecialchars($item['item_name'] ?? 'N/A'); ?></td>
-                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 700; color: #0369a1;"><?php echo number_format($item['quantity'] ?? 0, 2); ?></td>
-                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #64748b;"><?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?></td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-family: monospace;">
+                                            <?php echo htmlspecialchars($item['item_code'] ?? 'N/A'); ?>
+                                        </td>
+                                        <td
+                                            style="padding: 12px; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #1e293b;">
+                                            <?php echo htmlspecialchars($item['item_name'] ?? 'N/A'); ?>
+                                        </td>
+                                        <td
+                                            style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 700; color: #0369a1;">
+                                            <?php echo number_format($item['quantity'] ?? 0, 2); ?>
+                                        </td>
+                                        <td
+                                            style="padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #64748b;">
+                                            <?php echo htmlspecialchars($item['unit'] ?? 'PCS'); ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -3434,20 +3563,22 @@ elseif ($page == 'loading-details'):
             <?php endif; ?>
 
             <!-- Inward Reference (Items recorded at Gate) -->
-            <?php 
-            if (!empty($entry['inward_id'])): 
+            <?php
+            if (!empty($entry['inward_id'])):
                 $inw_id = intval($entry['inward_id']);
                 $inward_q = mysqli_query($conn, "SELECT items_json FROM truck_inward WHERE id = $inw_id LIMIT 1");
                 if ($inward_q && mysqli_num_rows($inward_q) > 0) {
                     $inw_row = mysqli_fetch_assoc($inward_q);
                     $inw_items = json_decode($inw_row['items_json'] ?? '[]', true) ?: [];
                     if (!empty($inw_items)): ?>
-                        <div style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">
-                            <h4 style="margin: 0 0 10px 0; color: #475569; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+                        <div
+                            style="margin-top: 25px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                            <h4
+                                style="margin: 0 0 10px 0; color: #475569; font-size: 14px; display: flex; align-items: center; gap: 6px;">
                                 <span>🚛</span> Items Recorded at Gate (Inward)
                             </h4>
                             <div style="font-size: 13px; color: #64748b;">
-                                <?php 
+                                <?php
                                 $summaries = [];
                                 foreach ($inw_items as $i) {
                                     $summaries[] = ($i['item_name'] ?? 'Item') . " (" . ($i['quantity'] ?? 0) . " " . ($i['unit'] ?? 'Unit') . ")";
@@ -4732,8 +4863,8 @@ elseif ($page == 'edit-outward'):
                     </div>
                     <div class="form-group">
                         <label>Customer</label>
-                        <select name="outgoing_customer_id" id="outgoing_customer_id"
-                            onchange="const sel = this.options[this.selectedIndex]; document.getElementById('outgoing_customer_name').value = sel.text;">
+                        <select name="outgoing_customer_id" id="edit_outgoing_customer_id"
+                            onchange="updateCustomerNameAndDestination(this, 'edit_outgoing_customer_name', 'edit_outgoing_destination')">
                             <option value="">Select Customer</option>
                             <?php
                             if ($customers_result) {
@@ -4752,7 +4883,7 @@ elseif ($page == 'edit-outward'):
 
                 <div class="form-group" style="margin-top: 15px;">
                     <label>Destination</label>
-                    <input type="text" name="outgoing_destination"
+                    <input type="text" name="outgoing_destination" id="edit_outgoing_destination"
                         value="<?php echo htmlspecialchars($checklist['destination'] ?? ''); ?>" placeholder="Destination">
                 </div>
 
@@ -6183,7 +6314,113 @@ elseif ($page == 'reports'):
     $vehicle_filter = isset($_GET['vehicle']) ? mysqli_real_escape_string($conn, $_GET['vehicle']) : '';
     $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
     $department_filter = isset($_GET['department']) ? mysqli_real_escape_string($conn, $_GET['department']) : '';
+    ?>
+    <!-- Truck Timeline Modal (Global in Reports) -->
+    <div id="truckTimelineModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); z-index: 10002; overflow-y: auto; padding: 20px; backdrop-filter: blur(4px);">
+        <div
+            style="max-width: 550px; margin: 20px auto; background: #fff; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid rgba(255,255,255,0.1);">
+            <div
+                style="background: linear-gradient(135deg, #0f172a 0%, #334155 100%); padding: 30px 25px; position: relative;">
+                <button onclick="document.getElementById('truckTimelineModal').style.display='none'"
+                    style="position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.1); border: none; border-radius: 12px; width: 36px; height: 36px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; font-size: 18px;">✕</button>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div
+                        style="background: rgba(255,255,255,0.1); width: 50px; height: 50px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                        🚛</div>
+                    <div>
+                        <h3 id="truck_timeline_vehicle" style="margin: 0; color: white; font-size: 22px; font-weight: 700;">
+                            Vehicle Journey</h3>
+                        <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.7); font-size: 14px;">Inward to Outward Life
+                            Cycle</p>
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 30px 25px; background: #fdfdfd;">
+                <div id="truck_timeline_content" style="position: relative; padding-left: 45px;">
+                    <!-- Vertical Line -->
+                    <div
+                        style="position: absolute; left: 19px; top: 10px; bottom: 10px; width: 3px; background: #e2e8f0; border-radius: 10px;">
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 20px; background: white; text-align: center; border-top: 1px solid #f1f5f9;">
+                <button onclick="document.getElementById('truckTimelineModal').style.display='none'"
+                    class="btn btn-secondary"
+                    style="width: 100%; border-radius: 12px; padding: 12px; font-weight: 600;">Close Journey Log</button>
+            </div>
+        </div>
+    </div>
 
+    <script>
+        function showTruckTimeline(inwardId, vehicleNo) {
+            const modal = document.getElementById('truckTimelineModal');
+            const content = document.getElementById('truck_timeline_content');
+            document.getElementById('truck_timeline_vehicle').textContent = "Journey: " + vehicleNo;
+
+            content.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">⏳ Loading timeline...</div>';
+            modal.style.display = 'block';
+
+            fetch(`?page=get-truck-timeline&inward_id=${inwardId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        content.innerHTML = `<div style="padding: 20px; text-align: center; color: #ef4444;">❌ ${data.message}</div>`;
+                        return;
+                    }
+
+                    content.innerHTML = '<div style="position: absolute; left: 19px; top: 10px; bottom: 10px; width: 3px; background: linear-gradient(to bottom, #3b82f6, #6366f1); border-radius: 10px; opacity: 0.3;"></div>';
+
+                    data.timeline.forEach((step, index) => {
+                        const item = document.createElement('div');
+                        item.style.position = 'relative';
+                        item.style.marginBottom = '30px';
+
+                        const marker = document.createElement('div');
+                        marker.style.position = 'absolute';
+                        marker.style.left = '-35px';
+                        marker.style.top = '5px';
+                        marker.style.width = '22px';
+                        marker.style.height = '22px';
+                        marker.style.borderRadius = '50%';
+                        marker.style.background = '#fff';
+                        marker.style.border = '4px solid #3b82f6';
+                        marker.style.zIndex = '2';
+                        marker.style.boxShadow = '0 0 0 4px rgba(59, 130, 246, 0.1)';
+
+                        const timeObj = new Date(step.time);
+                        const timeStr = timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                        const dateStr = timeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+                        item.innerHTML = `
+                            <div style="background: white; padding: 16px; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                                    <div>
+                                        <span style="font-size: 18px; margin-right: 8px;">${step.icon}</span>
+                                        <span style="font-size: 14px; font-weight: 800; color: #1e293b;">${step.type}</span>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 11px; font-weight: 700; color: #3b82f6;">${timeStr}</div>
+                                        <div style="font-size: 10px; color: #94a3b8;">${dateStr}</div>
+                                    </div>
+                                </div>
+                                <div style="font-size: 13px; color: #475569; line-height: 1.5; margin-bottom: 10px;">${step.details}</div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f8fafc; padding-top: 8px;">
+                                    <span style="font-size: 10px; font-weight: 700; background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 4px;">👤 ${step.by}</span>
+                                    <span style="font-size: 10px; font-weight: 800; color: #059669; text-transform: uppercase;">${step.status}</span>
+                                </div>
+                            </div>
+                        `;
+                        item.appendChild(marker);
+                        content.appendChild(item);
+                    });
+                })
+                .catch(err => {
+                    content.innerHTML = `<div style="padding: 20px; text-align: center; color: #ef4444;">❌ Error loading data</div>`;
+                });
+        }
+    </script>
+    <?php
     // Build WHERE clause
     $where = [];
     if ($start_date && $end_date) {
@@ -6704,10 +6941,19 @@ elseif ($page == 'reports'):
                                             <?php echo $entry['to_location']; ?>
                                         </td>
                                         <td>
-                                            <span
-                                                class="badge badge-<?php echo $entry['status'] == 'inside' ? 'warning' : 'success'; ?>">
-                                                <?php echo strtoupper($entry['status']); ?>
-                                            </span>
+                                            <div
+                                                style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                                                <span
+                                                    class="badge badge-<?php echo $entry['status'] == 'inside' ? 'warning' : 'success'; ?>">
+                                                    <?php echo strtoupper($entry['status']); ?>
+                                                </span>
+                                                <button type="button"
+                                                    onclick="event.stopPropagation(); showTruckTimeline(<?php echo $entry['id']; ?>, '<?php echo addslashes($entry['vehicle_number']); ?>')"
+                                                    class="btn btn-sm"
+                                                    style="padding: 4px 8px; font-size: 11px; background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px;">
+                                                    ⏱ Timeline
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     <?php
@@ -6768,7 +7014,18 @@ elseif ($page == 'reports'):
                                         <td>
                                             <?php echo formatDuration($entry['duration_hours']); ?>
                                         </td>
-                                        <td><span class="badge badge-success">EXITED</span></td>
+                                        <td>
+                                            <div
+                                                style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                                                <span class="badge badge-success">EXITED</span>
+                                                <button type="button"
+                                                    onclick="event.stopPropagation(); showTruckTimeline(<?php echo $entry['inward_id']; ?>, '<?php echo addslashes($entry['vehicle_number']); ?>')"
+                                                    class="btn btn-sm"
+                                                    style="padding: 4px 8px; font-size: 11px; background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px;">
+                                                    ⏱ Timeline
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                     <?php
                                 endforeach; ?>
@@ -7137,6 +7394,8 @@ elseif ($page == 'reports'):
                     }
                 </script>
 
+                </script>
+
                 <h3 style="font-size: 16px; margin-bottom: 10px; color: #374151;">📋 Detailed Scan Logs</h3>
                 <div class="table-wrapper">
                     <table>
@@ -7377,7 +7636,7 @@ elseif ($page == 'reports'):
                             case 'items-received': filename = 'Material_Items_Received'; break;
                             default: filename = 'Truck_Report_' + activeTab;
                         }
-                        link.setAttribute('download', filename + '.xls');
+                        link.setAttribute('download', filename + '.csv');
                     } catch (e) {
                         console.error('Update export link error:', e);
                     }
@@ -7412,8 +7671,8 @@ elseif ($page == 'reports'):
             <?php if (mysqli_num_rows($entries) > 0 || count($loading_entries) > 0 || count($unloading_entries) > 0 || count($outward_entries) > 0 || count($patrol_entries) > 0 || count($employee_entries) > 0): ?>
                 <a id="exportLink"
                     href="export.php?start_date=<?php echo $start_date; ?>&end_date=<?php echo $end_date; ?>&transporter=<?php echo urlencode($transporter_filter); ?>&driver=<?php echo urlencode($driver_filter); ?>&vehicle=<?php echo urlencode($vehicle_filter); ?>&status=<?php echo urlencode($status_filter); ?>&tab=inward"
-                    class="btn btn-success btn-full" style="margin-top: 20px;" download="Inward_Report.xls">
-                    📥 EXPORT TO EXCEL
+                    class="btn btn-success btn-full" style="margin-top: 20px;" download="Inward_Report.csv">
+                    📥 EXPORT TO CSV
                 </a>
                 <?php
             endif; ?>
@@ -8446,7 +8705,7 @@ elseif ($page == 'management'):
     // Get stats for selected period
     $period_inward = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE $period_condition"));
     $period_outward = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_outward WHERE $period_condition_outward"));
-    $today_inside = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE status = 'inside'"));
+    $today_inside = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE status != 'exited'"));
 
     // Get loading/unloading stats
     $check_loading = mysqli_query($conn, "SHOW TABLES LIKE 'vehicle_loading_checklist'");
@@ -8537,17 +8796,17 @@ elseif ($page == 'management'):
     }
 
     // Efficiency Metrics
-    $pending_exits = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE status = 'inside' AND inward_date < CURDATE()"));
+    $pending_exits = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE status != 'exited' AND inward_date < CURDATE()"));
     $period_efficiency = $period_inward > 0 ? round(($period_outward / $period_inward) * 100, 1) : 0;
 
     // Longest duration trucks (currently inside) - filtered by selected period
     // Only show trucks that entered during the selected period and are still inside
     if ($filter_period == 'all') {
-        $longest_inside = mysqli_query($conn, "SELECT entry_number, vehicle_number, driver_name, transporter_name, inward_datetime, TIMESTAMPDIFF(HOUR, inward_datetime, NOW()) as hours_inside FROM truck_inward WHERE status = 'inside' ORDER BY hours_inside DESC LIMIT 5");
+        $longest_inside = mysqli_query($conn, "SELECT entry_number, vehicle_number, driver_name, transporter_name, inward_datetime, TIMESTAMPDIFF(HOUR, inward_datetime, NOW()) as hours_inside FROM truck_inward WHERE status != 'exited' ORDER BY hours_inside DESC LIMIT 5");
     } else {
         // Convert period_condition to work with inward_datetime field
         $longest_condition = str_replace('inward_date', 'DATE(inward_datetime)', $period_condition);
-        $longest_inside = mysqli_query($conn, "SELECT entry_number, vehicle_number, driver_name, transporter_name, inward_datetime, TIMESTAMPDIFF(HOUR, inward_datetime, NOW()) as hours_inside FROM truck_inward WHERE status = 'inside' AND ($longest_condition) ORDER BY hours_inside DESC LIMIT 5");
+        $longest_inside = mysqli_query($conn, "SELECT entry_number, vehicle_number, driver_name, transporter_name, inward_datetime, TIMESTAMPDIFF(HOUR, inward_datetime, NOW()) as hours_inside FROM truck_inward WHERE status != 'exited' AND ($longest_condition) ORDER BY hours_inside DESC LIMIT 5");
     }
 
     // Expiring Documents - Vehicles with documents expiring in next 90 days or already expired

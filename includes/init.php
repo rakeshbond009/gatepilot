@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.16.1506');
+    define('APP_VERSION', '26.04.16.2017');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -1698,7 +1698,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
     $qr_raw_data_escaped = $qr_raw_data ? mysqli_real_escape_string($conn, $qr_raw_data) : null;
 
     // Check if vehicle is already inside
-    $check_inside = mysqli_query($conn, "SELECT id, entry_number, inward_datetime, driver_name FROM truck_inward WHERE vehicle_number = '$vehicle' AND status = 'inside' LIMIT 1");
+    $check_inside = mysqli_query($conn, "SELECT id, entry_number, inward_datetime, driver_name FROM truck_inward WHERE vehicle_number = '$vehicle' AND status != 'exited' LIMIT 1");
     if (mysqli_num_rows($check_inside) > 0) {
         $existing_entry = mysqli_fetch_assoc($check_inside);
         $error_msg = "⚠️ Vehicle <strong>$vehicle</strong> is already inside! Entry #: <strong>{$existing_entry['entry_number']}</strong> (In: " . date('d/m/Y h:i A', strtotime($existing_entry['inward_datetime'])) . ", Driver: {$existing_entry['driver_name']}). Please complete the outward entry first.";
@@ -2659,21 +2659,21 @@ if ($page == 'fetch-notifications') {
         header('HTTP/1.1 403 Forbidden');
         exit;
     }
-    
+
     // Get unread count
     $unread_res = mysqli_query($conn, "SELECT COUNT(*) as count FROM notifications WHERE is_read = 0");
     $unread_count = mysqli_fetch_assoc($unread_res)['count'];
-    
+
     // Get latest 20 notifications
     $notif_res = mysqli_query($conn, "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 20");
     $notifications = [];
     while ($row = mysqli_fetch_assoc($notif_res)) {
         $notifications[] = $row;
     }
-    
+
     header('Content-Type: application/json');
     echo json_encode([
-        'unread_count' => (int)$unread_count,
+        'unread_count' => (int) $unread_count,
         'notifications' => $notifications
     ]);
     exit;
@@ -2685,17 +2685,117 @@ if ($page == 'mark-notification-read') {
         header('HTTP/1.1 403 Forbidden');
         exit;
     }
-    
+
     $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-    
+
     if ($id > 0) {
         mysqli_query($conn, "UPDATE notifications SET is_read = 1 WHERE id = $id");
     } else {
         mysqli_query($conn, "UPDATE notifications SET is_read = 1");
     }
-    
+
     header('Content-Type: application/json');
     echo json_encode(['success' => true]);
+    exit;
+}
+
+// Get customer destination for outward form autofill
+if ($page == 'get-customer-destination') {
+    if (!isLoggedIn()) {
+        header('HTTP/1.1 403 Forbidden');
+        exit;
+    }
+    $customer_id = isset($_GET['customer_id']) ? intval($_GET['customer_id']) : 0;
+    $destination = '';
+    if ($customer_id > 0) {
+        $res = mysqli_query($conn, "SELECT location FROM customer_master WHERE id = $customer_id");
+        if ($row = mysqli_fetch_assoc($res)) {
+            $destination = $row['location'];
+        }
+    }
+    while (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'destination' => $destination]);
+    exit;
+}
+
+if ($page == 'get-truck-timeline') {
+    if (!isLoggedIn()) {
+        header('HTTP/1.1 403 Forbidden');
+        exit;
+    }
+
+    $inward_id = isset($_GET['inward_id']) ? intval($_GET['inward_id']) : 0;
+    if ($inward_id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Invalid Inward ID']);
+        exit;
+    }
+
+    $timeline = [];
+
+    // 1. Inward Entry
+    $inward = mysqli_query($conn, "SELECT *, 'INWARD' as step_type FROM truck_inward WHERE id = $inward_id");
+    if ($row = mysqli_fetch_assoc($inward)) {
+        $timeline[] = [
+            'type' => 'Inward Entry',
+            'time' => $row['inward_datetime'],
+            'status' => 'Captured at Gate',
+            'icon' => '🚛',
+            'details' => "Vehicle: " . $row['vehicle_number'] . " | Driver: " . $row['driver_name'],
+            'by' => $row['created_by_name'] ?? 'System'
+        ];
+    }
+
+    // 2. Unloading Checklist
+    $unloading = mysqli_query($conn, "SELECT *, 'UNLOADING' as step_type FROM vehicle_unloading_checklist WHERE inward_id = $inward_id ORDER BY reporting_datetime ASC");
+    while ($row = mysqli_fetch_assoc($unloading)) {
+        $timeline[] = [
+            'type' => 'Unloading',
+            'time' => $row['reporting_datetime'],
+            'status' => ucfirst($row['status']),
+            'icon' => '📥',
+            'details' => "Location: " . ($row['unloading_location'] ?? 'N/A') . " | Items: " . ($row['total_items'] ?? '0'),
+            'by' => $row['created_by_name'] ?? 'Logistics'
+        ];
+    }
+
+    // 3. Loading Checklist
+    $loading = mysqli_query($conn, "SELECT *, 'LOADING' as step_type FROM vehicle_loading_checklist WHERE inward_id = $inward_id ORDER BY reporting_datetime ASC");
+    while ($row = mysqli_fetch_assoc($loading)) {
+        $timeline[] = [
+            'type' => 'Loading',
+            'time' => $row['reporting_datetime'],
+            'status' => ucfirst($row['status']),
+            'icon' => '📦',
+            'details' => "Location: " . ($row['loading_location'] ?? 'N/A') . " | Party: " . ($row['party_name'] ?? 'N/A'),
+            'by' => $row['created_by_name'] ?? 'Logistics'
+        ];
+    }
+
+    // 4. Outward Entry
+    $outward = mysqli_query($conn, "SELECT *, 'OUTWARD' as step_type FROM truck_outward WHERE inward_id = $inward_id");
+    if ($row = mysqli_fetch_assoc($outward)) {
+        $timeline[] = [
+            'type' => 'Outward Exit',
+            'time' => $row['outward_datetime'],
+            'status' => 'Exited Gate',
+            'icon' => '📤',
+            'details' => "Duration: " . round($row['duration_hours'], 1) . " hrs | Bill: " . ($row['bill_number'] ?: 'N/A'),
+            'by' => $row['outward_by_name'] ?? 'System'
+        ];
+    }
+
+    // Sort timeline by time DESC (Newest first) so "Current Status" is at the top
+    usort($timeline, function ($a, $b) {
+        return strtotime($b['time']) - strtotime($a['time']);
+    });
+
+    // Clear any previous output (warnings, etc)
+    while (ob_get_level())
+        ob_end_clean();
+
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'timeline' => $timeline]);
     exit;
 }
 

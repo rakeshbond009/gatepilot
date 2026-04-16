@@ -3,7 +3,7 @@
     // Get statistics
     $total_inward = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE DATE(inward_date) = CURDATE()"));
     $total_outward = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_outward WHERE DATE(outward_date) = CURDATE()"));
-    $trucks_inside = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE status = 'inside'"));
+    $trucks_inside = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE status != 'exited'"));
     $weekly_inward = mysqli_num_rows(mysqli_query($conn, "SELECT * FROM truck_inward WHERE inward_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)"));
 
     // Initialize loading/unloading tables if needed
@@ -167,77 +167,79 @@
 
     // Recent activities - combine truck_inward, loading, and unloading
     // Date/Time in Recent Activities should reflect created_at (fallback to inward_datetime if legacy schema)
-    $inward_datetime_col = 'inward_datetime';
-    $check_inward_created_at = mysqli_query($conn, "SHOW COLUMNS FROM truck_inward LIKE 'created_at'");
-    if ($check_inward_created_at && mysqli_num_rows($check_inward_created_at) > 0) {
-        $inward_datetime_col = 'created_at';
-    }
-    $recent_inward = mysqli_query(
-        $conn,
-        "SELECT 'inward' as type, id, entry_number as ref_number, vehicle_number, driver_name, {$inward_datetime_col} as datetime, status
-         FROM truck_inward
-         ORDER BY {$inward_datetime_col} DESC
-         LIMIT 3"
-    );
-
-    // Get recent loading and unloading
-    $recent_loading = [];
-    $recent_unloading = [];
-    $check_loading = mysqli_query($conn, "SHOW TABLES LIKE 'vehicle_loading_checklist'");
-    $check_unloading = mysqli_query($conn, "SHOW TABLES LIKE 'vehicle_unloading_checklist'");
-
-    if (mysqli_num_rows($check_loading) > 0) {
-        // Date/Time in Recent Activities should reflect created_at (fallback to reporting_datetime if legacy schema)
-        $loading_datetime_col = 'reporting_datetime';
-        $check_loading_created_at = mysqli_query($conn, "SHOW COLUMNS FROM vehicle_loading_checklist LIKE 'created_at'");
-        if ($check_loading_created_at && mysqli_num_rows($check_loading_created_at) > 0) {
-            $loading_datetime_col = 'created_at';
-        }
-        $loading_query = mysqli_query(
-            $conn,
-            "SELECT 'loading' as type, id, document_id as ref_number, vehicle_registration_number as vehicle_number, driver_name, {$loading_datetime_col} as datetime, status
-             FROM vehicle_loading_checklist
-             ORDER BY {$loading_datetime_col} DESC
-             LIMIT 3"
-        );
-        while ($row = mysqli_fetch_assoc($loading_query)) {
-            $recent_loading[] = $row;
-        }
-    }
-
-    if (mysqli_num_rows($check_unloading) > 0) {
-        // Date/Time in Recent Activities should reflect created_at (fallback to reporting_datetime if legacy schema)
-        $unloading_datetime_col = 'reporting_datetime';
-        $check_unloading_created_at = mysqli_query($conn, "SHOW COLUMNS FROM vehicle_unloading_checklist LIKE 'created_at'");
-        if ($check_unloading_created_at && mysqli_num_rows($check_unloading_created_at) > 0) {
-            $unloading_datetime_col = 'created_at';
-        }
-        $unloading_query = mysqli_query(
-            $conn,
-            "SELECT 'unloading' as type, id, document_id as ref_number, vehicle_registration_number as vehicle_number, driver_name, {$unloading_datetime_col} as datetime, status
-             FROM vehicle_unloading_checklist
-             ORDER BY {$unloading_datetime_col} DESC
-             LIMIT 3"
-        );
-        while ($row = mysqli_fetch_assoc($unloading_query)) {
-            $recent_unloading[] = $row;
-        }
-    }
-
-    // Combine all activities and sort by datetime
+    // Get all activities for TODAY
+    $today_date = date('Y-m-d');
+    
+    // Recent activities - combine truck_inward, loading, unloading and truck_outward
+    // Get all activities for TODAY using reliable columns from Reports logic
+    $today_date = date('Y-m-d');
     $all_activities = [];
-    while ($row = mysqli_fetch_assoc($recent_inward)) {
-        $all_activities[] = $row;
-    }
-    $all_activities = array_merge($all_activities, $recent_loading, $recent_unloading);
 
-    // Sort by datetime descending
+    // 1. Inward Activities (Entries)
+    $inward_query = mysqli_query($conn, 
+        "SELECT 'inward' as type, id, entry_number as ref_number, vehicle_number, driver_name,
+                transporter_name, from_location, to_location,
+                inward_datetime as datetime, status, purpose_name as purpose
+         FROM truck_inward 
+         WHERE DATE(inward_datetime) = '$today_date' OR DATE(inward_date) = '$today_date'
+         ORDER BY inward_datetime DESC"
+    );
+    if ($inward_query) {
+        while ($row = mysqli_fetch_assoc($inward_query)) { $all_activities[] = $row; }
+    }
+
+    // 2. Outward Activities (using truck_outward table for robustness)
+    $outward_query = mysqli_query($conn, 
+        "SELECT 'outward' as type, tou.inward_id as id, tou.inward_id, ti.entry_number as ref_number, ti.vehicle_number, ti.driver_name, 
+                tou.outward_datetime as datetime, 'exited' as status, ti.purpose_name as purpose,
+                ti.transporter_name, ti.from_location, ti.to_location
+         FROM truck_outward tou
+         JOIN truck_inward ti ON tou.inward_id = ti.id
+         WHERE DATE(tou.outward_datetime) = '$today_date' OR DATE(tou.outward_date) = '$today_date'
+         ORDER BY tou.outward_datetime DESC"
+    );
+    if ($outward_query) {
+        while ($row = mysqli_fetch_assoc($outward_query)) { $all_activities[] = $row; }
+    }
+
+    // 3. Loading Activities
+    if (mysqli_num_rows($check_loading) > 0) {
+        $loading_query = mysqli_query($conn, 
+            "SELECT 'loading' as type, lc.id, lc.inward_id, lc.document_id as ref_number, lc.vehicle_registration_number as vehicle_number, lc.driver_name, 
+                    lc.reporting_datetime as datetime, lc.status, 'Loading' as purpose,
+                    lc.transport_company_name as transporter_name, lc.loading_location as from_location
+             FROM vehicle_loading_checklist lc
+             WHERE DATE(lc.reporting_datetime) = '$today_date'
+             ORDER BY lc.reporting_datetime DESC"
+        );
+        if ($loading_query) {
+            while ($row = mysqli_fetch_assoc($loading_query)) { $all_activities[] = $row; }
+        }
+    }
+
+    // 4. Unloading Activities
+    if (mysqli_num_rows($check_unloading) > 0) {
+        $unloading_query = mysqli_query($conn, 
+            "SELECT 'unloading' as type, uc.id, uc.inward_id, uc.document_id as ref_number, uc.vehicle_registration_number as vehicle_number, uc.driver_name, 
+                    uc.reporting_datetime as datetime, uc.status, 'Unloading' as purpose,
+                    uc.transport_company_name as transporter_name, uc.vendor_name as from_location
+             FROM vehicle_unloading_checklist uc 
+             WHERE DATE(uc.reporting_datetime) = '$today_date'
+             ORDER BY uc.reporting_datetime DESC"
+        );
+        if ($unloading_query) {
+            while ($row = mysqli_fetch_assoc($unloading_query)) { $all_activities[] = $row; }
+        }
+    }
+
+    // Combine and sort by strictly datetime newest first
     usort($all_activities, function ($a, $b) {
         return strtotime($b['datetime']) - strtotime($a['datetime']);
     });
 
-    // Take top 5
-    $all_activities = array_slice($all_activities, 0, 5);
+    // Show top 15 for "Today" on dashboard
+    $all_activities = array_slice($all_activities, 0, 15);
+
     ?>
     <div class="container">
         <h1 style="margin-bottom: 20px;">Dashboard</h1>
@@ -634,86 +636,219 @@
             <?php if (hasPermission('pages.register_types')): ?>
                 <a href="?page=manage-register-types" class="action-card">
                     <div class="icon">⚙️</div>
-                    <strong>Register Types</strong>
+                    <strong>Reg Types</strong>
                 </a>
-                <?php
-            endif; ?>
+            <?php endif; ?>
+        </div> <!-- End of action-grid -->
+
+        <!-- Today's Activity Section -->
+        <div class="card" style="margin-top: 25px; border-radius: 20px; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 5px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);">
+                        📅
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 18px; font-weight: 800; color: #1e293b;">Today's Activity</h2>
+                        <p style="margin: 0; font-size: 12px; color: #64748b; font-weight: 500;">Chronological timeline of gate operations</p>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="location.reload()" style="background: #f8fafc; border: 1px solid #e2e8f0; width: 36px; height: 36px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Refresh Activity">🔄</button>
+                    <a href="?page=reports" style="font-size: 12px; font-weight: 700; color: #6366f1; text-decoration: none; background: #f5f3ff; padding: 8px 16px; border-radius: 12px; display: flex; align-items: center; gap: 6px;">
+                        Reports ➔
+                    </a>
+                </div>
+            </div>
+
+            <?php if (empty($all_activities)): ?>
+                <div style="text-align: center; padding: 60px 20px; background: #f8fafc; border-radius: 20px; border: 2px dashed #e2e8f0; margin: 10px;">
+                    <div style="font-size: 40px; margin-bottom: 15px; filter: grayscale(1); opacity: 0.5;">🚛</div>
+                    <h3 style="margin: 0; color: #475569; font-weight: 700;">No Activity Recorded</h3>
+                    <p style="margin: 5px 0 0; color: #94a3b8; font-size: 14px;">Incoming and outgoing vehicle actions for today will appear here.</p>
+                </div>
+            <?php else: ?>
+                <!-- ACTIVITY TIMELINE LIST -->
+                <div style="position: relative; padding: 30px 5px 30px 45px; background: #f1f5f9; border-radius: 24px; border: 1px solid #e2e8f0; margin: 15px; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);">
+                    <!-- The vertical progress line -->
+                    <div style="position: absolute; left: 19px; top: 30px; bottom: 30px; width: 3px; background: linear-gradient(to bottom, #6366f1 0%, #a855f7 100%); border-radius: 10px; opacity: 0.15;"></div>
+
+                    <?php foreach ($all_activities as $act): 
+                        $type = $act['type'];
+                        $label = strtoupper($act['type']);
+                        $color = '#3b82f6'; // Default
+                        $bg_soft = '#eff6ff';
+                        if ($type == 'loading') { $color = '#8b5cf6'; $bg_soft = '#f5f3ff'; $icon = '📦'; }
+                        elseif ($type == 'unloading') { $color = '#f59e0b'; $bg_soft = '#fffbeb'; $icon = '📥'; }
+                        elseif ($type == 'outward') { $color = '#10b981'; $bg_soft = '#ecfdf5'; $icon = '📤'; }
+                        else { $icon = '🚛'; }
+
+                        $time = date('h:i A', strtotime($act['datetime']));
+                        $badge_class = 'primary';
+                        if ($act['status'] == 'exited' || $act['status'] == 'completed' || $act['status'] == 'Completed') $badge_class = 'success';
+                        
+                        $link_url = "";
+                        if ($type == 'inward') $link_url = "?page=inward-details&id=" . $act['id'];
+                        elseif ($type == 'outward') $link_url = "?page=outward-details&id=" . ($act['inward_id'] ?? $act['id']);
+                        elseif ($type == 'loading') $link_url = "?page=loading-details&id=" . $act['id'];
+                        elseif ($type == 'unloading') $link_url = "?page=unloading-details&id=" . $act['id'];
+                    ?>
+                        <div style="position: relative; margin-bottom: 28px;">
+                            <!-- Marker -->
+                            <div style="position: absolute; left: -34px; top: 14px; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 4px solid <?php echo $color; ?>; z-index: 2; box-shadow: 0 4px 10px <?php echo $bg_soft; ?>;"></div>
+                            
+                            <div class="activity-timeline-card" onclick="window.location='<?php echo $link_url; ?>'" style="background: white; padding: 20px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.03), 0 4px 6px -4px rgba(0,0,0,0.02); cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span style="font-size: 10px; font-weight: 800; color: <?php echo $color; ?>; background: <?php echo $bg_soft; ?>; padding: 3px 10px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px;"><?php echo $label; ?></span>
+                                        <span style="font-size: 14px; font-weight: 800; color: #1e293b;"><?php echo $act['vehicle_number']; ?></span>
+                                    </div>
+                                    <span style="font-size: 11px; font-weight: 800; color: #64748b; background: #f8fafc; padding: 3px 10px; border-radius: 8px; border: 1px solid #f1f5f9;"><?php echo $time; ?></span>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px; margin-bottom: 18px;">
+                                    <div>
+                                        <p style="margin: 0; font-size: 9px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px;">Driver</p>
+                                        <p style="margin: 2px 0 0; font-size: 12px; color: #334155; font-weight: 700;"><?php echo htmlspecialchars($act['driver_name'] ?: 'N/A'); ?></p>
+                                    </div>
+                                    <div>
+                                        <p style="margin: 0; font-size: 9px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px;">Transporter</p>
+                                        <p style="margin: 2px 0 0; font-size: 12px; color: #334155; font-weight: 700;"><?php echo htmlspecialchars($act['transporter_name'] ?: 'N/A'); ?></p>
+                                    </div>
+                                    <div>
+                                        <p style="margin: 0; font-size: 9px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px;">Purpose / Ref</p>
+                                        <p style="margin: 2px 0 0; font-size: 12px; color: #334155; font-weight: 700;"><?php echo htmlspecialchars($act['purpose'] ?: '-'); ?> <small style="color:#94a3b8; font-weight:500;">(<?php echo $act['ref_number']; ?>)</small></p>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 15px;">
+                                    <span class="badge badge-<?php echo $badge_class; ?>" style="font-size: 10px; padding: 5px 12px; font-weight: 800; border-radius: 8px;"><?php echo strtoupper($act['status']); ?></span>
+                                    <button onclick="event.stopPropagation(); showTruckTimeline(<?php echo ($act['inward_id'] ?? ($type == 'inward' ? $act['id'] : 0)); ?>, '<?php echo $act['vehicle_number']; ?>')" style="background: #f8fafc; border: 1px solid #e2e8f0; color: #6366f1; padding: 8px 16px; border-radius: 12px; font-size: 10px; font-weight: 800; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        VIEW JOURNEY ⏱
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
+    </div>
 
-        <!-- Recent Activities -->
-        <div class="card">
-            <h2>Recent Activities</h2>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Ref #</th>
-                            <th>Vehicle</th>
-                            <th>Driver</th>
-                            <th>Date/Time</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($all_activities)): ?>
-                            <tr>
-                                <td colspan="6" style="text-align: center; padding: 20px; color: #9ca3af;">No recent
-                                    activities</td>
-                            </tr>
-                            <?php
-                        else: ?>
-                            <?php foreach ($all_activities as $row):
-                                $type_label = '';
-                                $type_color = '';
-                                $link_url = '';
+    <!-- JOURNEY LOG MODAL (Timeline) -->
+    <div id="truckTimelineModal" class="modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(15, 23, 42, 0.7); backdrop-filter: blur(8px);">
+        <div style="background-color: #f1f5f9; margin: 40px auto; padding: 0; border: none; width: 92%; max-width: 550px; border-radius: 28px; overflow: hidden; box-shadow: 0 30px 60px -12px rgba(0,0,0,0.6); animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);">
+            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 25px; color: white; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 id="truck_timeline_vehicle" style="margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -0.5px;">Vehicle Journey</h3>
+                    <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.7; font-weight: 500;">Complete operation sequence logs</p>
+                </div>
+                <span onclick="document.getElementById('truckTimelineModal').style.display='none'" style="font-size: 20px; font-weight: bold; cursor: pointer; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.08); border-radius: 12px; transition: 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">&times;</span>
+            </div>
+            
+            <div id="truck_timeline_content" style="padding: 30px 25px 40px 50px; position: relative; max-height: 70vh; overflow-y: auto; background: #f1f5f9;">
+                <!-- Timeline items will be injected here -->
+            </div>
 
-                                if ($row['type'] == 'inward') {
-                                    $type_label = '🚛 Inward';
-                                    $type_color = '#3b82f6';
-                                    $link_url = '?page=details&id=' . intval($row['id']);
-                                } elseif ($row['type'] == 'loading') {
-                                    $type_label = '📦 Loading';
-                                    $type_color = '#ec4899';
-                                    $link_url = '?page=loading-details&id=' . intval($row['id']);
-                                } elseif ($row['type'] == 'unloading') {
-                                    $type_label = '📥 Unloading';
-                                    $type_color = '#14b8a6';
-                                    $link_url = '?page=unloading-details&id=' . intval($row['id']);
-                                }
-                                ?>
-                                <tr onclick="window.location='<?php echo $link_url; ?>'" style="cursor: pointer;">
-                                    <td><span style="color: <?php echo $type_color; ?>; font-weight: 600;">
-                                            <?php echo $type_label; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <?php echo htmlspecialchars($row['ref_number'] ?? '-'); ?>
-                                    </td>
-                                    <td><strong>
-                                            <?php echo htmlspecialchars($row['vehicle_number']); ?>
-                                        </strong></td>
-                                    <td>
-                                        <?php echo htmlspecialchars($row['driver_name'] ?? '-'); ?>
-                                    </td>
-                                    <td>
-                                        <?php echo date('d/m/Y h:i A', strtotime($row['datetime'])); ?>
-                                    </td>
-                                    <td>
-                                        <span
-                                            class="badge badge-<?php echo ($row['status'] == 'completed' || $row['status'] == 'inside') ? 'success' : (($row['status'] == 'draft') ? 'warning' : 'secondary'); ?>">
-                                            <?php echo strtoupper($row['status'] ?? 'N/A'); ?>
-                                        </span>
-                                    </td>
-                                </tr>
-                                <?php
-                            endforeach; ?>
-                            <?php
-                        endif; ?>
-                    </tbody>
-                </table>
+            <div style="padding: 20px; background: white; border-top: 1px solid #e2e8f0; display: flex; gap: 10px;">
+                <button onclick="document.getElementById('truckTimelineModal').style.display='none'" style="flex: 1; padding: 15px; background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; border-radius: 16px; font-weight: 800; font-size: 13px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">Close Journey Log</button>
             </div>
         </div>
     </div>
-    <?php
-endif; ?>
+
+    <script>
+        function showTruckTimeline(inwardId, vehicleNo) {
+            if (!inwardId || inwardId == 0) {
+                Swal.fire('Info', 'Full journey history requires a valid Inward Entry.', 'info');
+                return;
+            }
+
+            const modal = document.getElementById('truckTimelineModal');
+            const content = document.getElementById('truck_timeline_content');
+            document.getElementById('truck_timeline_vehicle').textContent = "Journey: " + vehicleNo;
+
+            content.innerHTML = '<div style="padding: 50px; text-align: center; color: #64748b;"><div class="spinner" style="margin:0 auto 20px;"></div><p style="font-weight:700; font-size:14px; color:#1e293b;">Loading Journey Data...</p></div>';
+            modal.style.display = 'block';
+
+            fetch(`?page=get-truck-timeline&inward_id=${inwardId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        content.innerHTML = `<div style="padding: 40px; text-align: center; color: #ef4444; background: white; border-radius: 20px; margin: 10px; border: 1px solid #fee2e2;">
+                            <div style="font-size:40px; margin-bottom:15px;">⚠️</div>
+                            <strong style="font-size:16px;">Journey Not Found</strong>
+                            <p style="font-size:13px; margin-top:8px; opacity:0.7;">${data.message}</p>
+                        </div>`;
+                        return;
+                    }
+
+                    // Clear previous and add vertical line
+                    content.innerHTML = '<div style="position: absolute; left: 19px; top: 10px; bottom: 10px; width: 3px; background: linear-gradient(to bottom, #6366f1, #a855f7); border-radius: 10px; opacity: 0.2;"></div>';
+
+                    if (!data.timeline || data.timeline.length === 0) {
+                        content.innerHTML += '<div style="text-align: center; color: #94a3b8; padding: 40px; background: white; border-radius: 20px; margin: 10px; border: 1px dashed #e2e8f0;">No operation logs found for this journey yet.</div>';
+                        return;
+                    }
+
+                    data.timeline.forEach((step, index) => {
+                        const item = document.createElement('div');
+                        item.style.position = 'relative';
+                        item.style.marginBottom = '28px';
+
+                        const marker = document.createElement('div');
+                        marker.style.position = 'absolute';
+                        marker.style.left = '-34px';
+                        marker.style.top = '5px';
+                        marker.style.width = '20px';
+                        marker.style.height = '20px';
+                        marker.style.borderRadius = '50%';
+                        marker.style.background = '#fff';
+                        marker.style.border = '4px solid #6366f1';
+                        marker.style.zIndex = '2';
+                        marker.style.boxShadow = '0 0 0 5px rgba(99, 102, 241, 0.1)';
+
+                        const timeObj = new Date(step.time);
+                        const timeStr = isNaN(timeObj.getTime()) ? (step.time || 'N/A') : timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                        const dateStr = isNaN(timeObj.getTime()) ? '' : timeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+                        item.innerHTML = `
+                            <div style="background: white; padding: 18px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: default;" onmouseover="this.style.transform='translateX(6px)'; this.style.borderColor='#6366f1';" onmouseout="this.style.transform='translateX(0)'; this.style.borderColor='#e2e8f0';">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span style="font-size: 18px;">${step.icon || '📍'}</span>
+                                        <span style="font-size: 13px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">${step.type}</span>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 11px; font-weight: 800; color: #6366f1;">${timeStr}</div>
+                                        <div style="font-size: 9px; color: #94a3b8; font-weight: 700;">${dateStr}</div>
+                                    </div>
+                                </div>
+                                <div style="font-size: 12px; color: #334155; line-height: 1.6; margin-bottom: 12px; background: #f8fafc; padding: 10px 14px; border-radius: 12px; border-left: 4px solid #e2e8f0; font-weight: 500;">${step.details}</div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f8fafc; padding-top: 10px;">
+                                    <span style="font-size: 10px; font-weight: 800; background: #f1f5f9; color: #475569; padding: 3px 10px; border-radius: 8px; border: 1px solid #e2e8f0;">👤 ${step.by || 'Internal'}</span>
+                                    <span style="font-size: 10px; font-weight: 900; color: #059669; background: #ecfdf5; padding: 3px 10px; border-radius: 8px; text-transform: uppercase; border: 1px solid #d1fae5;">${step.status || 'Verified'}</span>
+                                </div>
+                            </div>
+                        `;
+                        item.appendChild(marker);
+                        content.appendChild(item);
+                    });
+                })
+                .catch(err => {
+                    content.innerHTML = `<div style="padding: 40px; text-align: center; color: #ef4444; background: white; border-radius: 20px;">
+                        <div style="font-size:40px; margin-bottom:15px;">🔌</div>
+                        <strong>Network Disconnected</strong>
+                        <p style="font-size:13px; margin-top:8px; opacity:0.7;">Unable to reach server. Please check your connection.</p>
+                    </div>`;
+                });
+        }
+    </script>
+
+    <style>
+        .activity-timeline-card:hover { border-color: #6366f1 !important; transform: translateY(-4px); box-shadow: 0 12px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.05); }
+        .spinner { width: 35px; height: 35px; border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #6366f1; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+<?php endif; ?>
