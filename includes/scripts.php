@@ -845,7 +845,7 @@ endif; ?>
                     fps: 30,
                     // qrbox: REMOVED -> Scan Full Frame for maximum detail (Critical for Dense QRs)
                     showTorchButtonIfSupported: true,
-                    useBarCodeDetectorIfSupported: false,
+                    useBarCodeDetectorIfSupported: true,
                     videoConstraints: {
                         deviceId: effectiveTargetId ? { exact: effectiveTargetId } : undefined,
                         facingMode: "environment",
@@ -1317,4 +1317,164 @@ endif; ?>
             window.location.href = '?page=dashboard';
         }
     }
+</script>
+
+<!-- Notification Center Styles -->
+<style>
+    .notification-center {
+        position: fixed; top: 70px; right: 20px; width: 350px; max-height: 500px;
+        background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        z-index: 99999; display: none; flex-direction: column; overflow: hidden;
+        border: 1px solid #e2e8f0; animation: animSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: 'Outfit', sans-serif;
+    }
+    @keyframes animSlideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    #notification_badge { animation: pulse 2s infinite; }
+    .notif-header { padding: 15px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
+    .notif-header h3 { margin: 0; font-size: 16px; color: #1e2937; font-weight: 700; }
+    .notif-list { overflow-y: auto; flex: 1; }
+    .notif-item { padding: 12px 15px; border-bottom: 1px solid #f8fafc; cursor: pointer; transition: background 0.2s; position: relative; }
+    .notif-item:hover { background: #f1f5f9; }
+    .notif-item.unread { background: #f0f7ff; }
+    .notif-item.unread::before { content: ''; position: absolute; left: 0; top: 0; width: 4px; height: 100%; background: #4f46e5; }
+    .notif-item .notif-title { font-weight: 700; font-size: 13px; color: #1e2937; margin-bottom: 3px; display: block; }
+    .notif-item .notif-msg { font-size: 12px; color: #64748b; line-height: 1.4; display: block; }
+    .notif-item .notif-time { font-size: 10px; color: #94a3b8; margin-top: 5px; display: block; }
+    .notif-footer { padding: 10px; text-align: center; border-top: 1px solid #f1f5f9; background: #fff; }
+    .notif-footer a { font-size: 12px; color: #4f46e5; text-decoration: none; font-weight: 700; }
+    .notif-empty { padding: 40px 20px; text-align: center; color: #94a3b8; font-size: 14px; }
+</style>
+
+<!-- Notification Center Panel -->
+<div id="notification_center" class="notification-center">
+    <div class="notif-header">
+        <h3>Notifications</h3>
+        <button onclick="markAllNotificationsAsRead()" style="background: none; border: none; color: #4f46e5; font-size: 12px; cursor: pointer; font-weight: 700;">Mark all as read</button>
+    </div>
+    <div id="notif_list" class="notif-list">
+        <!-- Notifications will be loaded here -->
+        <div class="notif-empty">Loading notifications...</div>
+    </div>
+    <div class="notif-footer">
+        <a href="?page=reports&tab=audit">View All Activity</a>
+    </div>
+</div>
+
+<script>
+    let notifInterval = null;
+
+    function toggleNotificationCenter() {
+        const panel = document.getElementById('notification_center');
+        if (panel.style.display === 'flex') {
+            panel.style.display = 'none';
+        } else {
+            panel.style.display = 'flex';
+            fetchNotifications();
+        }
+    }
+
+    // Close panel when clicking outside
+    document.addEventListener('click', function(e) {
+        const panel = document.getElementById('notification_center');
+        const bell = document.getElementById('notification_bell');
+        if (panel && panel.style.display === 'flex' && !panel.contains(e.target) && !bell.contains(e.target)) {
+            panel.style.display = 'none';
+        }
+    });
+
+    function fetchNotifications() {
+        fetch('?page=fetch-notifications')
+            .then(res => {
+                if(!res.ok) throw new Error('Not logged in or error');
+                return res.json();
+            })
+            .then(data => {
+                if(data.unread_count !== undefined) {
+                    updateNotificationBadge(data.unread_count);
+                    renderNotificationList(data.notifications || []);
+                }
+            })
+            .catch(err => {
+                console.warn('Notification fetch suppressed');
+                if(notifInterval) clearInterval(notifInterval);
+            });
+    }
+
+    function updateNotificationBadge(count) {
+        const badge = document.getElementById('notification_badge');
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    }
+
+    function renderNotificationList(notifications) {
+        const list = document.getElementById('notif_list');
+        if (!list) return;
+
+        if (notifications.length === 0) {
+            list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+            return;
+        }
+
+        list.innerHTML = '';
+        notifications.forEach(n => {
+            const item = document.createElement('div');
+            item.className = 'notif-item' + (n.is_read == 0 ? ' unread' : '');
+            item.onclick = (e) => {
+                e.stopPropagation();
+                handleNotificationClick(n);
+            };
+            
+            // Format time nicely
+            let timeStr = n.created_at;
+            try {
+                timeStr = new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + 
+                          new Date(n.created_at).toLocaleDateString([], { day: '2-digit', month: 'short' });
+            } catch(e) {}
+            
+            item.innerHTML = `
+                <span class="notif-title">${n.title}</span>
+                <span class="notif-msg">${n.message}</span>
+                <span class="notif-time">${timeStr}</span>
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    function handleNotificationClick(n) {
+        // Mark as read first
+        fetch('?page=mark-notification-read&id=' + n.id)
+            .then(() => {
+                if (n.link) {
+                    window.location.href = n.link;
+                } else {
+                    fetchNotifications();
+                }
+            });
+    }
+
+    function markAllNotificationsAsRead() {
+        fetch('?page=mark-notification-read')
+            .then(() => fetchNotifications());
+    }
+
+    // Initial load and periodic refresh
+    document.addEventListener('DOMContentLoaded', () => {
+        // Only run if logged in and bell exists
+        if(document.getElementById('notification_bell')) {
+            fetchNotifications();
+            // Refresh every 30 seconds
+            notifInterval = setInterval(fetchNotifications, 30000);
+        }
+    });
 </script>

@@ -655,4 +655,47 @@ CREATE TABLE IF NOT EXISTS `vendor_master` (
   KEY `idx_gst_number` (`gst_number`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `uom_master` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `uom_code` varchar(20) NOT NULL,
+  `uom_name` varchar(100) NOT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uom_code` (`uom_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `uom_master` (`uom_code`, `uom_name`) VALUES 
+('NOS', 'Numbers'),
+('KGS', 'Kilograms'),
+('PCS', 'Pieces'),
+('MTR', 'Meters'),
+('LTR', 'Liters'),
+('BOX', 'Boxes'),
+('BAG', 'Bags'),
+('UNIT', 'Units'),
+('BUNDLE', 'Bundles'),
+('PKT', 'Packets'),
+('SET', 'Sets'),
+('RLS', 'Rolls'),
+('MTS', 'Metric Tonnes'),
+('KLS', 'Kiloliters');
+
+-- ==========================================================
+-- NOTIFICATIONS: System Activity Alerts
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `type` varchar(50) NOT NULL COMMENT 'e.g., inward, outward, ticket, alert',
+  `title` varchar(255) NOT NULL,
+  `message` text NOT NULL,
+  `link` varchar(255) DEFAULT NULL,
+  `is_read` tinyint(1) DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_is_read` (`is_read`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -281,6 +281,7 @@
             if (m.departments) document.getElementById("m_departments").checked = true;
             if (m.patrol) document.getElementById("m_patrol").checked = true;
             if (m.materials) document.getElementById("m_materials").checked = true;
+            if (m.uoms) document.getElementById("m_uoms").checked = true;
             if (m.suppliers) document.getElementById("m_suppliers").checked = true;
             if (m.customers) document.getElementById("m_customers").checked = true;
             if (m.users) document.getElementById("m_users").checked = true;
@@ -1034,6 +1035,20 @@
                         <div class="icon">🏭</div>
                         <strong>Suppliers (
                             <?php echo $total_suppliers; ?>)
+                        </strong>
+                    </a>
+                    <?php
+                endif; ?>
+
+                <?php if (hasPermission('masters.uoms')): 
+                    $total_uoms = (mysqli_num_rows(mysqli_query($conn, "SHOW TABLES LIKE 'uom_master'")) > 0) ? mysqli_num_rows(mysqli_query($conn, "SELECT id FROM uom_master")) : 0;
+                ?>
+                    <a href="?page=admin&master=uoms#master-content"
+                        class="action-card <?php echo $master_page == 'uoms' ? 'active' : ''; ?>"
+                        style="<?php echo $master_page == 'uoms' ? 'background: #EEF2FF;' : ''; ?>">
+                        <div class="icon">⚖️</div>
+                        <strong>UOM Master (
+                            <?php echo $total_uoms; ?>)
                         </strong>
                     </a>
                     <?php
@@ -6975,6 +6990,223 @@
                         </script>
 
                         <?php
+            // ========== UOM MASTER ==========
+        elseif ($master_page == 'uoms'):
+
+            // Create uom_master table if it doesn't exist
+            $check_table = mysqli_query($conn, "SHOW TABLES LIKE 'uom_master'");
+            if (mysqli_num_rows($check_table) == 0) {
+                mysqli_query($conn, "
+                    CREATE TABLE uom_master (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        uom_code VARCHAR(20) NOT NULL UNIQUE,
+                        uom_name VARCHAR(100) NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        is_active TINYINT(1) DEFAULT 1
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+                // Insert default UOMs
+                mysqli_query($conn, "INSERT IGNORE INTO uom_master (uom_code, uom_name) VALUES 
+                    ('NOS', 'Numbers'), 
+                    ('KGS', 'Kilograms'), 
+                    ('PCS', 'Pieces'), 
+                    ('MTR', 'Meters'), 
+                    ('LTR', 'Liters'), 
+                    ('BOX', 'Boxes'), 
+                    ('BAG', 'Bags'),
+                    ('UNIT', 'Units'),
+                    ('BUNDLE', 'Bundles'),
+                    ('PKT', 'Packets'),
+                    ('SET', 'Sets'),
+                    ('RLS', 'Rolls'),
+                    ('MTS', 'Metric Tonnes'),
+                    ('KLS', 'Kiloliters')");
+            }
+
+            // Handle Delete
+            if (isset($_GET['delete_uom'])) {
+                $id = (int) $_GET['delete_uom'];
+                $u_res = mysqli_query($conn, "SELECT uom_code FROM uom_master WHERE id=$id");
+                $u_row = mysqli_fetch_assoc($u_res);
+                $u_code = $u_row['uom_code'] ?? 'Unknown';
+
+                if (mysqli_query($conn, "DELETE FROM uom_master WHERE id=$id")) {
+                    logActivity($conn, 'UOM_DELETE', 'UOM Master', "Deleted UOM: $u_code (ID: $id)");
+                    $_SESSION['success_msg'] = "✅ UOM deleted successfully!";
+                    session_write_close();
+                    header("Location: ?page=admin&master=uoms&t=" . time());
+                    exit;
+                } else {
+                    $error_msg = "❌ Error deleting UOM: " . mysqli_error($conn);
+                }
+            }
+
+            // Handle Save
+            if (isset($_POST['save_uom'])) {
+                $code = strtoupper(mysqli_real_escape_string($conn, $_POST['uom_code']));
+                $name = mysqli_real_escape_string($conn, $_POST['uom_name']);
+
+                try {
+                    if (!empty($_POST['uom_id'])) {
+                        $id = (int) $_POST['uom_id'];
+                        $current_res = mysqli_query($conn, "SELECT * FROM uom_master WHERE id=$id");
+                        $current = mysqli_fetch_assoc($current_res);
+
+                        $sql = "UPDATE uom_master SET uom_code='$code', uom_name='$name' WHERE id=$id";
+                        if (mysqli_query($conn, $sql)) {
+                            $diff = auditDiff($current, $_POST, ['uom_id'], ['uom_code' => 'Code', 'uom_name' => 'Name']);
+                            $details = "Updated UOM: Code: [$code]";
+                            if (!empty($diff))
+                                $details .= "\nChanges:\n" . $diff;
+                            logActivity($conn, 'UOM_UPDATE', 'UOM Master', $details);
+                            $_SESSION['success_msg'] = "✅ UOM updated successfully!";
+                            session_write_close();
+                            header("Location: ?page=admin&master=uoms&t=" . time());
+                            exit;
+                        }
+                    } else {
+                        $sql = "INSERT INTO uom_master (uom_code, uom_name) VALUES ('$code', '$name')";
+                        if (mysqli_query($conn, $sql)) {
+                            logActivity($conn, 'UOM_CREATE', 'UOM Master', "Created UOM: Code: [$code], Name: [$name]");
+                            $_SESSION['success_msg'] = "✅ UOM added successfully!";
+                            session_write_close();
+                            header("Location: ?page=admin&master=uoms&t=" . time());
+                            exit;
+                        }
+                    }
+                } catch (mysqli_sql_exception $e) {
+                    if ($e->getCode() == 1062) {
+                        $error_msg = "❌ Error: This UOM Code already exists!";
+                    } else {
+                        $error_msg = "❌ Database Error: " . $e->getMessage();
+                    }
+                }
+            }
+
+            $uoms = mysqli_query($conn, "SELECT * FROM uom_master ORDER BY uom_code");
+            $form_id = $_POST['uom_id'] ?? '';
+            $form_code = $_POST['uom_code'] ?? '';
+            $form_name = $_POST['uom_name'] ?? '';
+            $show_form = isset($error_msg) ? 'block' : 'none';
+            ?>
+
+            <!-- Form Header -->
+            <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="font-size: 40px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">⚖️</div>
+                    <div>
+                        <h2 style="margin: 0; color: white; font-size: 24px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">Unit of Measurement (UOM) Master</h2>
+                        <p style="margin: 5px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px;">Manage standardized units for all modules</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 20px;">
+                <button onclick="resetUOMForm(); document.getElementById('uomForm').style.display='block'; document.getElementById('uomForm').scrollIntoView({ behavior: 'smooth' });" class="btn btn-primary" style="margin-bottom: 20px; padding: 12px 24px; font-size: 15px; font-weight: 600;">
+                    ➕ Add New UOM
+                </button>
+
+                <div id="uomForm" style="display: <?php echo $show_form; ?>; margin-bottom: 20px;">
+                    <form method="POST">
+                        <input type="hidden" name="uom_id" id="uom_id" value="<?php echo htmlspecialchars($form_id); ?>">
+                        <div class="card" style="margin-bottom: 20px; border-left: 4px solid #6366f1; background: linear-gradient(to right, #f5f3ff 0%, white 10%);">
+                            <div class="master-form-grid">
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #374151;">UOM Code *</label>
+                                    <input type="text" name="uom_code" id="uom_code" required value="<?php echo htmlspecialchars($form_code); ?>" placeholder="e.g. KGS, NOS, PCS" style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s; text-transform: uppercase;">
+                                    <small style="color: #666; display: block; margin-top: 5px;">Short code (e.g., KG, PCS).</small>
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-weight: 600; color: #374151;">UOM Name *</label>
+                                    <input type="text" name="uom_name" id="uom_name" required value="<?php echo htmlspecialchars($form_name); ?>" placeholder="e.g. Kilograms, Numbers, Pieces" style="padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.3s;">
+                                    <small style="color: #666; display: block; margin-top: 5px;">Full descriptive name.</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" name="save_uom" class="btn btn-success" style="padding: 12px 24px; font-size: 15px; font-weight: 600;">💾 Save UOM</button>
+                            <button type="button" onclick="closeUOMForm()" class="btn btn-secondary" style="padding: 12px 24px; font-size: 15px; font-weight: 600;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <?php if (isset($success_msg)): ?>
+                    <div class="alert alert-success"><?php echo $success_msg; ?></div>
+                <?php endif; ?>
+                <?php if (isset($error_msg)): ?>
+                    <div class="alert alert-error"><?php echo $error_msg; ?></div>
+                <?php endif; ?>
+
+                <div class="search-container" style="margin-bottom: 20px;">
+                    <input type="text" id="uomSearch" placeholder="🔍 Search UOMs..." oninput="filterTable('uomSearch', 'uomsTable')" style="width: 100%; padding: 12px 16px; border: 1.5px solid #e5e7eb; border-radius: 12px; font-size: 15px;">
+                </div>
+
+                <div class="table-wrapper">
+                    <table id="uomsTable">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Created At</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php while ($row = mysqli_fetch_assoc($uoms)): ?>
+                                <tr>
+                                    <td><strong><?php echo htmlspecialchars($row['uom_code']); ?></strong></td>
+                                    <td><?php echo htmlspecialchars($row['uom_name']); ?></td>
+                                    <td><?php echo date('d-M-y', strtotime($row['created_at'])); ?></td>
+                                    <td>
+                                        <?php if (hasPermission('actions.edit_record')): ?>
+                                            <button onclick='editUOM(<?php echo $row["id"]; ?>, <?php echo json_encode($row["uom_code"]); ?>, <?php echo json_encode($row["uom_name"]); ?>)' class="btn btn-sm" style="background: #3b82f6; color: white;">✏️ Edit</button>
+                                        <?php endif; ?>
+                                        <?php if (hasPermission('actions.delete_record')): ?>
+                                            <button onclick="deleteUOM(<?php echo $row['id']; ?>)" class="btn btn-sm" style="background: #ef4444; color: white;">🗑️ Delete</button>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <script>
+                function resetUOMForm() {
+                    document.getElementById('uom_id').value = '';
+                    document.getElementById('uom_code').value = '';
+                    document.getElementById('uom_name').value = '';
+                    document.getElementById('uom_code').readOnly = false;
+                }
+                function editUOM(id, code, name) {
+                    document.getElementById('uom_id').value = id;
+                    document.getElementById('uom_code').value = code;
+                    document.getElementById('uom_name').value = name;
+                    document.getElementById('uom_code').readOnly = true;
+                    document.getElementById('uomForm').style.display = 'block';
+                    document.getElementById('uomForm').scrollIntoView({ behavior: 'smooth' });
+                }
+                function closeUOMForm() {
+                    document.getElementById('uomForm').style.display = 'none';
+                    resetUOMForm();
+                }
+                function deleteUOM(id) {
+                    Swal.fire({
+                        title: 'Are you sure?',
+                        text: "Deleting this UOM may affect reports!",
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, delete it!'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = '?page=admin&master=uoms&delete_uom=' + id;
+                        }
+                    });
+                }
+            </script>
+
+            <?php
             // ========== AUDIT LOGS ==========
         elseif ($master_page == 'audit_logs' || $master_page == 'logs'):
             // Filtering parameters
@@ -7455,6 +7687,9 @@ endif; ?>
                         </label>
                         <label class="perm-card"><input type="checkbox" name="perm_master_materials" id="m_materials">
                             <div class="perm-card-content">Materials</div>
+                        </label>
+                        <label class="perm-card"><input type="checkbox" name="perm_master_uoms" id="m_uoms">
+                            <div class="perm-card-content">UOMs</div>
                         </label>
                         <label class="perm-card"><input type="checkbox" name="perm_master_suppliers" id="m_suppliers">
                             <div class="perm-card-content">Suppliers</div>

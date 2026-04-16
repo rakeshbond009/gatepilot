@@ -1,6 +1,7 @@
 <?php
 // Pre-fetch material master for autofill
 $all_materials = [];
+$all_uoms = [];
 if (isset($conn)) {
     $m_res = mysqli_query($conn, "SELECT material_code, material_description FROM material_master WHERE is_active=1 ORDER BY material_code LIMIT 2000");
     if ($m_res) {
@@ -8,11 +9,55 @@ if (isset($conn)) {
             $all_materials[] = $m_row;
         }
     }
+
+    // Fetch UOMs
+    try {
+        $u_res = mysqli_query($conn, "SELECT uom_code, uom_name FROM uom_master WHERE is_active=1 ORDER BY uom_code");
+        if ($u_res) {
+            while ($u_row = mysqli_fetch_assoc($u_res)) {
+                $all_uoms[] = $u_row;
+            }
+        }
+    } catch (Exception $e) {
+        // Fallback to basic units if table not yet created
+        $all_uoms = [
+            ['uom_code' => 'NOS', 'uom_name' => 'Numbers'],
+            ['uom_code' => 'KGS', 'uom_name' => 'Kilograms'],
+            ['uom_code' => 'PCS', 'uom_name' => 'Pieces']
+        ];
+    }
 }
 ?>
 <script>
     // Asset: Material Master for Autofill
     const materialData = <?php echo json_encode($all_materials); ?>;
+
+    function toggleBillSection(val, formType = 'inward') {
+        const cardId = formType === 'edit' ? 'edit_bill_location_card' : 'bill_location_card';
+        const card = document.getElementById(cardId);
+        if (!card) return;
+
+        const cleanVal = (val || '').trim().toUpperCase();
+        const shouldHide = cleanVal === 'BO TANKER' || cleanVal === 'FINISHED GOODS PICKUP';
+
+        if (shouldHide) {
+            card.style.display = 'none';
+            const itemsCard = document.getElementById('manual_items_section');
+            if (itemsCard) itemsCard.style.display = 'none';
+        } else {
+            card.style.display = 'block';
+            const itemsCard = document.getElementById('manual_items_section');
+            if (itemsCard) itemsCard.style.display = 'block';
+        }
+    }
+
+    // Handle initial state for Edit mode
+    document.addEventListener('DOMContentLoaded', function () {
+        const editPurpose = document.getElementById('edit_purpose_name');
+        if (editPurpose) {
+            toggleBillSection(editPurpose.value, 'edit');
+        }
+    });
 
     function handleMaterialAutofill(el) {
         const val = el.value.trim();
@@ -531,17 +576,11 @@ if (isset($conn)) {
                                 style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
                             <select id="new_item_unit"
                                 style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: white;">
-                                <option value="NOS">NOS</option>
-                                <option value="KGS">KGS</option>
-                                <option value="PCS">PCS</option>
-                                <option value="MTS">MTS</option>
-                                <option value="LTR">LTR</option>
-                                <option value="BOX">BOX</option>
-                                <option value="BAG">BAG</option>
-                                <option value="UNIT">UNIT</option>
-                                <option value="BUNDLE">BUNDLE</option>
-                                <option value="PKT">PKT</option>
-                                <option value="SET">SET</option>
+                                <?php foreach ($all_uoms as $uom): ?>
+                                    <option value="<?php echo htmlspecialchars($uom['uom_code']); ?>">
+                                        <?php echo htmlspecialchars($uom['uom_code']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <button type="button" onclick="addItemManually()" id="addItemBtn"
@@ -4333,17 +4372,11 @@ elseif ($page == 'edit-inward'):
                             style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
                         <select id="new_item_unit"
                             style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; appearance: none; background: white;">
-                            <option value="NOS">NOS</option>
-                            <option value="KGS">KGS</option>
-                            <option value="PCS">PCS</option>
-                            <option value="MTS">MTS</option>
-                            <option value="LTR">LTR</option>
-                            <option value="BOX">BOX</option>
-                            <option value="BAG">BAG</option>
-                            <option value="UNIT">UNIT</option>
-                            <option value="BUNDLE">BUNDLE</option>
-                            <option value="PKT">PKT</option>
-                            <option value="SET">SET</option>
+                            <?php foreach ($all_uoms as $uom): ?>
+                                <option value="<?php echo htmlspecialchars($uom['uom_code']); ?>">
+                                    <?php echo htmlspecialchars($uom['uom_code']); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <button type="button" onclick="addItemManually()"
@@ -9983,33 +10016,7 @@ elseif ($page == 'management'):
                         row.style.display = text.includes(query) ? 'table-row' : 'none';
                     });
                 }
-                function toggleBillSection(val, formType = 'inward') {
-                    const cardId = formType === 'edit' ? 'edit_bill_location_card' : 'bill_location_card';
-                    const card = document.getElementById(cardId);
-                    if (!card) return;
 
-                    if (val && val.trim().toUpperCase() === 'BO TANKER') {
-                        card.style.display = 'none';
-                        if (formType === 'edit') {
-                            const itemsCard = document.getElementById('manual_items_section');
-                            if (itemsCard) itemsCard.style.display = 'none';
-                        }
-                    } else {
-                        card.style.display = 'block';
-                        if (formType === 'edit') {
-                            const itemsCard = document.getElementById('manual_items_section');
-                            if (itemsCard) itemsCard.style.display = 'block';
-                        }
-                    }
-                }
-
-                // Handle initial state for Edit mode
-                document.addEventListener('DOMContentLoaded', function () {
-                    const editPurpose = document.getElementById('edit_purpose_name');
-                    if (editPurpose) {
-                        toggleBillSection(editPurpose.value, 'edit');
-                    }
-                });
             </script>
         </div>
     <?php endif; ?>

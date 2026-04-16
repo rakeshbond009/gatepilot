@@ -28,6 +28,22 @@ if (!$is_included) {
 // Initialize tables if needed
 require_once __DIR__ . '/database/init_loading_unloading_tables.php';
 initLoadingUnloadingTables($conn);
+$all_uoms = [];
+try {
+    $u_res = mysqli_query($conn, "SELECT uom_code, uom_name FROM uom_master WHERE is_active=1 ORDER BY uom_code");
+    if ($u_res) {
+        while ($u_row = mysqli_fetch_assoc($u_res)) {
+            $all_uoms[] = $u_row;
+        }
+    }
+} catch (Exception $e) {
+    // Fallback to basic units if table not yet created
+    $all_uoms = [
+        ['uom_code' => 'NOS', 'uom_name' => 'Numbers'],
+        ['uom_code' => 'KGS', 'uom_name' => 'Kilograms'],
+        ['uom_code' => 'PCS', 'uom_name' => 'Pieces']
+    ];
+}
 $success = '';
 $error = '';
 
@@ -250,6 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'loa
                 $last_id = mysqli_insert_id($conn);
                 $_SESSION['success_msg'] = "✅ Loading checklist saved successfully!";
                 logActivity($conn, 'LOADING_CREATE', 'Checklists', "Created Loading Checklist:\n" . auditFromPost($_POST));
+                addNotification($conn, 'loading', 'Loading Started', "Vehicle $vehicle_registration_number loading checklist completed.", "?page=loading-details&id=" . $last_id);
                 header("Location: ?page=loading-details&id=" . $last_id);
                 exit;
             }
@@ -991,17 +1008,11 @@ endif; ?>
                                     style="font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 5px; display: block;">UNIT</label>
                                 <select id="new_item_unit"
                                     style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: white;">
-                                    <option value="NOS">NOS</option>
-                                    <option value="KGS">KGS</option>
-                                    <option value="PCS">PCS</option>
-                                    <option value="MTS">MTS</option>
-                                    <option value="LTR">LTR</option>
-                                    <option value="BOX">BOX</option>
-                                    <option value="BAG">BAG</option>
-                                    <option value="UNIT">UNIT</option>
-                                    <option value="BUNDLE">BUNDLE</option>
-                                    <option value="PKT">PKT</option>
-                                    <option value="SET">SET</option>
+                                    <?php foreach ($all_uoms as $uom): ?>
+                                        <option value="<?php echo htmlspecialchars($uom['uom_code']); ?>">
+                                            <?php echo htmlspecialchars($uom['uom_code']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             <button type="button" onclick="addItemManually()" id="addItemBtn"

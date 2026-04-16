@@ -574,6 +574,7 @@ elseif ($page == 'tickets'):
             }
 
             logActivity($conn, 'TICKET_UPDATE', 'Patrol', trim($details));
+            addNotification($conn, 'ticket', "Ticket $new_status", "Ticket ID: $ticket_id for $location status changed to $new_status.", "?page=tickets&ticket_id=$ticket_id");
             header("Location: ?page=tickets&tab=" . (in_array($action, ['resolve', 'close']) ? 'resolved' : 'open') . "&t=" . time());
             exit;
         } else {

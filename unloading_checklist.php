@@ -29,6 +29,16 @@ else {
 // Initialize tables if needed
 require_once __DIR__ . '/database/init_loading_unloading_tables.php';
 initLoadingUnloadingTables($conn);
+$all_uoms = [];
+$u_res = mysqli_query($conn, "SELECT uom_code FROM uom_master WHERE is_active=1 ORDER BY uom_code");
+if ($u_res) {
+    while ($u_row = mysqli_fetch_assoc($u_res)) {
+        $all_uoms[] = $u_row['uom_code'];
+    }
+}
+if (empty($all_uoms)) {
+    $all_uoms = ['NOS', 'KGS', 'PCS', 'MTR', 'LTR', 'BOX', 'BAG', 'UNIT', 'BUNDLE', 'PKT', 'SET'];
+}
 $error = '';
 $success = '';
 
@@ -273,6 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($_POST['form_type'] ?? '') === 'unl
 
             $_SESSION['success_msg'] = "✅ Unloading checklist saved successfully!";
             logActivity($conn, 'UNLOADING_CREATE', 'Checklists', "Created Unloading Checklist:\n" . auditFromPost($_POST));
+            addNotification($conn, 'unloading', 'Unloading Started', "Vehicle $vehicle_registration_number unloading checklist completed.", "?page=unloading-details&id=" . $last_id);
             header("Location: ?page=unloading-details&id=" . $last_id);
             exit;
         }
@@ -1406,6 +1417,8 @@ endforeach; ?>
                 });
         }
         
+        const allowedUoms = <?php echo json_encode($all_uoms); ?>;
+        
         function renderInwardItems(items) {
             const modalList = document.getElementById('modal-items-list');
             const btnVerify = document.getElementById('btn-verify-items');
@@ -1428,8 +1441,14 @@ endforeach; ?>
                     const qty = item.expected_quantity || item.quantity || '0';
                     const observed = item.observed_quantity || qty;
                     const remarks = item.item_remarks || '';
-                    const unit = item.unit || '';
+                    const unit = item.unit || 'NOS';
                     const isVerified = (item.is_verified == 1) || (typeof item.is_verified === 'undefined');
+
+                    let unitOptions = '';
+                    allowedUoms.forEach(u => {
+                        const isSelected = (u === unit) ? 'selected' : '';
+                        unitOptions += `<option value="${u}" ${isSelected}>${u}</option>`;
+                    });
 
                     html += `
                         <div class="modal-item-row" style="padding: 16px; border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 16px; transition: all 0.2s; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
@@ -1440,7 +1459,11 @@ endforeach; ?>
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                                     <label for="item_check_${index}" style="display: block; font-weight: 700; color: #1e293b; font-size: 15px; cursor: pointer; line-height: 1.4;">${itemName}</label>
                                     <span style="background: #f1f5f9; padding: 2px 8px; border-radius: 6px; font-size: 12px; color: #64748b;">
-                                        Expected: <strong>${qty} ${unit}</strong>
+                                        Expected: <strong>${qty} 
+                                        <select name="item_units[${index}]" style="display: inline-block; width: auto; padding: 2px 4px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 11px; background: white; margin-left: 4px;">
+                                            ${unitOptions}
+                                        </select>
+                                        </strong>
                                     </span>
                                 </div>
                                 
@@ -1458,7 +1481,6 @@ endforeach; ?>
                                 <input type="hidden" name="item_descriptions[${index}]" value="${itemName}">
                                 <input type="hidden" name="item_quantities[${index}]" value="${qty}">
                                 <input type="hidden" name="item_codes[${index}]" value="${itemCode}">
-                                <input type="hidden" name="item_units[${index}]" value="${unit}">
                             </div>
                         </div>
                     `;

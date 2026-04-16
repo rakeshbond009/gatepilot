@@ -116,6 +116,8 @@ function auditFromPost(array $post, array $skip = [], array $labels = []): strin
         'dynamic_data',
         'commit_remarks',
         'webhook_url',
+        'save_uom',
+        'uom_id',
     ];
     $skip_all = array_merge($system_skip, $skip);
     $parts = [];
@@ -197,6 +199,8 @@ function auditDiff(array $old_row, array $post, array $skip = [], array $labels 
         'dynamic_data',
         'commit_remarks',
         'webhook_url',
+        'save_uom',
+        'uom_id',
     ];
     $skip_all = array_merge($system_skip, $skip);
     $changes = [];
@@ -240,7 +244,7 @@ function getAppDefaultPermissions($is_tenant_admin = true) {
         'masters' => [
             'transporters' => true, 'drivers' => true, 'vehicles' => true, 'purposes' => true,
             'employees' => true, 'departments' => true, 'patrol' => true, 'materials' => true,
-            'suppliers' => true, 'users' => true
+            'suppliers' => true, 'users' => true, 'uoms' => true
         ],
         'actions' => [
             'edit_record' => true, 'delete_record' => true, 'view_buttons' => true

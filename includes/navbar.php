@@ -38,6 +38,14 @@
                     </small>
                 </div>
                 <div style="display: flex; gap: 10px;">
+                    <div class="notification-wrapper" style="position: relative;">
+                        <button onclick="toggleNotificationCenter()" title="Notifications" id="notification_bell"
+                            style="background: #f1f5f9; border: none; border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; font-size: 18px;"
+                            onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+                            🔔
+                            <span id="notification_badge" style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; font-size: 10px; min-width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; display: none;">0</span>
+                        </button>
+                    </div>
                     <button onclick="openChangePasswordModal()" title="Change Password"
                         style="background: #f1f5f9; border: none; border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;"
                         onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">

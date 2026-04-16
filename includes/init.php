@@ -1,6 +1,6 @@
 <?php
 if (!defined('APP_VERSION'))
-    define('APP_VERSION', '26.04.16.0223');
+    define('APP_VERSION', '26.04.16.1506');
 /**
  * GATEPILOT - COMPLETE VERSION
  * Features: Inward/Outward, QR Scanning, Vehicle Fetch, Dashboard, Reports, Admin Panel
@@ -333,6 +333,10 @@ if ($conn) {
     require_once dirname(__DIR__) . '/database/init_audit_logs.php';
     initAuditLogsTable($conn);
 
+    // Create notifications table
+    require_once dirname(__DIR__) . '/database/init_notifications.php';
+    initNotificationsTable($conn);
+
     // Create issue tables if they don't exist
     require_once dirname(__DIR__) . '/database/init_issue_tables.php';
     initIssueTables($conn);
@@ -453,6 +457,20 @@ function logActivity($conn, $activity_type, $module, $details = "")
             VALUES (" . ($user_id ? $user_id : "NULL") . ", '$username', '$activity_type', '$module', '$details', '$ip_address', '$user_agent')";
     return mysqli_query($conn, $sql);
 }
+
+// Global Notification Helper
+function addNotification($conn, $type, $title, $message, $link = "")
+{
+    $type = mysqli_real_escape_string($conn, $type);
+    $title = mysqli_real_escape_string($conn, $title);
+    $message = mysqli_real_escape_string($conn, $message);
+    $link = mysqli_real_escape_string($conn, $link);
+
+    $sql = "INSERT INTO notifications (type, title, message, link, is_read, created_at) 
+            VALUES ('$type', '$title', '$message', '$link', 0, NOW())";
+    return mysqli_query($conn, $sql);
+}
+
 
 function getSetting($conn, $key, $default = null)
 {
@@ -889,6 +907,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
                 'departments' => isset($_POST['perm_master_departments']),
                 'patrol' => isset($_POST['perm_master_patrol']),
                 'materials' => isset($_POST['perm_master_materials']),
+                'uoms' => isset($_POST['perm_master_uoms']),
                 'suppliers' => isset($_POST['perm_master_suppliers']),
                 'customers' => isset($_POST['perm_master_customers']),
                 'users' => isset($_POST['perm_master_users']),
@@ -934,6 +953,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
             'masters.departments' => 'Master Departments',
             'masters.patrol' => 'Master Patrol QR',
             'masters.materials' => 'Master Materials',
+            'masters.uoms' => 'Master UOMs',
             'masters.suppliers' => 'Master Suppliers',
             'masters.customers' => 'Master Customers',
             'masters.users' => 'Master Users',
@@ -1470,6 +1490,7 @@ if ($page == 'guard-patrol' && isset($_POST['report_issue'])) {
                 $details .= "\nPhoto: [Uploaded]";
             }
             logActivity($conn, 'PATROL_ISSUE', 'Patrol', $details);
+            addNotification($conn, 'patrol', 'Patrol Issue Reported', "Issue at $loc_name: $description", "?page=tickets&ticket_id=" . $ticket_id);
             $_SESSION['success_msg'] = "✅ Issue reported successfully. Ticket created.";
         } else {
             $_SESSION['error_msg'] = "❌ Error reporting issue: " . mysqli_error($conn);
@@ -1515,6 +1536,7 @@ if ($page == 'register-entry' && isset($_POST['save_register'])) {
         }
 
         logActivity($conn, 'REGISTER_CREATE', 'Registers', $details);
+        addNotification($conn, 'register', 'Register Entry Logged', "New entry in $title register: " . (count($log_parts) > 0 ? $log_parts[0] : ''), "?page=view-registers");
         $_SESSION['success_msg'] = "✅ Register entry logged successfully!";
         header("Location: ?page=register-entry");
         exit;
@@ -1821,6 +1843,7 @@ if ($page == 'inward' && isset($_POST['submit_inward'])) {
             if ($bill_photo_url)
                 $details .= "\nBill Photo: [$bill_photo_url]";
             logActivity($conn, 'INWARD_ENTRY', 'Logistics', $details);
+            addNotification($conn, 'inward', 'New Inward Entry', "Vehicle $vehicle has entered the premises.", "?page=inward-details&id=$inward_id");
             $success_msg = "✅ Inward entry created successfully! Entry #: $entry_num";
 
             // Simple QR Logging - Simplified to prevent any 500 errors
@@ -1916,6 +1939,7 @@ if ($page == 'outward' && isset($_POST['submit_outward'])) {
             ]);
 
         logActivity($conn, 'OUTWARD_EXIT', 'Logistics', $log_details);
+        addNotification($conn, 'outward', 'Vehicle Exited', "Vehicle $v_num has exited the premises.", "?page=outward-details&id=$inward_id");
 
         // ---------------- OUT-GOING CHECK (Moved from loading) ----------------
         $outgoing_reporting_datetime = mysqli_real_escape_string($conn, $_POST['outgoing_reporting_datetime'] ?? '');
@@ -2421,6 +2445,7 @@ if ($page == 'employee-entry-action') {
                     if (!empty($remarks))
                         $details .= "\nRemarks: [$remarks]";
                     logActivity($conn, 'EMP_INWARD', 'Employee', $details);
+                    addNotification($conn, 'employee', 'Employee Inward', "Employee $employee_name ($employee_id) entered the premises.", "?page=dashboard");
                 } else {
                     $response['message'] = "❌ Error logging employee entry: " . mysqli_error($conn);
                     $_SESSION['error_msg'] = $response['message'];
@@ -2444,6 +2469,7 @@ if ($page == 'employee-entry-action') {
 
                 $details = "Employee Outward Action:\nAction: [OUTWARD]\nName: [$e_name]\nID: [$e_id]\nVehicle: [$v_num]";
                 logActivity($conn, 'EMP_OUTWARD', 'Employee', $details);
+                addNotification($conn, 'employee', 'Employee Exit', "Employee $e_name ($e_id) exited the premises.", "?page=dashboard");
             } else {
                 $response['message'] = "❌ Error logging employee exit: " . mysqli_error($conn);
                 $_SESSION['error_msg'] = $response['message'];
@@ -2627,6 +2653,52 @@ if ($page == 'check-duplicate-vehicle') {
     exit;
 }
 // AJAX: Check for duplicate employee ID
+// AJAX: Fetch Latest Notifications
+if ($page == 'fetch-notifications') {
+    if (!isLoggedIn()) {
+        header('HTTP/1.1 403 Forbidden');
+        exit;
+    }
+    
+    // Get unread count
+    $unread_res = mysqli_query($conn, "SELECT COUNT(*) as count FROM notifications WHERE is_read = 0");
+    $unread_count = mysqli_fetch_assoc($unread_res)['count'];
+    
+    // Get latest 20 notifications
+    $notif_res = mysqli_query($conn, "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 20");
+    $notifications = [];
+    while ($row = mysqli_fetch_assoc($notif_res)) {
+        $notifications[] = $row;
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode([
+        'unread_count' => (int)$unread_count,
+        'notifications' => $notifications
+    ]);
+    exit;
+}
+
+// AJAX: Mark Notification(s) as Read
+if ($page == 'mark-notification-read') {
+    if (!isLoggedIn()) {
+        header('HTTP/1.1 403 Forbidden');
+        exit;
+    }
+    
+    $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+    
+    if ($id > 0) {
+        mysqli_query($conn, "UPDATE notifications SET is_read = 1 WHERE id = $id");
+    } else {
+        mysqli_query($conn, "UPDATE notifications SET is_read = 1");
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 if ($page == 'check-duplicate-employee-id') {
     $emp_id = isset($_GET['emp_id']) ? strtoupper(trim(mysqli_real_escape_string($conn, $_GET['emp_id']))) : '';
     $id = intval($_GET['id'] ?? 0);
